@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import Logo from "../Logo.js";
 import Icon from "../Icon.js";
@@ -9,6 +9,14 @@ import { useNifty } from "../../context/NiftyContext.js";
 export default function TopBar() {
     const { runSearch, setView, view } = useNifty();
     const [query, setQuery] = useState("");
+
+    // Auto-search as the user types (debounced), no Enter needed.
+    useEffect(() => {
+        const q = query.trim();
+        if (!q) return;
+        const t = setTimeout(() => runSearch(q), 350);
+        return () => clearTimeout(t);
+    }, [query, runSearch]);
 
     const submit = (e) => {
         e.preventDefault();

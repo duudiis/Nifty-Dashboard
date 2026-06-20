@@ -74,7 +74,7 @@ function Song({ track, idle }) {
                 className={`h-12 w-12 shrink-0 rounded-md object-cover shadow-md transition ${idle ? "opacity-50 saturate-0" : ""}`}
                 alt=""
             />
-            <div className="flex min-w-0 flex-1 flex-col leading-tight">
+            <div className="flex min-w-0 flex-col leading-tight">
                 <span className={`truncate text-[13px] font-bold ${idle ? "text-subtext" : "text-maintext"}`}>
                     {track?.title || "Nothing playing"}
                 </span>
@@ -83,7 +83,7 @@ function Song({ track, idle }) {
                 </span>
             </div>
             {!idle && (
-                <AddedBy track={track} size={20} className="ml-1 max-w-[42%] shrink-0 text-[11px] text-subtext/80" />
+                <AddedBy track={track} size={20} className="min-w-0 max-w-[45%] text-[11px] text-subtext/80" />
             )}
         </div>
     );
@@ -148,22 +148,22 @@ export default function Player() {
             initial={{ y: 24, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: DUR.slow, ease: EASE }}
-            className="relative flex h-20 shrink-0 items-center gap-4 px-2"
+            className="relative flex h-20 shrink-0 items-center gap-4 px-4"
         >
-            <div className="w-[32%] min-w-0">
+            <div className="flex min-w-0 flex-1 items-center">
                 <Song track={songTrack} idle={idle} />
             </div>
 
-            <div className="flex flex-1 flex-col items-center gap-1.5">
+            <div className="flex w-[40%] max-w-xl flex-col items-center gap-1.5">
                 <Controls disabled={idle} />
                 {idle ? (
-                    <div className="h-1 w-full max-w-xl rounded-full bg-border/60" />
+                    <div className="h-1 w-full rounded-full bg-border/60" />
                 ) : (
                     <ProgressBar />
                 )}
             </div>
 
-            <div className="flex items-center justify-end gap-4">
+            <div className="flex flex-1 items-center justify-end gap-4">
                 <PanelToggles />
                 <Volume disabled={idle} />
             </div>

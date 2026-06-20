@@ -14,18 +14,32 @@ function useSmoothProgress(player) {
         setMs(player?.progress || 0);
     }, [player?.progress, player?.playing, player?.track?.songUrl]);
 
+    // 100ms is plenty for line-level highlighting and far cheaper than redrawing
+    // the whole list every animation frame. The per-word sweep is pure CSS.
     useEffect(() => {
-        let raf;
-        const tick = () => {
+        const id = setInterval(() => {
             const b = base.current;
             setMs(b.playing ? b.p + (performance.now() - b.t) : b.p);
-            raf = requestAnimationFrame(tick);
-        };
-        raf = requestAnimationFrame(tick);
-        return () => cancelAnimationFrame(raf);
+        }, 100);
+        return () => clearInterval(id);
     }, []);
 
     return ms;
+}
+
+function LyricsSkeleton() {
+    const widths = ["62%", "78%", "45%", "70%", "55%", "82%", "40%", "66%"];
+    return (
+        <div className="flex w-full max-w-xl flex-col items-center gap-7">
+            {widths.map((w, i) => (
+                <div
+                    key={i}
+                    className="h-8 animate-pulse rounded-lg bg-white/15"
+                    style={{ width: w, animationDelay: `${i * 0.12}s` }}
+                />
+            ))}
+        </div>
+    );
 }
 
 function Line({ line, state, onClick, nodeRef }) {
@@ -139,7 +153,7 @@ export default function LyricsView() {
     if (loading && !data) {
         return (
             <Frame>
-                <p className="animate-pulse text-lg font-bold text-white/70">Finding lyrics…</p>
+                <LyricsSkeleton />
             </Frame>
         );
     }
@@ -159,7 +173,7 @@ export default function LyricsView() {
                 {Background}
                 <div
                     ref={scroller}
-                    className="relative flex-1 space-y-6 overflow-y-auto px-8 py-[42vh] sm:px-14"
+                    className="relative flex-1 space-y-9 overflow-y-auto px-8 py-[42vh] sm:px-14"
                 >
                     {synced.map((line, i) => (
                         <Line

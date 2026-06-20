@@ -1,5 +1,5 @@
 import { useNifty } from "../context/NiftyContext.js";
-import { msToClock, artworkOrFallback } from "../lib/format.js";
+import { artworkOrFallback } from "../lib/format.js";
 import AddedBy from "./AddedBy.js";
 import SongInfo from "./SongInfo.js";
 import { useContextMenu } from "./menu/ContextMenu.js";
@@ -38,16 +38,20 @@ export default function NowPlayingPanel() {
 
     return (
         <div onContextMenu={onContextMenu} className="relative">
-            {/* gradient backdrop drawn from the cover art's own colours */}
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-80 overflow-hidden">
-                <img src={art} className="h-full w-full scale-[1.6] object-cover opacity-50 blur-2xl saturate-150" alt="" />
+            {/* large gradient backdrop drawn from the cover art's own colours,
+                tall enough to sit behind the header and the cover */}
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-[560px] overflow-hidden">
+                <img src={art} className="h-full w-full scale-[1.7] object-cover opacity-55 blur-3xl saturate-150" alt="" />
                 <div
                     className="absolute inset-0"
-                    style={{ background: "linear-gradient(180deg, rgb(var(--c-surface) / 0.2) 0%, rgb(var(--c-surface) / 0.7) 55%, rgb(var(--c-surface)) 100%)" }}
+                    style={{ background: "linear-gradient(180deg, rgb(var(--c-surface) / 0.1) 0%, rgb(var(--c-surface) / 0.45) 62%, rgb(var(--c-surface)) 100%)" }}
                 />
             </div>
 
-            <div className="relative flex flex-col gap-4 p-4">
+            {/* header lives inside the coloured area */}
+            <div className="relative px-4 py-3 text-sm font-bold text-maintext">Now playing</div>
+
+            <div className="relative flex flex-col gap-4 p-4 pt-1">
                 <img
                     src={art}
                     onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
@@ -68,21 +72,6 @@ export default function NowPlayingPanel() {
                 </div>
 
                 <AddedBy track={addedTrack} size={22} className="text-xs text-subtext" />
-
-                <div className="flex items-center justify-between text-[11px] text-subtext">
-                    <span>{msToClock(player.progress)}</span>
-                    <span>{msToClock(track.duration)}</span>
-                </div>
-
-                <div className="flex flex-wrap gap-2 text-[11px]">
-                    {player.loop && player.loop !== "disabled" && (
-                        <span className="rounded-full bg-elevated px-2 py-1 text-subtext">Loop: {player.loop}</span>
-                    )}
-                    {player.shuffle && (
-                        <span className="rounded-full bg-elevated px-2 py-1 text-subtext">Shuffle on</span>
-                    )}
-                    <span className="rounded-full bg-elevated px-2 py-1 text-subtext">Volume {player.volume}%</span>
-                </div>
 
                 <SongInfo track={track} />
             </div>

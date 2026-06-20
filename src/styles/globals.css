@@ -99,7 +99,7 @@
         100% { opacity: 1; transform: scale(1); }
     }
     .pop-in {
-        animation: pop-in 0.12s ease-smooth forwards;
+        animation: pop-in 0.12s cubic-bezier(0.4, 0, 0.2, 1) forwards;
     }
 
     /* Lyrics: slow-drifting cover-art "lights" behind the words. Each blob
@@ -126,17 +126,21 @@
     /* Karaoke-style word sweep: each word of the active line lights up in turn,
        then settles to a soft glow. animation-delay is set per word inline. */
     @keyframes word-glow {
-        0%   { opacity: 0.35; text-shadow: 0 0 0 transparent; transform: translateY(0.06em); }
-        40%  { opacity: 1; text-shadow: 0 0 18px rgb(var(--c-accent) / 0.55), 0 0 6px rgb(255 255 255 / 0.45); }
-        100% { opacity: 1; text-shadow: 0 0 10px rgb(var(--c-accent) / 0.25); transform: translateY(0); }
+        0%   { opacity: 0.3; text-shadow: 0 0 0 transparent; transform: translateY(0.08em); }
+        45%  { opacity: 1; text-shadow: 0 0 20px rgb(var(--c-accent) / 0.6), 0 0 7px rgb(255 255 255 / 0.5); }
+        100% { opacity: 1; text-shadow: 0 0 12px rgb(var(--c-accent) / 0.3); transform: translateY(0); }
     }
     .lyric-word {
         display: inline-block;
-        opacity: 0.35;
+        opacity: 0.3;
         white-space: pre;
     }
+    /* Resting state of the active line stays bright even after the sweep ends
+       (and is robust if the animation can't run). The sweep animates in once. */
     .lyric-line-active .lyric-word {
-        animation: word-glow 0.6s ease-smooth forwards;
+        opacity: 1;
+        text-shadow: 0 0 12px rgb(var(--c-accent) / 0.3);
+        animation: word-glow 0.55s cubic-bezier(0.4, 0, 0.2, 1) both;
     }
 
     /* Range sliders (progress + volume) */

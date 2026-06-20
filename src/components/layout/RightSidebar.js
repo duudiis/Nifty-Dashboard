@@ -7,13 +7,14 @@ import NowPlayingPanel from "../NowPlayingPanel.js";
 export default function RightSidebar() {
     const { settings } = useNifty();
     const panel = settings.rightPanel;
-    const title = panel === "nowplaying" ? "Now playing" : "Queue";
 
     return (
         <aside className="hidden w-[340px] shrink-0 flex-col overflow-hidden rounded-lg bg-surface lg:flex">
-            <div className="flex items-center gap-2 border-b border-border/60 px-4 py-3 text-sm font-bold text-maintext">
-                {title}
-            </div>
+            {panel === "queue" && (
+                <div className="flex items-center gap-2 border-b border-border/60 px-4 py-3 text-sm font-bold text-maintext">
+                    Queue
+                </div>
+            )}
 
             <div className="flex min-h-0 flex-1 flex-col overflow-auto">
                 <AnimatePresence mode="wait" initial={false}>
