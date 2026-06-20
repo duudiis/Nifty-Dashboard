@@ -1,4 +1,5 @@
 import { useNifty } from "../../context/NiftyContext.js";
+import { AnimatePresence, motion, EASE, DUR } from "../motion/index.js";
 
 import QueueList from "../queue/QueueList.js";
 import NowPlayingPanel from "../NowPlayingPanel.js";
@@ -24,13 +25,23 @@ export default function RightSidebar() {
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-                {panel === "queue" ? (
-                    <div className="p-2">
-                        <QueueList dense />
-                    </div>
-                ) : (
-                    <NowPlayingPanel />
-                )}
+                <AnimatePresence mode="wait" initial={false}>
+                    <motion.div
+                        key={panel}
+                        initial={{ opacity: 0, x: panel === "queue" ? -12 : 12 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: panel === "queue" ? 12 : -12 }}
+                        transition={{ duration: DUR.fast, ease: EASE }}
+                    >
+                        {panel === "queue" ? (
+                            <div className="p-2">
+                                <QueueList dense />
+                            </div>
+                        ) : (
+                            <NowPlayingPanel />
+                        )}
+                    </motion.div>
+                </AnimatePresence>
             </div>
         </aside>
     );

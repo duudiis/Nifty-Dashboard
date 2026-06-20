@@ -22,6 +22,23 @@ export function totalDuration(tracks) {
     return msToClock(total);
 }
 
+// Normalises a track's "added by" info across the shapes the bot might send:
+// a bare username string, or an object ({ name|username, avatar|avatar_url }),
+// with the avatar also accepted as a sibling field on the track.
+export function addedByOf(track) {
+    if (!track) return { name: "", avatar: null };
+    const a = track.added_by;
+    const obj = a && typeof a === "object" ? a : null;
+    const name = obj ? obj.name || obj.username || "" : a || "";
+    const avatar =
+        track.added_by_avatar ||
+        track.addedByAvatar ||
+        (obj ? obj.avatar || obj.avatar_url : null) ||
+        track.requester?.avatar_url ||
+        null;
+    return { name: name || "", avatar: avatar || null };
+}
+
 export const FALLBACK_ARTWORK = "/images/fallback.svg";
 
 // Use on <img onError> and for null artwork so we always show something.

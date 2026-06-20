@@ -163,9 +163,18 @@ export function NiftyProvider({ user, children }) {
             send("sessions_request");
             const sel = selectedRef.current;
             if (sel?.guildId) send("subscribe", { guildId: sel.guildId });
-        }, 12000);
+        }, 5000);
         return () => clearInterval(id);
     }, [connected, send]);
+
+    /* ---- when the playing track changes, pull a fresh queue right away so the
+       "now playing" highlight tracks playback without waiting for the poll ---- */
+
+    useEffect(() => {
+        if (!connected) return;
+        const sel = selectedRef.current;
+        if (sel?.guildId) send("subscribe", { guildId: sel.guildId });
+    }, [connected, player?.track?.songUrl, send]);
 
     /* ---- local progress ticker (smooth progress bar between pushes) ---- */
 

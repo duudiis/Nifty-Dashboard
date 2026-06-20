@@ -32,7 +32,7 @@ function Home() {
     const { selected, player, setView } = useNifty();
     const trackMenu = useTrackMenu();
     const track = player?.track || null;
-    const onContextMenu = useContextMenu(() => (track ? trackMenu(track, { source: "player" }) : []));
+    const { onContextMenu, active } = useContextMenu(() => (track ? trackMenu(track, { source: "player" }) : []));
 
     return (
         <div className="flex flex-col gap-6 p-6">
@@ -45,7 +45,7 @@ function Home() {
                     Select a server from the top bar or your library to start controlling playback.
                 </p>
             ) : track ? (
-                <div onContextMenu={onContextMenu} className="flex items-center gap-5 rounded-xl bg-elevated/60 p-5">
+                <div onContextMenu={onContextMenu} className={`flex items-center gap-5 rounded-xl p-5 transition ${active ? "bg-elevated" : "bg-elevated/60"}`}>
                     <img
                         src={artworkOrFallback(track.artwork)}
                         onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}

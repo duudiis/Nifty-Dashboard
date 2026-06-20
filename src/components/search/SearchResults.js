@@ -8,13 +8,13 @@ import { useTrackMenu } from "../menu/trackMenu.js";
 function Result({ result }) {
     const { play, selected } = useNifty();
     const trackMenu = useTrackMenu();
-    const onContextMenu = useContextMenu(() => trackMenu(result, { source: "search" }));
+    const { onContextMenu, active } = useContextMenu(() => trackMenu(result, { source: "search" }));
 
     return (
         <div
             onDoubleClick={() => selected && play(result.url)}
             onContextMenu={onContextMenu}
-            className="group flex items-center gap-3 rounded-md p-2 transition hover:bg-elevated"
+            className={`group flex items-center gap-3 rounded-md p-2 transition hover:bg-elevated ${active ? "bg-elevated" : ""}`}
         >
             <div className="relative h-11 w-11 shrink-0">
                 <img

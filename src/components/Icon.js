@@ -161,6 +161,14 @@ const ICONS = {
         )
     },
     "chevron-down": { body: <path d="m6 9.5 6 6 6-6" /> },
+    user: {
+        body: (
+            <>
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4.5 20.5a7.5 7.5 0 0 1 15 0" />
+            </>
+        )
+    },
     x: {
         body: (
             <>

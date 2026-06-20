@@ -1,31 +1,38 @@
 import { useNifty } from "../../context/NiftyContext.js";
 import { msToClock, artworkOrFallback } from "../../lib/format.js";
 import Icon from "../Icon.js";
+import AddedBy from "../AddedBy.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
 
 export default function QueueItem({ track, index, isCurrent, dense }) {
-    const { control } = useNifty();
+    const { control, player } = useNifty();
     const trackMenu = useTrackMenu();
-    const onContextMenu = useContextMenu(() => trackMenu(track, { source: "queue" }));
+    const { onContextMenu, active } = useContextMenu(() => trackMenu(track, { source: "queue" }));
+
+    const playing = isCurrent && player?.playing;
+
+    // The current track toggles pause/resume in place; others jump to play.
+    const activate = () =>
+        isCurrent ? control("togglePause") : control("jump", { trackId: track.track_id });
 
     return (
         <div
-            onDoubleClick={() => control("jump", { trackId: track.track_id })}
+            onDoubleClick={activate}
             onContextMenu={onContextMenu}
-            className="group flex w-full items-center gap-3 rounded-md px-2 py-1.5 transition hover:bg-elevated"
+            className={`group flex w-full items-center gap-3 rounded-md px-2 py-1.5 transition hover:bg-elevated ${active ? "bg-elevated" : ""}`}
         >
-            {/* index / play */}
+            {/* index / play-pause */}
             <div className="flex w-6 shrink-0 items-center justify-center">
                 <span className={`text-xs ${isCurrent ? "text-accent" : "text-subtext"} group-hover:hidden`}>
                     {isCurrent ? "♪" : index + 1}
                 </span>
                 <button
-                    onClick={() => control("jump", { trackId: track.track_id })}
+                    onClick={activate}
                     className="hidden text-maintext group-hover:block"
-                    title="Play"
+                    title={playing ? "Pause" : isCurrent ? "Resume" : "Play"}
                 >
-                    <Icon name="play" className="h-4 w-4" />
+                    <Icon name={playing ? "pause" : "play"} className="h-4 w-4" />
                 </button>
             </div>
 
@@ -43,11 +50,9 @@ export default function QueueItem({ track, index, isCurrent, dense }) {
                 <span className="truncate text-[11px] text-subtext">{track.artist}</span>
             </div>
 
-            {/* added by */}
+            {/* added by (avatar + name) */}
             {!dense && (
-                <span className="hidden w-28 shrink-0 truncate text-[11px] text-subtext lg:block">
-                    {track.added_by}
-                </span>
+                <AddedBy track={track} size={18} className="hidden w-28 shrink-0 text-[11px] text-subtext lg:flex" />
             )}
 
             {/* duration */}
