@@ -74,20 +74,62 @@ function Song({ track, idle }) {
                 className={`h-12 w-12 shrink-0 rounded-md object-cover shadow-md transition ${idle ? "opacity-50 saturate-0" : ""}`}
                 alt=""
             />
-            <div className="flex min-w-0 flex-col leading-tight">
+            <div className="flex min-w-0 flex-1 flex-col leading-tight">
                 <span className={`truncate text-[13px] font-bold ${idle ? "text-subtext" : "text-maintext"}`}>
                     {track?.title || "Nothing playing"}
                 </span>
                 <span className="truncate text-[11px] text-subtext">
                     {track?.artist || (idle ? "Pick a track to get started" : "—")}
                 </span>
-                {!idle && <AddedBy track={track} size={14} className="mt-0.5 max-w-full text-[10px] text-subtext/80" />}
             </div>
+            {!idle && (
+                <AddedBy track={track} size={20} className="ml-1 max-w-[42%] shrink-0 text-[11px] text-subtext/80" />
+            )}
         </div>
     );
 }
 
-/* ---- player bar (always present, as a rounded surface box) ---- */
+/* ---- panel toggles (mirror Spotify's bottom-right controls) ---- */
+
+function PanelToggles() {
+    const { view, setView, settings, updateSettings } = useNifty();
+    const rightPanel = settings.rightPanel;
+
+    const Toggle = ({ icon, on, onClick, title }) => (
+        <button
+            onClick={onClick}
+            title={title}
+            className={`flex items-center justify-center transition ${on ? "text-accent" : "text-subtext hover:text-maintext"}`}
+        >
+            <Icon name={icon} className="h-[18px] w-[18px]" />
+        </button>
+    );
+
+    return (
+        <div className="flex items-center gap-3">
+            <Toggle
+                icon="lyrics"
+                title="Lyrics"
+                on={view === "lyrics"}
+                onClick={() => setView(view === "lyrics" ? "home" : "lyrics")}
+            />
+            <Toggle
+                icon="queue"
+                title="Queue"
+                on={rightPanel === "queue"}
+                onClick={() => updateSettings({ rightPanel: "queue" })}
+            />
+            <Toggle
+                icon="now-playing"
+                title="Now playing"
+                on={rightPanel === "nowplaying"}
+                onClick={() => updateSettings({ rightPanel: "nowplaying" })}
+            />
+        </div>
+    );
+}
+
+/* ---- player bar (always present; transparent so it blends with the frame) ---- */
 
 export default function Player() {
     const { player, queue, selected } = useNifty();
@@ -106,9 +148,9 @@ export default function Player() {
             initial={{ y: 24, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: DUR.slow, ease: EASE }}
-            className="relative flex h-20 shrink-0 items-center gap-4 overflow-hidden rounded-lg bg-surface px-4"
+            className="relative flex h-20 shrink-0 items-center gap-4 px-2"
         >
-            <div className="w-[30%] min-w-0">
+            <div className="w-[32%] min-w-0">
                 <Song track={songTrack} idle={idle} />
             </div>
 
@@ -121,12 +163,13 @@ export default function Player() {
                 )}
             </div>
 
-            <div className="flex w-[30%] items-center justify-end gap-4">
+            <div className="flex items-center justify-end gap-4">
+                <PanelToggles />
                 <Volume disabled={idle} />
             </div>
 
             {idle && !selected && (
-                <span className="pointer-events-none absolute inset-x-0 bottom-1 text-center text-[10px] uppercase tracking-[0.2em] text-subtext/50">
+                <span className="pointer-events-none absolute inset-x-0 bottom-0 text-center text-[10px] uppercase tracking-[0.2em] text-subtext/50">
                     Select a server
                 </span>
             )}

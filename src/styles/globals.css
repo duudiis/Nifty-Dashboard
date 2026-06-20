@@ -102,6 +102,43 @@
         animation: pop-in 0.12s ease-smooth forwards;
     }
 
+    /* Lyrics: slow-drifting cover-art "lights" behind the words. Each blob
+       moves on its own long loop so the background feels alive but calm. */
+    @keyframes drift-a {
+        0%   { transform: translate(-8%, -6%) scale(1.5); }
+        50%  { transform: translate(10%, 8%) scale(1.8); }
+        100% { transform: translate(-8%, -6%) scale(1.5); }
+    }
+    @keyframes drift-b {
+        0%   { transform: translate(12%, 10%) scale(1.7); }
+        50%  { transform: translate(-10%, -8%) scale(1.4); }
+        100% { transform: translate(12%, 10%) scale(1.7); }
+    }
+    @keyframes drift-c {
+        0%   { transform: translate(6%, -12%) scale(1.6); }
+        50%  { transform: translate(-12%, 12%) scale(1.9); }
+        100% { transform: translate(6%, -12%) scale(1.6); }
+    }
+    .lyric-blob-a { animation: drift-a 26s ease-in-out infinite; }
+    .lyric-blob-b { animation: drift-b 34s ease-in-out infinite; }
+    .lyric-blob-c { animation: drift-c 30s ease-in-out infinite; }
+
+    /* Karaoke-style word sweep: each word of the active line lights up in turn,
+       then settles to a soft glow. animation-delay is set per word inline. */
+    @keyframes word-glow {
+        0%   { opacity: 0.35; text-shadow: 0 0 0 transparent; transform: translateY(0.06em); }
+        40%  { opacity: 1; text-shadow: 0 0 18px rgb(var(--c-accent) / 0.55), 0 0 6px rgb(255 255 255 / 0.45); }
+        100% { opacity: 1; text-shadow: 0 0 10px rgb(var(--c-accent) / 0.25); transform: translateY(0); }
+    }
+    .lyric-word {
+        display: inline-block;
+        opacity: 0.35;
+        white-space: pre;
+    }
+    .lyric-line-active .lyric-word {
+        animation: word-glow 0.6s ease-smooth forwards;
+    }
+
     /* Range sliders (progress + volume) */
     .player-slider {
         -webkit-appearance: none;

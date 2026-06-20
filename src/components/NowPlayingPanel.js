@@ -1,6 +1,7 @@
 import { useNifty } from "../context/NiftyContext.js";
 import { msToClock, artworkOrFallback } from "../lib/format.js";
 import AddedBy from "./AddedBy.js";
+import SongInfo from "./SongInfo.js";
 import { useContextMenu } from "./menu/ContextMenu.js";
 import { useTrackMenu } from "./menu/trackMenu.js";
 
@@ -82,6 +83,8 @@ export default function NowPlayingPanel() {
                     )}
                     <span className="rounded-full bg-elevated px-2 py-1 text-subtext">Volume {player.volume}%</span>
                 </div>
+
+                <SongInfo track={track} />
             </div>
         </div>
     );

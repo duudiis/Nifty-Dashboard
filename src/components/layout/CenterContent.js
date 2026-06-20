@@ -6,6 +6,7 @@ import { useTrackMenu } from "../menu/trackMenu.js";
 
 import SearchResults from "../search/SearchResults.js";
 import QueueList from "../queue/QueueList.js";
+import LyricsView from "../lyrics/LyricsView.js";
 
 function QueueHeader() {
     const { queue, selected } = useNifty();
@@ -73,11 +74,14 @@ function Home() {
 
 export default function CenterContent() {
     const { view } = useNifty();
+    const isLyrics = view === "lyrics";
 
     return (
-        <main className="min-h-0 flex-1 overflow-auto rounded-lg bg-surface pb-4">
-            <PageTransition viewKey={view}>
-                {view === "queue" ? (
+        <main className={`min-h-0 flex-1 rounded-lg bg-surface ${isLyrics ? "overflow-hidden" : "overflow-auto pb-4"}`}>
+            <PageTransition viewKey={view} className={isLyrics ? "h-full" : undefined}>
+                {isLyrics ? (
+                    <LyricsView />
+                ) : view === "queue" ? (
                     <>
                         <QueueHeader />
                         <div className="px-4">

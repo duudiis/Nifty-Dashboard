@@ -169,6 +169,35 @@ const ICONS = {
             </>
         )
     },
+    lyrics: {
+        body: (
+            <>
+                <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
+                <path d="M7 10h6" />
+                <path d="M7 14h4" />
+                <path d="M16 9.5v5" />
+                <circle cx="14.5" cy="14.5" r="1.4" />
+            </>
+        )
+    },
+    "now-playing": {
+        body: (
+            <>
+                <path d="M9 17V6l9-1.6V15" />
+                <circle cx="6.5" cy="17" r="2.5" />
+                <circle cx="15.5" cy="15" r="2.5" />
+            </>
+        )
+    },
+    info: {
+        body: (
+            <>
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 16v-4" />
+                <path d="M12 8h.01" />
+            </>
+        )
+    },
     x: {
         body: (
             <>
