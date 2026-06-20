@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------ */
+/*  Themes                                                            */
+/*  Each variable is an "R G B" triplet so Tailwind /opacity works.   */
+/*  Switch themes by setting data-theme on <html>.                    */
+/* ------------------------------------------------------------------ */
+
+:root,
+[data-theme="nifty"] {
+    --c-base: 9 9 11;
+    --c-surface: 18 18 20;
+    --c-elevated: 32 32 36;
+    --c-topbar: 0 0 0;
+    --c-border: 39 39 42;
+    --c-accent: 121 165 250;
+    --c-accent-soft: 121 165 250;
+    --c-text: 245 245 245;
+    --c-subtext: 161 161 170;
+}
+
+[data-theme="spotify"] {
+    --c-base: 0 0 0;
+    --c-surface: 18 18 18;
+    --c-elevated: 35 35 35;
+    --c-topbar: 0 0 0;
+    --c-border: 40 40 40;
+    --c-accent: 29 185 84;
+    --c-accent-soft: 29 185 84;
+    --c-text: 255 255 255;
+    --c-subtext: 179 179 179;
+}
+
+[data-theme="amethyst"] {
+    --c-base: 14 10 20;
+    --c-surface: 24 18 33;
+    --c-elevated: 40 30 54;
+    --c-topbar: 8 5 12;
+    --c-border: 49 39 64;
+    --c-accent: 168 85 247;
+    --c-accent-soft: 168 85 247;
+    --c-text: 245 243 255;
+    --c-subtext: 176 165 196;
+}
+
+[data-theme="crimson"] {
+    --c-base: 16 8 9;
+    --c-surface: 26 16 17;
+    --c-elevated: 44 26 28;
+    --c-topbar: 8 4 4;
+    --c-border: 58 34 36;
+    --c-accent: 244 63 94;
+    --c-accent-soft: 244 63 94;
+    --c-text: 253 242 243;
+    --c-subtext: 197 165 168;
+}
+
+[data-theme="light"] {
+    --c-base: 247 247 248;
+    --c-surface: 255 255 255;
+    --c-elevated: 238 238 240;
+    --c-topbar: 17 17 19;
+    --c-border: 224 224 228;
+    --c-accent: 37 99 235;
+    --c-accent-soft: 37 99 235;
+    --c-text: 24 24 27;
+    --c-subtext: 90 90 99;
+}
+
+@layer base {
+    html {
+        -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+    }
+
+    body {
+        background-color: rgb(var(--c-base));
+        color: rgb(var(--c-text));
+        font-family: "Unbounded", Verdana, sans-serif;
+    }
+
+    /* Hide scrollbars but keep scrolling */
+    * {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+    *::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+@layer components {
+    @keyframes fade-in {
+        0% { opacity: 0; transform: translateY(-12px); }
+        100% { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in {
+        animation: fade-in 0.5s ease-smooth forwards;
+    }
+
+    @keyframes player-slide-in {
+        0% { transform: translateY(100%); }
+        100% { transform: translateY(0); }
+    }
+    .player-slide-in {
+        animation: player-slide-in 0.6s ease-smooth forwards;
+    }
+
+    @keyframes pop-in {
+        0% { opacity: 0; transform: scale(0.96); }
+        100% { opacity: 1; transform: scale(1); }
+    }
+    .pop-in {
+        animation: pop-in 0.12s ease-smooth forwards;
+    }
+
+    /* Range sliders (progress + volume) */
+    .player-slider {
+        -webkit-appearance: none;
+        appearance: none;
+        background: transparent;
+        cursor: pointer;
+    }
+    .player-slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        border-radius: 9999px;
+        width: 12px;
+        height: 12px;
+        background-color: rgb(var(--c-text));
+        opacity: 0;
+        transition: opacity 0.15s ease;
+    }
+    .player-slider:hover::-webkit-slider-thumb {
+        opacity: 1;
+    }
+    .player-slider::-moz-range-thumb {
+        border: none;
+        border-radius: 9999px;
+        width: 12px;
+        height: 12px;
+        background-color: rgb(var(--c-text));
+        opacity: 0;
+    }
+    .player-slider:hover::-moz-range-thumb {
+        opacity: 1;
+    }
+}
+
+@font-face {
+    font-family: "Unbounded";
+    src: url("../assets/fonts/Unbounded-Regular.ttf") format("truetype");
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
