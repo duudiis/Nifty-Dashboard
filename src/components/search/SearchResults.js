@@ -1,8 +1,55 @@
 import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
+import Icon from "../Icon.js";
+import { Stagger, StaggerItem } from "../motion/index.js";
+import { useContextMenu } from "../menu/ContextMenu.js";
+import { useTrackMenu } from "../menu/trackMenu.js";
+
+function Result({ result }) {
+    const { play, selected } = useNifty();
+    const trackMenu = useTrackMenu();
+    const onContextMenu = useContextMenu(() => trackMenu(result, { source: "search" }));
+
+    return (
+        <div
+            onDoubleClick={() => selected && play(result.url)}
+            onContextMenu={onContextMenu}
+            className="group flex items-center gap-3 rounded-md p-2 transition hover:bg-elevated"
+        >
+            <div className="relative h-11 w-11 shrink-0">
+                <img
+                    src={artworkOrFallback(result.artwork)}
+                    onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
+                    className="h-11 w-11 rounded object-cover"
+                    alt=""
+                />
+                <button
+                    disabled={!selected}
+                    onClick={() => play(result.url)}
+                    className="absolute inset-0 flex items-center justify-center rounded bg-black/50 text-white opacity-0 transition group-hover:opacity-100 disabled:cursor-not-allowed"
+                    title={selected ? "Add to queue" : "Select a server first"}
+                >
+                    <Icon name="play" className="h-5 w-5" />
+                </button>
+            </div>
+
+            <div className="flex min-w-0 flex-1 flex-col leading-tight">
+                <span className="truncate text-[13px] text-maintext">{result.title}</span>
+                <span className="truncate text-[11px] text-subtext">{result.artist}</span>
+            </div>
+
+            <span className="shrink-0 rounded-full bg-elevated px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-subtext">
+                {result.type}
+            </span>
+            {result.duration && (
+                <span className="w-12 shrink-0 text-right text-[11px] text-subtext">{result.duration}</span>
+            )}
+        </div>
+    );
+}
 
 export default function SearchResults() {
-    const { search, play, selected } = useNifty();
+    const { search, selected } = useNifty();
     const { query, results, loading } = search;
 
     return (
@@ -32,44 +79,13 @@ export default function SearchResults() {
             ) : results.length === 0 ? (
                 <p className="text-sm text-subtext">{query ? "No results found." : "Type something above to search."}</p>
             ) : (
-                <div className="flex flex-col gap-1">
+                <Stagger className="flex flex-col gap-1">
                     {results.map((result, i) => (
-                        <div
-                            key={`${result.url}-${i}`}
-                            onDoubleClick={() => selected && play(result.url)}
-                            className="group flex items-center gap-3 rounded-md p-2 transition hover:bg-elevated"
-                        >
-                            <div className="relative h-11 w-11 shrink-0">
-                                <img
-                                    src={artworkOrFallback(result.artwork)}
-                                    onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
-                                    className="h-11 w-11 rounded object-cover"
-                                    alt=""
-                                />
-                                <button
-                                    disabled={!selected}
-                                    onClick={() => play(result.url)}
-                                    className="absolute inset-0 flex items-center justify-center rounded bg-black/50 opacity-0 transition group-hover:opacity-100 disabled:cursor-not-allowed"
-                                    title={selected ? "Add to queue" : "Select a server first"}
-                                >
-                                    <svg viewBox="0 0 24 24" className="h-5 w-5 fill-white">
-                                        <path d="M8 5v14l11-7L8 5Z" />
-                                    </svg>
-                                </button>
-                            </div>
-
-                            <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                                <span className="truncate text-[13px] text-maintext">{result.title}</span>
-                                <span className="truncate text-[11px] text-subtext">{result.artist}</span>
-                            </div>
-
-                            <span className="shrink-0 rounded-full bg-elevated px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-subtext">
-                                {result.type}
-                            </span>
-                            <span className="w-12 shrink-0 text-right text-[11px] text-subtext">{result.duration}</span>
-                        </div>
+                        <StaggerItem key={`${result.url}-${i}`}>
+                            <Result result={result} />
+                        </StaggerItem>
                     ))}
-                </div>
+                </Stagger>
             )}
         </div>
     );

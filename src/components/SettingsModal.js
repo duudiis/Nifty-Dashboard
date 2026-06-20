@@ -1,4 +1,5 @@
 import { useNifty, THEMES } from "../context/NiftyContext.js";
+import Icon from "./Icon.js";
 
 const THEME_SWATCHES = {
     nifty: ["#09090b", "#79a5fa"],
@@ -7,17 +8,6 @@ const THEME_SWATCHES = {
     crimson: ["#100809", "#f43f5e"],
     light: ["#f7f7f8", "#2563eb"]
 };
-
-function Toggle({ checked, onChange }) {
-    return (
-        <button
-            onClick={() => onChange(!checked)}
-            className={`relative h-6 w-11 rounded-full transition ${checked ? "bg-accent" : "bg-border"}`}
-        >
-            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${checked ? "left-[22px]" : "left-0.5"}`} />
-        </button>
-    );
-}
 
 function Row({ title, desc, children }) {
     return (
@@ -47,9 +37,7 @@ export default function SettingsModal() {
                 <div className="mb-4 flex items-center justify-between">
                     <h2 className="text-lg font-bold text-maintext">Settings</h2>
                     <button onClick={() => setSettingsOpen(false)} className="text-subtext hover:text-maintext">
-                        <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
-                            <path d="m12 10.6 5.3-5.3 1.4 1.4-5.3 5.3 5.3 5.3-1.4 1.4-5.3-5.3-5.3 5.3-1.4-1.4 5.3-5.3-5.3-5.3 1.4-1.4 5.3 5.3Z" />
-                        </svg>
+                        <Icon name="x" className="h-5 w-5" />
                     </button>
                 </div>
 
@@ -79,10 +67,6 @@ export default function SettingsModal() {
                 </div>
 
                 <div className="border-t border-border/60" />
-
-                <Row title="Compact player" desc="Slim bottom bar with a thin progress line.">
-                    <Toggle checked={settings.compact} onChange={(v) => updateSettings({ compact: v })} />
-                </Row>
 
                 <Row title="Right panel" desc="What the right column shows by default.">
                     <div className="flex gap-1 rounded-full bg-surface p-1">

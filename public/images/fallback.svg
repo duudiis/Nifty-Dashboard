@@ -6,7 +6,12 @@
         </linearGradient>
     </defs>
     <rect width="300" height="300" rx="6" fill="url(#g)"/>
-    <g fill="#6b6b76">
-        <path d="M188 78v92.5a34 34 0 1 1-16-28.8V104l-64 14v74.5a34 34 0 1 1-16-28.8V96a8 8 0 0 1 6.4-7.8l80-17.6A8 8 0 0 1 188 78z"/>
+    <!-- Lucide "music" glyph (24x24), scaled x8 and translated so its centre
+         (12,12) lands at the canvas centre (150,150). -->
+    <g transform="translate(54,54) scale(8)" fill="#6b6b76" stroke="#6b6b76"
+       stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 18V6l11-2v12" fill="none"/>
+        <circle cx="6" cy="18" r="3"/>
+        <circle cx="17" cy="16" r="3"/>
     </g>
 </svg>

@@ -6,7 +6,6 @@ export const THEMES = ["nifty", "spotify", "amethyst", "crimson", "light"];
 
 const DEFAULT_SETTINGS = {
     theme: "nifty",
-    compact: false,         // compact player bar
     rightPanel: "queue"     // "queue" | "nowplaying"
 };
 
@@ -201,11 +200,25 @@ export function NiftyProvider({ user, children }) {
         send("action", { guildId: sel.guildId, action, ...extra });
     }, [send]);
 
-    const play = useCallback((query) => {
+    // Queue a track by query/URL. `mode` lets callers ask the bot to place it:
+    //   "queue" (default, append) · "now" (play immediately) · "next" (play next)
+    const play = useCallback((query, mode = "queue") => {
         const sel = selectedRef.current;
         if (!sel?.guildId || !query) return;
-        send("action", { guildId: sel.guildId, action: "play", query });
+        send("action", {
+            guildId: sel.guildId,
+            action: "play",
+            query,
+            now: mode === "now",
+            next: mode === "next"
+        });
     }, [send]);
+
+    // Existing-track operations (queue items are addressed by track_id).
+    const jump = useCallback((trackId) => control("jump", { trackId }), [control]);
+    const playNextTrack = useCallback((trackId) => control("playNext", { trackId }), [control]);
+    const moveToTop = useCallback((trackId) => control("moveToTop", { trackId }), [control]);
+    const removeTrack = useCallback((trackId) => control("remove", { trackId }), [control]);
 
     const runSearch = useCallback(async (query) => {
         if (!query?.trim()) return;
@@ -239,6 +252,10 @@ export function NiftyProvider({ user, children }) {
         selectSession,
         control,
         play,
+        jump,
+        playNextTrack,
+        moveToTop,
+        removeTrack,
         logout
     };
 

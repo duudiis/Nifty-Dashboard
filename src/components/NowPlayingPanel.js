@@ -1,8 +1,12 @@
 import { useNifty } from "../context/NiftyContext.js";
 import { msToClock, artworkOrFallback } from "../lib/format.js";
+import { useContextMenu } from "./menu/ContextMenu.js";
+import { useTrackMenu } from "./menu/trackMenu.js";
 
 export default function NowPlayingPanel() {
     const { player, selected } = useNifty();
+    const trackMenu = useTrackMenu();
+    const onContextMenu = useContextMenu(() => (player?.track ? trackMenu(player.track, { source: "player" }) : []));
 
     if (!selected) {
         return (
@@ -25,7 +29,7 @@ export default function NowPlayingPanel() {
     const { track } = player;
 
     return (
-        <div className="flex flex-col gap-4 p-4">
+        <div onContextMenu={onContextMenu} className="flex flex-col gap-4 p-4">
             <img
                 src={artworkOrFallback(track.artwork)}
                 onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}

@@ -1,5 +1,6 @@
 import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
+import Icon from "../Icon.js";
 
 function NavButton({ active, onClick, icon, label }) {
     return (
@@ -26,40 +27,26 @@ export default function LeftSidebar() {
                     active={view === "home"}
                     onClick={() => setView("home")}
                     label="Home"
-                    icon={
-                        <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current">
-                            <path d="M12 3 3 10v11h6v-6h6v6h6V10L12 3Z" />
-                        </svg>
-                    }
+                    icon={<Icon name="home" className="h-6 w-6" />}
                 />
                 <NavButton
                     active={view === "search"}
                     onClick={() => setView("search")}
                     label="Search"
-                    icon={
-                        <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current">
-                            <path d="M10 18a8 8 0 1 1 5.293-14.001A8 8 0 0 1 10 18Zm11.707 2.293-4.82-4.82a10 10 0 1 0-1.414 1.414l4.82 4.82a1 1 0 0 0 1.414-1.414Z" />
-                        </svg>
-                    }
+                    icon={<Icon name="search" className="h-6 w-6" />}
                 />
                 <NavButton
                     active={view === "queue"}
                     onClick={() => setView("queue")}
                     label="Queue"
-                    icon={
-                        <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current">
-                            <path d="M3 6h13v2H3V6Zm0 5h13v2H3v-2Zm0 5h9v2H3v-2Zm15-1.05V8l4 2-4 2Z" />
-                        </svg>
-                    }
+                    icon={<Icon name="queue" className="h-6 w-6" />}
                 />
             </nav>
 
             {/* Library / servers */}
             <div className="flex min-h-0 flex-1 flex-col rounded-lg bg-surface">
                 <div className="flex items-center gap-2 px-4 py-3 text-sm font-bold text-subtext">
-                    <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current">
-                        <path d="M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z" />
-                    </svg>
+                    <Icon name="library" className="h-5 w-5" />
                     Your servers
                 </div>
 

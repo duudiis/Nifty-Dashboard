@@ -2,14 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
-
-function VoiceIcon({ className }) {
-    return (
-        <svg viewBox="0 0 24 24" className={className}>
-            <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Zm7 9a7 7 0 0 1-6 6.92V21a1 1 0 1 1-2 0v-2.08A7 7 0 0 1 5 12a1 1 0 1 1 2 0 5 5 0 0 0 10 0 1 1 0 1 1 2 0Z" />
-        </svg>
-    );
-}
+import Icon from "../Icon.js";
 
 export default function SessionSelector() {
     const { sessions, selected, selectSession } = useNifty();
@@ -49,9 +42,7 @@ export default function SessionSelector() {
                 ) : (
                     <span className="px-1 text-xs font-bold">Select a server</span>
                 )}
-                <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 fill-white/70">
-                    <path d="M12 15.4 6.6 10l1.4-1.4 4 4 4-4L17.4 10 12 15.4Z" />
-                </svg>
+                <Icon name="chevron-down" className="h-4 w-4 text-white/70" />
             </button>
 
             {open && (
@@ -78,7 +69,7 @@ export default function SessionSelector() {
                                     <div className="flex min-w-0 flex-1 flex-col leading-tight">
                                         <span className="truncate text-sm font-bold text-maintext">{s.guildName}</span>
                                         <span className="flex items-center gap-1 truncate text-[11px] text-subtext">
-                                            <VoiceIcon className="h-3 w-3 fill-current" />
+                                            <Icon name="mic" className="h-3 w-3" strokeWidth={2.2} />
                                             {s.voiceChannelName || "—"}
                                         </span>
                                         {s.nowPlaying?.title && (

@@ -3,6 +3,7 @@ import { parse } from "cookie";
 
 import { verifySession } from "../lib/jwt.js";
 import { NiftyProvider } from "../context/NiftyContext.js";
+import { ContextMenuProvider } from "../components/menu/ContextMenu.js";
 
 import TopBar from "../components/layout/TopBar.js";
 import LeftSidebar from "../components/layout/LeftSidebar.js";
@@ -26,25 +27,31 @@ export async function getServerSideProps({ req }) {
 export default function Dashboard({ user }) {
     return (
         <NiftyProvider user={user}>
-            <Head>
-                <title>Nifty Dashboard</title>
-                <meta name="viewport" content="initial-scale=1.0, width=device-width" />
-            </Head>
+            <ContextMenuProvider>
+                <Head>
+                    <title>Nifty Dashboard</title>
+                    <meta name="viewport" content="initial-scale=1.0, width=device-width" />
+                </Head>
 
-            <div className="flex h-screen flex-col bg-canvas text-maintext">
-                <TopBar />
+                {/* The frame is the navbar colour, so the top bar and the gaps
+                    between the floating surface boxes read as one continuous shell. */}
+                <div className="flex h-screen flex-col bg-topbar text-maintext">
+                    <TopBar />
 
-                <div className="flex min-h-0 flex-1 gap-2 p-2">
-                    <LeftSidebar />
-                    <CenterContent />
-                    <RightSidebar />
+                    <div className="flex min-h-0 flex-1 flex-col gap-2 p-2 pt-0">
+                        <div className="flex min-h-0 flex-1 gap-2">
+                            <LeftSidebar />
+                            <CenterContent />
+                            <RightSidebar />
+                        </div>
+
+                        <Player />
+                    </div>
+
+                    <SettingsModal />
+                    <ConnectionOverlay />
                 </div>
-
-                <Player />
-
-                <SettingsModal />
-                <ConnectionOverlay />
-            </div>
+            </ContextMenuProvider>
         </NiftyProvider>
     );
 }

@@ -1,5 +1,8 @@
 import { useNifty } from "../../context/NiftyContext.js";
 import { totalDuration, artworkOrFallback } from "../../lib/format.js";
+import { PageTransition } from "../motion/index.js";
+import { useContextMenu } from "../menu/ContextMenu.js";
+import { useTrackMenu } from "../menu/trackMenu.js";
 
 import SearchResults from "../search/SearchResults.js";
 import QueueList from "../queue/QueueList.js";
@@ -27,6 +30,9 @@ function QueueHeader() {
 
 function Home() {
     const { selected, player, setView } = useNifty();
+    const trackMenu = useTrackMenu();
+    const track = player?.track || null;
+    const onContextMenu = useContextMenu(() => (track ? trackMenu(track, { source: "player" }) : []));
 
     return (
         <div className="flex flex-col gap-6 p-6">
@@ -38,21 +44,21 @@ function Home() {
                 <p className="max-w-md text-sm text-subtext">
                     Select a server from the top bar or your library to start controlling playback.
                 </p>
-            ) : player?.track ? (
-                <div className="flex items-center gap-5 rounded-xl bg-elevated/60 p-5">
+            ) : track ? (
+                <div onContextMenu={onContextMenu} className="flex items-center gap-5 rounded-xl bg-elevated/60 p-5">
                     <img
-                        src={artworkOrFallback(player.track.artwork)}
+                        src={artworkOrFallback(track.artwork)}
                         onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
                         className="h-28 w-28 rounded-lg object-cover shadow-lg"
                         alt=""
                     />
                     <div className="flex flex-col gap-1">
                         <span className="text-xs font-bold uppercase tracking-wide text-subtext">Now playing</span>
-                        <span className="text-2xl font-bold">{player.track.title}</span>
-                        <span className="text-sm text-subtext">{player.track.artist}</span>
+                        <span className="text-2xl font-bold">{track.title}</span>
+                        <span className="text-sm text-subtext">{track.artist}</span>
                         <button
                             onClick={() => setView("queue")}
-                            className="mt-2 w-fit rounded-full bg-accent px-4 py-1.5 text-xs font-bold text-canvas"
+                            className="mt-2 w-fit rounded-full bg-accent px-4 py-1.5 text-xs font-bold text-canvas transition hover:brightness-110"
                         >
                             View queue
                         </button>
@@ -70,20 +76,22 @@ export default function CenterContent() {
 
     return (
         <main className="min-h-0 flex-1 overflow-auto rounded-lg bg-surface pb-4">
-            {view === "queue" ? (
-                <>
-                    <QueueHeader />
-                    <div className="px-4">
-                        <QueueList />
+            <PageTransition viewKey={view}>
+                {view === "queue" ? (
+                    <>
+                        <QueueHeader />
+                        <div className="px-4">
+                            <QueueList />
+                        </div>
+                    </>
+                ) : view === "search" ? (
+                    <div className="p-6">
+                        <SearchResults />
                     </div>
-                </>
-            ) : view === "search" ? (
-                <div className="p-6">
-                    <SearchResults />
-                </div>
-            ) : (
-                <Home />
-            )}
+                ) : (
+                    <Home />
+                )}
+            </PageTransition>
         </main>
     );
 }
