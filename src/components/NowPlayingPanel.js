@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+
 import { useNifty } from "../context/NiftyContext.js";
 import { artworkOrFallback } from "../lib/format.js";
 import AddedBy from "./AddedBy.js";
@@ -7,6 +9,26 @@ import PanelHeader from "./layout/PanelHeader.js";
 import { AnimatePresence, motion, EASE, DUR } from "./motion/index.js";
 import { useContextMenu } from "./menu/ContextMenu.js";
 import { useTrackMenu } from "./menu/trackMenu.js";
+
+// The bot briefly reports an empty player between tracks (skip stops the old
+// track before starting the next). Ride out those gaps so the panel crossfades
+// straight from one track to the next instead of flashing the empty state.
+function useStableTrack(live) {
+    const [shown, setShown] = useState(live || null);
+    const timer = useRef();
+
+    useEffect(() => {
+        clearTimeout(timer.current);
+        if (live) {
+            setShown(live);
+        } else {
+            timer.current = setTimeout(() => setShown(null), 700);
+        }
+        return () => clearTimeout(timer.current);
+    }, [live?.songUrl, live?.artwork]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    return shown;
+}
 
 function EmptyState({ icon, title, hint }) {
     return (
@@ -20,18 +42,18 @@ function EmptyState({ icon, title, hint }) {
 
 export default function NowPlayingPanel() {
     const { player, queue, selected } = useNifty();
+    const track = useStableTrack(player?.track || null);
     const trackMenu = useTrackMenu();
-    const { onContextMenu } = useContextMenu(() => (player?.track ? trackMenu(player.track, { source: "player" }) : []));
+    const { onContextMenu } = useContextMenu(() => (track ? trackMenu(track, { source: "player" }) : []));
 
     if (!selected) {
         return <EmptyState icon="connect" title="Nothing selected" hint="Choose a server to see what's playing." />;
     }
 
-    if (!player?.track) {
+    if (!track) {
         return <EmptyState icon="now-playing" title="Not playing" hint="Queue something to get started." />;
     }
 
-    const { track } = player;
     const art = artworkOrFallback(track.artwork);
     // Backfill "added by" from the matching queue entry if the player omitted it.
     const queued = (queue.tracks || []).find(
@@ -68,16 +90,19 @@ export default function NowPlayingPanel() {
                 <PanelHeader icon="now-playing" title="Now playing" />
             </div>
 
-            {/* all the track content crossfades when the song changes */}
-            <AnimatePresence mode="wait">
-                <motion.div
-                    key={track.songUrl}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: DUR.base, ease: EASE }}
-                    className="relative flex flex-col gap-4 p-4 pt-0"
-                >
+            {/* all the track content crossfades when the song changes.
+                popLayout overlaps old + new (a true crossfade) and keeps timing
+                identical whether the change came from us or from the bot. */}
+            <div className="relative">
+                <AnimatePresence mode="popLayout" initial={false}>
+                    <motion.div
+                        key={track.songUrl}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.28, ease: EASE }}
+                        className="flex flex-col gap-4 p-4 pt-0"
+                    >
                     <img
                         src={art}
                         onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
@@ -99,9 +124,10 @@ export default function NowPlayingPanel() {
 
                     <AddedBy track={addedTrack} size={22} className="text-xs text-subtext" />
 
-                    <SongInfo track={track} />
-                </motion.div>
-            </AnimatePresence>
+                        <SongInfo track={track} />
+                    </motion.div>
+                </AnimatePresence>
+            </div>
         </div>
     );
 }
