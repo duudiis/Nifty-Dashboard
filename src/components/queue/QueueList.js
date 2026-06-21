@@ -11,7 +11,7 @@ function ColumnHeader() {
             <span className="w-10 shrink-0" />
             <span className="min-w-0 flex-1">Title</span>
             <span className="hidden w-28 shrink-0 lg:block">Added by</span>
-            <span className="w-12 shrink-0 text-right">Time</span>
+            <span className="w-12 shrink-0 text-center">Time</span>
         </div>
     );
 }

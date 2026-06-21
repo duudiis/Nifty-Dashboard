@@ -2,6 +2,7 @@ import { useNifty } from "../../context/NiftyContext.js";
 import { msToClock, artworkOrFallback } from "../../lib/format.js";
 import Icon from "../Icon.js";
 import AddedBy from "../AddedBy.js";
+import Equalizer from "../Equalizer.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
 
@@ -29,8 +30,8 @@ export default function QueueItem({ track, index, isCurrent, dense, innerRef }) 
                 drops it and puts the control over the cover instead */}
             {!dense && (
                 <div className="flex w-6 shrink-0 items-center justify-center">
-                    <span className={`text-xs ${isCurrent ? "text-accent" : "text-subtext"} group-hover:hidden`}>
-                        {isCurrent ? "♪" : index + 1}
+                    <span className={`flex items-center justify-center text-xs ${isCurrent ? "text-accent" : "text-subtext"} group-hover:hidden`}>
+                        {isCurrent ? <Equalizer playing={playing} className="h-3.5 w-3.5" /> : index + 1}
                     </span>
                     <button onClick={activate} className="hidden text-maintext group-hover:block" title={playPauseTitle}>
                         <Icon name={playing ? "pause" : "play"} className="h-4 w-4" />
@@ -69,7 +70,7 @@ export default function QueueItem({ track, index, isCurrent, dense, innerRef }) 
             )}
 
             {/* duration */}
-            <span className="w-12 shrink-0 text-right text-[11px] text-subtext">{msToClock(track.duration)}</span>
+            <span className="w-12 shrink-0 text-center text-[11px] text-subtext">{msToClock(track.duration)}</span>
         </div>
     );
 }
