@@ -125,6 +125,12 @@ function PanelToggles() {
                 on={rightPanel === "nowplaying"}
                 onClick={() => updateSettings({ rightPanel: "nowplaying" })}
             />
+            <Toggle
+                icon="connect"
+                title="Connect to a server"
+                on={rightPanel === "connect"}
+                onClick={() => updateSettings({ rightPanel: "connect" })}
+            />
         </div>
     );
 }

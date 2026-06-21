@@ -192,15 +192,27 @@ export function NiftyProvider({ user, children }) {
 
     /* ---- actions ---- */
 
-    const selectSession = useCallback((session) => {
+    const selectSession = useCallback((session, { switchView = true } = {}) => {
         setSelected(session);
         setPlayer(null);
         setQueue({ tracks: [], position: 0 });
         if (session?.guildId) {
             send("subscribe", { guildId: session.guildId });
-            setView("queue");
+            if (switchView) setView("queue");
         }
     }, [send]);
+
+    /* ---- always have a server selected: pick the first available, and
+       re-pick if the current selection disappears (without yanking the view) ---- */
+
+    useEffect(() => {
+        if (!sessions.length) return;
+        const k = (s) => `${s.botName}:${s.guildId}`;
+        const cur = selectedRef.current;
+        if (!cur || !sessions.some((s) => k(s) === k(cur))) {
+            selectSession(sessions[0], { switchView: false });
+        }
+    }, [sessions, selectSession]);
 
     const control = useCallback((action, extra = {}) => {
         const sel = selectedRef.current;

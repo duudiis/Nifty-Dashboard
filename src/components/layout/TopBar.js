@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 
 import Logo from "../Logo.js";
 import Icon from "../Icon.js";
-import SessionSelector from "./SessionSelector.js";
 import Account from "./Account.js";
 import { useNifty } from "../../context/NiftyContext.js";
 
@@ -48,9 +47,8 @@ export default function TopBar() {
                 </div>
             </form>
 
-            {/* Session + account */}
+            {/* Account */}
             <div className="flex items-center gap-2">
-                <SessionSelector />
                 <Account />
             </div>
         </header>

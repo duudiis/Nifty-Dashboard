@@ -42,13 +42,13 @@ export default function Account() {
                         exit={{ opacity: 0, scale: 0.96, y: -6 }}
                         transition={{ duration: 0.14, ease: EASE }}
                         style={{ transformOrigin: "top right" }}
-                        className="absolute right-0 z-50 mt-2 w-44 overflow-hidden rounded-xl border border-border bg-elevated p-1 shadow-2xl"
+                        className="absolute right-0 z-50 mt-2 w-40 overflow-hidden rounded-lg border border-border bg-elevated p-1 shadow-2xl"
                     >
                         <button
                             onClick={logout}
-                            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-rose-400 transition hover:bg-rose-500/10"
+                            className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[12px] font-medium text-rose-400 transition hover:bg-rose-500/10"
                         >
-                            <Icon name="logout" className="h-4 w-4" />
+                            <Icon name="logout" className="h-3.5 w-3.5" />
                             Log out
                         </button>
                     </motion.div>
