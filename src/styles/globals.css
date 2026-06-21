@@ -148,13 +148,11 @@
     }
     .lyric-word {
         display: inline-block;
-        opacity: 0.3;
         white-space: pre;
     }
-    /* Resting state of the active line stays bright even after the sweep ends
-       (and is robust if the animation can't run). The sweep animates in once. */
+    /* The active line sweeps in once (0.3 -> 1) then rests bright + glowing.
+       Non-active lines stay full opacity; their dimming comes from line colour. */
     .lyric-line-active .lyric-word {
-        opacity: 1;
         text-shadow: 0 0 12px rgb(var(--c-accent) / 0.3);
         animation: word-glow 0.55s cubic-bezier(0.4, 0, 0.2, 1) both;
     }

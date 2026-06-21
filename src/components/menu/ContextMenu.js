@@ -86,13 +86,15 @@ export function ContextMenuProvider({ children }) {
 
     useEffect(() => {
         if (!menu) return;
+        // Non-capture: only a page/window scroll closes the menu. Inner-element
+        // scrolls (e.g. the lyrics auto-scroll) must NOT dismiss it.
         const onScroll = () => close();
         const onKey = (e) => e.key === "Escape" && close();
-        window.addEventListener("scroll", onScroll, true);
+        window.addEventListener("scroll", onScroll);
         window.addEventListener("resize", close);
         window.addEventListener("keydown", onKey);
         return () => {
-            window.removeEventListener("scroll", onScroll, true);
+            window.removeEventListener("scroll", onScroll);
             window.removeEventListener("resize", close);
             window.removeEventListener("keydown", onKey);
         };

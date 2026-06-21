@@ -23,7 +23,7 @@ export default function QueueItem({ track, index, isCurrent, dense, innerRef }) 
             ref={innerRef}
             onDoubleClick={activate}
             onContextMenu={onContextMenu}
-            className={`group flex w-full items-center gap-3 rounded-md px-2 py-1.5 transition hover:bg-elevated ${active ? "bg-elevated" : ""}`}
+            className={`group flex w-full items-center gap-3 rounded-md px-2 py-1.5 transition hover:bg-elevated ${dense ? "scroll-mt-20" : ""} ${active ? "bg-elevated" : ""}`}
         >
             {/* main list keeps a number / play-pause column; the dense sidebar
                 drops it and puts the control over the cover instead */}

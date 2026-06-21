@@ -73,8 +73,8 @@ export default function QueueList({ dense = false }) {
                     />
                 );
             })}
-            {/* room below so the current track can always sit at the very top */}
-            {dense && <div className="h-[55vh] shrink-0" aria-hidden />}
+            {/* room below so even the last track can sit at the very top */}
+            {dense && <div className="h-[80vh] shrink-0" aria-hidden />}
         </div>
     );
 }

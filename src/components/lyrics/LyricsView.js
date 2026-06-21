@@ -29,15 +29,16 @@ function useSmoothProgress(player) {
     return ms;
 }
 
-// Left-aligned placeholder lines with a slow, visible shimmer.
+// Placeholder lines that mirror the real lyric layout exactly (same wrapper
+// padding/spacing/line height), so content lands where the bars were.
 function LyricsSkeleton() {
     const widths = ["70%", "52%", "84%", "61%", "45%", "76%", "58%", "68%"];
     return (
-        <div className="flex w-full flex-col items-start gap-7">
+        <div className="space-y-9 px-8 pt-[42vh] sm:px-14">
             {widths.map((w, i) => (
                 <div
                     key={i}
-                    className="skeleton-shimmer h-7 rounded-md"
+                    className="skeleton-shimmer h-9 rounded-md sm:h-10"
                     style={{ width: w, animationDelay: `${i * 0.18}s` }}
                 />
             ))}
@@ -46,7 +47,9 @@ function LyricsSkeleton() {
 }
 
 function Line({ line, state, onClick, nodeRef }) {
-    // state: "active" | "past" | "future"
+    // state: "active" | "past" | "future". Words are always rendered as spans so
+    // a line changing state only toggles a class — it never replaces DOM nodes
+    // (which would drop the user's text selection / open menus).
     const words = useMemo(() => line.text.split(/(\s+)/), [line.text]);
     return (
         <button
@@ -60,13 +63,11 @@ function Line({ line, state, onClick, nodeRef }) {
                     : "text-white/30 hover:text-white/45"
             }`}
         >
-            {state === "active"
-                ? words.map((w, i) => (
-                      <span key={i} className="lyric-word" style={{ animationDelay: `${i * 0.045}s` }}>
-                          {w}
-                      </span>
-                  ))
-                : line.text}
+            {words.map((w, i) => (
+                <span key={i} className="lyric-word" style={{ animationDelay: `${i * 0.045}s` }}>
+                    {w}
+                </span>
+            ))}
         </button>
     );
 }
@@ -153,51 +154,35 @@ export default function LyricsView() {
         </div>
     );
 
-    const Frame = ({ children }) => (
-        <div className="relative flex h-full flex-col overflow-hidden rounded-lg">
-            {Background}
-            <div className="relative flex flex-1 items-center justify-center p-8 text-center">{children}</div>
-        </div>
+    const Centered = ({ children }) => (
+        <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">{children}</div>
     );
 
-    if (!selected || !track) {
-        return (
-            <Frame>
-                <p className="text-lg font-bold text-white/70">No track playing</p>
-            </Frame>
-        );
-    }
+    // Decide what to show, then crossfade between states below.
+    let mode;
+    if (!selected || !track) mode = "notrack";
+    else if (loading && !data) mode = "loading";
+    else if (data?.instrumental) mode = "instrumental";
+    else if (synced.length) mode = "synced";
+    else if (data?.plain) mode = "plain";
+    else mode = "empty";
 
-    if (loading && !data) {
-        return (
-            <div className="relative flex h-full flex-col overflow-hidden rounded-lg">
-                {Background}
-                <div className="relative flex flex-1 flex-col px-8 pt-[22vh] sm:px-14">
-                    <LyricsSkeleton />
-                </div>
+    let body;
+    if (mode === "loading") {
+        body = (
+            <div className="flex-1 overflow-hidden">
+                <LyricsSkeleton />
             </div>
         );
-    }
-
-    if (data?.instrumental) {
-        return (
-            <Frame>
-                <p className="text-2xl font-extrabold text-white/80">♪ Instrumental</p>
-            </Frame>
-        );
-    }
-
-    // Synced lyrics — the main event.
-    if (synced.length) {
-        return (
-            <div className="relative flex h-full flex-col overflow-hidden rounded-lg">
-                {Background}
+    } else if (mode === "synced") {
+        body = (
+            <>
                 <div
                     key={track.songUrl}
                     ref={scroller}
                     onWheel={detach}
                     onTouchMove={detach}
-                    className="relative flex-1 space-y-9 overflow-y-auto px-8 py-[42vh] sm:px-14"
+                    className="flex-1 space-y-9 overflow-y-auto px-8 py-[42vh] sm:px-14"
                 >
                     {synced.map((line, i) => (
                         <Line
@@ -225,30 +210,46 @@ export default function LyricsView() {
                         </motion.button>
                     )}
                 </AnimatePresence>
+            </>
+        );
+    } else if (mode === "plain") {
+        body = (
+            <div className="flex-1 overflow-y-auto px-8 py-12 sm:px-14">
+                <pre className="whitespace-pre-wrap text-left font-unbounded text-2xl font-extrabold leading-relaxed text-white/85">
+                    {data.plain}
+                </pre>
             </div>
         );
-    }
-
-    // Plain (un-timed) lyrics fallback — left aligned.
-    if (data?.plain) {
-        return (
-            <div className="relative flex h-full flex-col overflow-hidden rounded-lg">
-                {Background}
-                <div className="relative flex-1 overflow-y-auto px-8 py-12 sm:px-14">
-                    <pre className="whitespace-pre-wrap text-left font-unbounded text-2xl font-extrabold leading-relaxed text-white/85">
-                        {data.plain}
-                    </pre>
+    } else if (mode === "instrumental") {
+        body = <Centered><p className="text-2xl font-extrabold text-white/80">♪ Instrumental</p></Centered>;
+    } else if (mode === "notrack") {
+        body = <Centered><p className="text-lg font-bold text-white/70">No track playing</p></Centered>;
+    } else {
+        body = (
+            <Centered>
+                <div className="flex flex-col items-center gap-2">
+                    <p className="text-lg font-bold text-white/70">No lyrics found</p>
+                    <p className="text-sm text-white/40">LRCLIB doesn&apos;t have this one yet.</p>
                 </div>
-            </div>
+            </Centered>
         );
     }
 
     return (
-        <Frame>
-            <div className="flex flex-col items-center gap-2">
-                <p className="text-lg font-bold text-white/70">No lyrics found</p>
-                <p className="text-sm text-white/40">LRCLIB doesn&apos;t have this one yet.</p>
-            </div>
-        </Frame>
+        <div className="relative h-full overflow-hidden rounded-lg">
+            {Background}
+            <AnimatePresence initial={false}>
+                <motion.div
+                    key={mode}
+                    className="absolute inset-0 flex flex-col"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3, ease: EASE }}
+                >
+                    {body}
+                </motion.div>
+            </AnimatePresence>
+        </div>
     );
 }
