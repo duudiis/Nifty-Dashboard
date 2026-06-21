@@ -10,7 +10,7 @@ function ColumnHeader() {
             <span className="w-6 shrink-0 text-center">#</span>
             <span className="w-10 shrink-0" />
             <span className="min-w-0 flex-1">Title</span>
-            <span className="hidden w-40 shrink-0 xl:block">Album</span>
+            <span className="hidden w-52 shrink-0 xl:block">Album</span>
             <span className="hidden w-28 shrink-0 lg:block">Added by</span>
             <span className="w-12 shrink-0 text-center">Time</span>
         </div>
