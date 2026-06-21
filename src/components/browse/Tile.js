@@ -1,5 +1,5 @@
 import { useNifty } from "../../context/NiftyContext.js";
-import { artworkOrFallback, onArtworkError } from "../../lib/format.js";
+import { artworkOrFallback } from "../../lib/format.js";
 import Icon from "../Icon.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
@@ -28,7 +28,7 @@ export default function Tile({ item }) {
             <div className="relative w-full">
                 <img
                     src={artworkOrFallback(item.artwork)}
-                    onError={onArtworkError}
+                    onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
                     className={`aspect-square w-full object-cover shadow-lg ${round ? "rounded-full" : "rounded-md"}`}
                     alt=""
                 />

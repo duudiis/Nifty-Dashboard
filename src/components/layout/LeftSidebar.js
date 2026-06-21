@@ -1,5 +1,5 @@
 import { useNifty } from "../../context/NiftyContext.js";
-import { artworkOrFallback, onArtworkError } from "../../lib/format.js";
+import { artworkOrFallback } from "../../lib/format.js";
 import Icon from "../Icon.js";
 
 function NavButton({ active, onClick, icon, label }) {
@@ -66,7 +66,7 @@ export default function LeftSidebar() {
                                 >
                                     <img
                                         src={artworkOrFallback(s.guildIcon)}
-                                        onError={onArtworkError}
+                                        onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
                                         className="h-11 w-11 shrink-0 rounded-md object-cover"
                                         alt=""
                                     />

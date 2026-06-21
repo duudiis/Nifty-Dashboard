@@ -1,5 +1,5 @@
 import { useNifty } from "../../context/NiftyContext.js";
-import { totalDuration, artworkOrFallback, onArtworkError } from "../../lib/format.js";
+import { totalDuration, artworkOrFallback } from "../../lib/format.js";
 import { PageTransition } from "../motion/index.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
@@ -51,7 +51,7 @@ function Home() {
                 <div onContextMenu={onContextMenu} className={`flex items-center gap-5 rounded-xl p-5 transition ${active ? "bg-elevated" : "bg-elevated/60"}`}>
                     <img
                         src={artworkOrFallback(track.artwork)}
-                        onError={onArtworkError}
+                        onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
                         className="h-28 w-28 rounded-lg object-cover shadow-lg"
                         alt=""
                     />

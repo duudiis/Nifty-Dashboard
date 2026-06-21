@@ -1,5 +1,5 @@
 import { useNifty } from "../context/NiftyContext.js";
-import { artworkOrFallback, onArtworkError } from "../lib/format.js";
+import { artworkOrFallback } from "../lib/format.js";
 import AddedBy from "./AddedBy.js";
 import SongInfo from "./SongInfo.js";
 import Icon from "./Icon.js";
@@ -43,7 +43,7 @@ export default function NowPlayingPanel() {
             {/* large gradient backdrop drawn from the cover art's own colours,
                 tall enough to sit behind the header and the cover */}
             <div className="pointer-events-none absolute inset-x-0 top-0 h-[560px] overflow-hidden">
-                <img src={art} onError={onArtworkError} className="h-full w-full scale-[1.7] object-cover opacity-55 blur-3xl saturate-150" alt="" />
+                <img src={art} className="h-full w-full scale-[1.7] object-cover opacity-55 blur-3xl saturate-150" alt="" />
                 <div
                     className="absolute inset-0"
                     style={{ background: "linear-gradient(180deg, rgb(var(--c-surface) / 0.1) 0%, rgb(var(--c-surface) / 0.45) 62%, rgb(var(--c-surface)) 100%)" }}
@@ -58,7 +58,7 @@ export default function NowPlayingPanel() {
             <div className="relative flex flex-col gap-4 p-4 pt-0">
                 <img
                     src={art}
-                    onError={onArtworkError}
+                    onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
                     className="aspect-square w-full rounded-lg object-cover shadow-2xl"
                     alt=""
                 />

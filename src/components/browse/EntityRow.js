@@ -1,5 +1,5 @@
 import { useNifty } from "../../context/NiftyContext.js";
-import { artworkOrFallback, onArtworkError } from "../../lib/format.js";
+import { artworkOrFallback } from "../../lib/format.js";
 import Icon from "../Icon.js";
 
 // List-mode row for an album/artist/playlist. Opens its page on click.
@@ -14,7 +14,7 @@ export default function EntityRow({ item }) {
         >
             <img
                 src={artworkOrFallback(item.artwork)}
-                onError={onArtworkError}
+                onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
                 className={`h-11 w-11 shrink-0 object-cover ${round ? "rounded-full" : "rounded"}`}
                 alt=""
             />

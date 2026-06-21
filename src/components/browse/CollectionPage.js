@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
-import { artworkOrFallback, onArtworkError } from "../../lib/format.js";
+import { artworkOrFallback } from "../../lib/format.js";
 import Icon from "../Icon.js";
 import TrackRow from "./TrackRow.js";
 
@@ -63,7 +63,7 @@ export default function CollectionPage({ id }) {
             >
                 <img
                     src={artworkOrFallback(data.artwork)}
-                    onError={onArtworkError}
+                    onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
                     className="h-44 w-44 shrink-0 rounded-md object-cover shadow-2xl"
                     alt=""
                 />
