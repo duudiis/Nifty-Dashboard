@@ -2,6 +2,7 @@ import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
 import Icon from "../Icon.js";
 import AddedBy from "../AddedBy.js";
+import Marquee from "../Marquee.js";
 import { motion, EASE, DUR } from "../motion/index.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
@@ -74,10 +75,11 @@ function Song({ track, idle }) {
                 className={`h-12 w-12 shrink-0 rounded-md object-cover shadow-md transition ${idle ? "opacity-50 saturate-0" : ""}`}
                 alt=""
             />
-            <div className="flex min-w-0 flex-col leading-tight">
-                <span className={`truncate text-[13px] font-bold ${idle ? "text-subtext" : "text-maintext"}`}>
-                    {track?.title || "Nothing playing"}
-                </span>
+            <div className="flex min-w-0 max-w-[14rem] flex-col leading-tight">
+                <Marquee
+                    text={track?.title || "Nothing playing"}
+                    className={`text-[13px] font-bold ${idle ? "text-subtext" : "text-maintext"}`}
+                />
                 <span className="truncate text-[11px] text-subtext">
                     {track?.artist || (idle ? "Pick a track to get started" : "—")}
                 </span>

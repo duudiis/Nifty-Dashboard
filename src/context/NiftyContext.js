@@ -214,6 +214,21 @@ export function NiftyProvider({ user, children }) {
         }
     }, [sessions, selectSession]);
 
+    /* ---- mirror the current page in the URL hash (#queue, #search, #lyrics),
+       and restore it on load. Purely cosmetic — the app stays single-page ---- */
+
+    useEffect(() => {
+        const h = window.location.hash.replace("#", "");
+        if (["queue", "search", "lyrics"].includes(h)) setView(h);
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const base = window.location.pathname + window.location.search;
+        const url = view && view !== "home" ? `${base}#${view}` : base;
+        window.history.replaceState(null, "", url);
+    }, [view]);
+
     const control = useCallback((action, extra = {}) => {
         const sel = selectedRef.current;
         if (!sel?.guildId) return;
