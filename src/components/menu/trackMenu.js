@@ -51,6 +51,9 @@ export function useTrackMenu() {
             if (!track) return [];
 
             const url = track.url || track.songUrl || null;
+            // What we actually queue (may be a ytmsearch: for video-only entries);
+            // url stays the real link for Share / Open / Copy.
+            const queueRef = track.playQuery || url;
             const title = track.title;
             const linkItems = [
                 { separator: true },
@@ -77,9 +80,9 @@ export function useTrackMenu() {
 
             // search results
             return [
-                { label: "Play now", icon: "play-now", onClick: () => play(url, "now"), disabled: !selected },
-                { label: "Play next", icon: "play-next", onClick: () => play(url, "next"), disabled: !selected },
-                { label: "Add to queue", icon: "enqueue", onClick: () => play(url, "queue"), disabled: !selected },
+                { label: "Play now", icon: "play-now", onClick: () => play(queueRef, "now"), disabled: !selected },
+                { label: "Play next", icon: "play-next", onClick: () => play(queueRef, "next"), disabled: !selected },
+                { label: "Add to queue", icon: "enqueue", onClick: () => play(queueRef, "queue"), disabled: !selected },
                 ...linkItems
             ];
         },

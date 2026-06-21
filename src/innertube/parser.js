@@ -143,8 +143,8 @@ export default class InnerTubeParser {
         let title = mf.title.replace(/\s*-\s*(Album|Single|EP)\s+by\s+.*/i, "").trim();
         if (!title) title = this.joinRuns(header?.title?.runs);
 
-        const subtitle =
-            this.joinRuns(header?.subtitle?.runs) || this.joinRuns(header?.straplineTextOne?.runs) || "";
+        const albumArtist = this.joinRuns(header?.straplineTextOne?.runs);
+        const subtitle = this.joinRuns(header?.subtitle?.runs) || albumArtist || "";
         const artwork = mf.artwork || this.parseThumbnail(header);
 
         const sl = this.secondarySectionList(json);
@@ -153,7 +153,7 @@ export default class InnerTubeParser {
             sl.find((s) => s.musicPlaylistShelfRenderer)?.musicPlaylistShelfRenderer;
 
         const tracks = (shelf?.contents || [])
-            .map((r) => this.parseTrackRow(r?.musicResponsiveListItemRenderer, artwork))
+            .map((r) => this.parseTrackRow(r?.musicResponsiveListItemRenderer, { fallbackArtwork: artwork, fallbackArtist: albumArtist }))
             .filter(Boolean);
 
         return { type, title, subtitle, artwork, tracks };
@@ -173,7 +173,7 @@ export default class InnerTubeParser {
         for (const s of sl) {
             if (s.musicShelfRenderer) {
                 topSongs = (s.musicShelfRenderer.contents || [])
-                    .map((r) => this.parseTrackRow(r?.musicResponsiveListItemRenderer, artwork))
+                    .map((r) => this.parseTrackRow(r?.musicResponsiveListItemRenderer, { fallbackArtwork: artwork, fallbackArtist: title }))
                     .filter(Boolean);
             }
             if (s.musicCarouselShelfRenderer) {
@@ -192,21 +192,36 @@ export default class InnerTubeParser {
         return { type: "artist", title, subtitle, artwork, topSongs, albums };
     }
 
-    parseTrackRow(item, fallbackArtwork) {
+    parseTrackRow(item, { fallbackArtwork, fallbackArtist } = {}) {
         if (!item) return null;
         const titleRuns = this.runs(item, 0);
         const title = titleRuns?.[0]?.text;
-        const videoId = titleRuns?.[0]?.navigationEndpoint?.watchEndpoint?.videoId || item?.playlistItemData?.videoId;
+        const watch = titleRuns?.[0]?.navigationEndpoint?.watchEndpoint;
+        const videoId = watch?.videoId || item?.playlistItemData?.videoId;
         if (!title || !videoId) return null;
 
         const subtitleRuns = this.runs(item, 1);
+        let artist = this.parseArtist(subtitleRuns, subtitleRuns?.[0]?.text || "");
+        if ((!artist || artist === "Unknown artist") && fallbackArtist) artist = fallbackArtist;
+
+        const url = `https://www.youtube.com/watch?v=${videoId}`;
+
+        // Album/playlist rows often point at the official music VIDEO (OMV), not
+        // the song's audio (ATV). For non-audio rows we queue via ytmsearch so
+        // the bot resolves the actual song instead of the video.
+        const mvType = watch?.watchEndpointMusicSupportedConfigs?.watchEndpointMusicConfig?.musicVideoType;
+        const isAudio = mvType === "MUSIC_VIDEO_TYPE_ATV";
+        const known = artist && artist !== "Unknown artist" ? artist : "";
+        const playQuery = isAudio || !mvType ? url : `ytmsearch:${[title, known].filter(Boolean).join(" ")}`;
+
         return {
             title,
-            artist: this.parseArtist(subtitleRuns, subtitleRuns?.[0]?.text || ""),
+            artist,
             duration: this.parseDuration(item, subtitleRuns),
             artwork: this.parseThumbnail(item) || fallbackArtwork || null,
             videoId,
-            url: `https://www.youtube.com/watch?v=${videoId}`
+            url,
+            playQuery
         };
     }
 

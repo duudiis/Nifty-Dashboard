@@ -41,7 +41,7 @@ export default function ArtistPage({ id }) {
 
     const topSongs = data.topSongs || [];
     const albums = (data.albums || []).map((a) => ({ ...a, kind: "album" }));
-    const playTop = () => topSongs.forEach((t, i) => play(t.url, i === 0 ? "now" : "queue"));
+    const playTop = () => topSongs.forEach((t, i) => play(t.playQuery || t.url, i === 0 ? "now" : "queue"));
 
     return (
         <div className="flex flex-col">

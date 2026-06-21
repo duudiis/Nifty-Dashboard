@@ -27,8 +27,8 @@ export default function CollectionPage({ id }) {
     }, [id]);
 
     const tracks = data?.tracks || [];
-    const queueAll = () => tracks.forEach((t) => play(t.url, "queue"));
-    const playAll = () => tracks.forEach((t, i) => play(t.url, i === 0 ? "now" : "queue"));
+    const queueAll = () => tracks.forEach((t) => play(t.playQuery || t.url, "queue"));
+    const playAll = () => tracks.forEach((t, i) => play(t.playQuery || t.url, i === 0 ? "now" : "queue"));
 
     if (loading) {
         return (
