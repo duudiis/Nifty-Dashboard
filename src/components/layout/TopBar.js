@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 
 import Logo from "../Logo.js";
@@ -10,15 +10,27 @@ export default function TopBar() {
     const { runSearch, setView } = useNifty();
     const router = useRouter();
     const [query, setQuery] = useState(() => (router.query.q ? String(router.query.q) : ""));
+    const inputRef = useRef(null);
+    const debounceRef = useRef(null);
 
-    // Auto-search as the user types (debounced), no Enter needed. Skip when the
-    // text already matches the URL's ?q= (e.g. on landing) so we don't re-fetch.
+    // Keep the box in sync with the URL on navigation (back/forward, leaving the
+    // search page), but never overwrite what the user is actively typing.
     useEffect(() => {
-        const q = query.trim();
-        if (!q || q === (router.query.q ? String(router.query.q) : "")) return;
-        const t = setTimeout(() => runSearch(q), 350);
-        return () => clearTimeout(t);
-    }, [query, runSearch, router.query.q]);
+        if (document.activeElement === inputRef.current) return;
+        const onSearch = router.query.view?.[0] === "search";
+        setQuery(onSearch && router.query.q ? String(router.query.q) : "");
+    }, [router.query.view, router.query.q]);
+
+    useEffect(() => () => clearTimeout(debounceRef.current), []);
+
+    // Auto-search as the user types (debounced), no Enter needed.
+    const onChange = (e) => {
+        const value = e.target.value;
+        setQuery(value);
+        clearTimeout(debounceRef.current);
+        const q = value.trim();
+        if (q) debounceRef.current = setTimeout(() => runSearch(q), 350);
+    };
 
     const submit = (e) => {
         e.preventDefault();
@@ -44,8 +56,9 @@ export default function TopBar() {
                 <div className="flex w-full items-center gap-2 rounded-full bg-white/10 px-4 py-2 ring-white/0 transition focus-within:bg-white/15 focus-within:ring-2 focus-within:ring-white/20">
                     <Icon name="search" className="h-5 w-5 shrink-0 text-white/60" />
                     <input
+                        ref={inputRef}
                         value={query}
-                        onChange={(e) => setQuery(e.target.value)}
+                        onChange={onChange}
                         placeholder="What do you want to play?"
                         className="w-full bg-transparent text-sm text-white placeholder-white/50 outline-none"
                     />

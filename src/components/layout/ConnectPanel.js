@@ -45,9 +45,6 @@ export default function ConnectPanel() {
                                 <Icon name="mic" className="h-3 w-3" strokeWidth={2.2} />
                                 {s.voiceChannelName || "—"}
                             </span>
-                            {s.nowPlaying?.title && (
-                                <span className="truncate text-[11px] text-accent">♪ {s.nowPlaying.title}</span>
-                            )}
                         </div>
                         {isSelected ? (
                             <Icon name="connect" className="h-4 w-4 shrink-0 text-accent" />
