@@ -2,8 +2,20 @@ import { useNifty } from "../context/NiftyContext.js";
 import { artworkOrFallback } from "../lib/format.js";
 import AddedBy from "./AddedBy.js";
 import SongInfo from "./SongInfo.js";
+import Icon from "./Icon.js";
+import PanelHeader from "./layout/PanelHeader.js";
 import { useContextMenu } from "./menu/ContextMenu.js";
 import { useTrackMenu } from "./menu/trackMenu.js";
+
+function EmptyState({ icon, title, hint }) {
+    return (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
+            <Icon name={icon} className="h-9 w-9 text-subtext/70" />
+            <p className="text-sm font-bold text-maintext">{title}</p>
+            <p className="text-xs text-subtext">{hint}</p>
+        </div>
+    );
+}
 
 export default function NowPlayingPanel() {
     const { player, queue, selected } = useNifty();
@@ -11,21 +23,11 @@ export default function NowPlayingPanel() {
     const { onContextMenu } = useContextMenu(() => (player?.track ? trackMenu(player.track, { source: "player" }) : []));
 
     if (!selected) {
-        return (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
-                <p className="text-sm font-bold text-maintext">Nothing selected</p>
-                <p className="text-xs text-subtext">Choose a server to see what&apos;s playing.</p>
-            </div>
-        );
+        return <EmptyState icon="connect" title="Nothing selected" hint="Choose a server to see what's playing." />;
     }
 
     if (!player?.track) {
-        return (
-            <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
-                <p className="text-sm font-bold text-maintext">Not playing</p>
-                <p className="text-xs text-subtext">Queue something to get started.</p>
-            </div>
-        );
+        return <EmptyState icon="now-playing" title="Not playing" hint="Queue something to get started." />;
     }
 
     const { track } = player;
@@ -49,9 +51,11 @@ export default function NowPlayingPanel() {
             </div>
 
             {/* header lives inside the coloured area */}
-            <div className="relative px-4 py-3 text-sm font-bold text-maintext">Now playing</div>
+            <div className="relative">
+                <PanelHeader icon="now-playing" title="Now playing" />
+            </div>
 
-            <div className="relative flex flex-col gap-4 p-4 pt-1">
+            <div className="relative flex flex-col gap-4 p-4 pt-0">
                 <img
                     src={art}
                     onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}

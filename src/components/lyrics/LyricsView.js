@@ -29,16 +29,16 @@ function useSmoothProgress(player) {
     return ms;
 }
 
-// Left-aligned, sized/spaced like the real lyric lines, with a visible shimmer.
+// Left-aligned placeholder lines with a slow, visible shimmer.
 function LyricsSkeleton() {
     const widths = ["70%", "52%", "84%", "61%", "45%", "76%", "58%", "68%"];
     return (
-        <div className="flex w-full flex-col items-start gap-9">
+        <div className="flex w-full flex-col items-start gap-7">
             {widths.map((w, i) => (
                 <div
                     key={i}
-                    className="skeleton-shimmer h-9 rounded-lg sm:h-11"
-                    style={{ width: w, animationDelay: `${i * 0.15}s` }}
+                    className="skeleton-shimmer h-7 rounded-md"
+                    style={{ width: w, animationDelay: `${i * 0.18}s` }}
                 />
             ))}
         </div>
@@ -172,7 +172,7 @@ export default function LyricsView() {
         return (
             <div className="relative flex h-full flex-col overflow-hidden rounded-lg">
                 {Background}
-                <div className="relative flex flex-1 flex-col justify-center px-8 sm:px-14">
+                <div className="relative flex flex-1 flex-col px-8 pt-[22vh] sm:px-14">
                     <LyricsSkeleton />
                 </div>
             </div>
@@ -193,6 +193,7 @@ export default function LyricsView() {
             <div className="relative flex h-full flex-col overflow-hidden rounded-lg">
                 {Background}
                 <div
+                    key={track.songUrl}
                     ref={scroller}
                     onWheel={detach}
                     onTouchMove={detach}

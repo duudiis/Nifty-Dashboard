@@ -5,7 +5,7 @@ import AddedBy from "../AddedBy.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
 
-export default function QueueItem({ track, index, isCurrent, dense }) {
+export default function QueueItem({ track, index, isCurrent, dense, innerRef }) {
     const { control, player } = useNifty();
     const trackMenu = useTrackMenu();
     const { onContextMenu, active } = useContextMenu(() => trackMenu(track, { source: "queue" }));
@@ -16,8 +16,12 @@ export default function QueueItem({ track, index, isCurrent, dense }) {
     const activate = () =>
         isCurrent ? control("togglePause") : control("jump", { trackId: track.track_id });
 
+    // Dense (sidebar) hides plain row numbers; the main list keeps them.
+    const marker = isCurrent ? "♪" : dense ? "" : index + 1;
+
     return (
         <div
+            ref={innerRef}
             onDoubleClick={activate}
             onContextMenu={onContextMenu}
             className={`group flex w-full items-center gap-3 rounded-md px-2 py-1.5 transition hover:bg-elevated ${active ? "bg-elevated" : ""}`}
@@ -25,7 +29,7 @@ export default function QueueItem({ track, index, isCurrent, dense }) {
             {/* index / play-pause */}
             <div className="flex w-6 shrink-0 items-center justify-center">
                 <span className={`text-xs ${isCurrent ? "text-accent" : "text-subtext"} group-hover:hidden`}>
-                    {isCurrent ? "♪" : index + 1}
+                    {marker}
                 </span>
                 <button
                     onClick={activate}
