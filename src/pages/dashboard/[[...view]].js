@@ -15,6 +15,7 @@ import ConnectionOverlay from "../../components/ConnectionOverlay.js";
 // Real, refresh-safe URLs for each page. Everything under /dashboard renders
 // this same component; the active view is read from the path by the context.
 const VIEWS = ["queue", "search", "lyrics"];
+const ENTITY_VIEWS = ["album", "playlist", "artist"]; // /dashboard/<kind>/<id>
 
 export async function getServerSideProps({ req, params }) {
     const cookies = parse(req.headers.cookie || "");
@@ -25,9 +26,14 @@ export async function getServerSideProps({ req, params }) {
     }
 
     // Keep the URL space tidy: anything that isn't a known page bounces home.
-    const seg = params?.view?.[0];
-    if (params?.view && (params.view.length > 1 || (seg && !VIEWS.includes(seg)))) {
-        return { redirect: { destination: "/dashboard", permanent: false } };
+    const segs = params?.view;
+    if (segs) {
+        const [seg, id] = segs;
+        const okSimple = segs.length === 1 && VIEWS.includes(seg);
+        const okEntity = segs.length === 2 && ENTITY_VIEWS.includes(seg) && !!id;
+        if (!okSimple && !okEntity) {
+            return { redirect: { destination: "/dashboard", permanent: false } };
+        }
     }
 
     return { props: { user } };

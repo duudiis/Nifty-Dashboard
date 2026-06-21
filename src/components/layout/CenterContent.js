@@ -7,6 +7,8 @@ import { useTrackMenu } from "../menu/trackMenu.js";
 import SearchResults from "../search/SearchResults.js";
 import QueueList from "../queue/QueueList.js";
 import LyricsView from "../lyrics/LyricsView.js";
+import CollectionPage from "../browse/CollectionPage.js";
+import ArtistPage from "../browse/ArtistPage.js";
 
 function QueueHeader() {
     const { queue, selected } = useNifty();
@@ -73,14 +75,18 @@ function Home() {
 }
 
 export default function CenterContent() {
-    const { view } = useNifty();
+    const { view, entityId } = useNifty();
     const isLyrics = view === "lyrics";
 
     return (
         <main className={`min-h-0 flex-1 rounded-lg bg-surface ${isLyrics ? "overflow-hidden" : "overflow-auto pb-4"}`}>
-            <PageTransition viewKey={view} className={isLyrics ? "h-full" : undefined}>
+            <PageTransition viewKey={`${view}:${entityId || ""}`} className={isLyrics ? "h-full" : undefined}>
                 {isLyrics ? (
                     <LyricsView />
+                ) : view === "album" || view === "playlist" ? (
+                    <CollectionPage id={entityId} />
+                ) : view === "artist" ? (
+                    <ArtistPage id={entityId} />
                 ) : view === "queue" ? (
                     <>
                         <QueueHeader />

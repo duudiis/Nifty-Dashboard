@@ -22,6 +22,8 @@ function loadSettings() {
 
 // Center pages that have a real URL under /dashboard. "home" is the bare path.
 const VIEWS = ["queue", "search", "lyrics"];
+// Entity pages take a second path segment: /dashboard/<kind>/<id>.
+const ENTITY_VIEWS = ["album", "playlist", "artist"];
 const pathForView = (v) => (v === "home" ? "/dashboard" : `/dashboard/${v}`);
 
 export function NiftyProvider({ user, children }) {
@@ -35,14 +37,21 @@ export function NiftyProvider({ user, children }) {
     const [queue, setQueue] = useState({ tracks: [], position: 0 });
 
     // The active page is derived from the URL (refresh-safe); setView navigates.
-    const viewSeg = Array.isArray(router.query.view) ? router.query.view[0] : null;
-    const view = VIEWS.includes(viewSeg) ? viewSeg : "home";
+    const segs = Array.isArray(router.query.view) ? router.query.view : [];
+    const viewSeg = segs[0] || null;
+    const view = VIEWS.includes(viewSeg) || ENTITY_VIEWS.includes(viewSeg) ? viewSeg : "home";
+    const entityId = ENTITY_VIEWS.includes(viewSeg) ? segs[1] || null : null;
     const setView = useCallback(
         (v) => { router.push(pathForView(v), undefined, { shallow: true }); },
         [router]
     );
+    // Open an album/playlist/artist page.
+    const openEntity = useCallback(
+        (kind, id) => { router.push(`/dashboard/${kind}/${encodeURIComponent(id)}`, undefined, { shallow: true }); },
+        [router]
+    );
 
-    const [search, setSearch] = useState({ query: "", results: [], loading: false });
+    const [search, setSearch] = useState({ query: "", sections: [], loading: false });
 
     const [settings, setSettings] = useState(DEFAULT_SETTINGS);
 
@@ -261,13 +270,13 @@ export function NiftyProvider({ user, children }) {
         const q = query.trim();
         if (!q) return;
         initiatedRef.current = q;
-        setSearch({ query: q, results: [], loading: true });
+        setSearch({ query: q, sections: [], loading: true });
         try {
             const res = await fetch(`/api/search?query=${encodeURIComponent(q)}`);
             const json = await res.json();
-            setSearch({ query: q, results: json.results || [], loading: false });
+            setSearch({ query: q, sections: json.sections || [], loading: false });
         } catch {
-            setSearch({ query: q, results: [], loading: false });
+            setSearch({ query: q, sections: [], loading: false });
         }
     }, []);
 
@@ -299,6 +308,7 @@ export function NiftyProvider({ user, children }) {
         player,
         queue,
         view, setView,
+        entityId, openEntity,
         search, runSearch,
         settings, updateSettings,
         selectSession,

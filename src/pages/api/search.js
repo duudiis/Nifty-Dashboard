@@ -19,8 +19,8 @@ export default async function handler(req, res) {
     }
 
     try {
-        const results = await innerTube.search(query);
-        return res.status(200).json({ results });
+        const { sections } = await innerTube.search(query);
+        return res.status(200).json({ sections });
     } catch (error) {
         console.error("[Dashboard] Search failed:", error);
         return res.status(502).json({ message: "Search failed.", code: "SEARCH_ERROR" });

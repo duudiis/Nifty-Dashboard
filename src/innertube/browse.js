@@ -3,7 +3,9 @@ const KEY = "AIzaSyC9XL3ZjWddXya6X74dJoCTL-WEYFDNX30";
 const CONTEXT = {
     client: {
         clientName: "WEB_REMIX",
-        clientVersion: "1.20230104.01.00"
+        clientVersion: "1.20230104.01.00",
+        gl: "US",
+        hl: "en"
     }
 };
 

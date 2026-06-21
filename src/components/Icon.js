@@ -218,6 +218,28 @@ const ICONS = {
             </>
         )
     },
+    grid: {
+        body: (
+            <>
+                <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                <rect x="14" y="14" width="7" height="7" rx="1.5" />
+            </>
+        )
+    },
+    list: {
+        body: (
+            <>
+                <line x1="8" y1="6" x2="21" y2="6" />
+                <line x1="8" y1="12" x2="21" y2="12" />
+                <line x1="8" y1="18" x2="21" y2="18" />
+                <line x1="3.5" y1="6" x2="3.51" y2="6" />
+                <line x1="3.5" y1="12" x2="3.51" y2="12" />
+                <line x1="3.5" y1="18" x2="3.51" y2="18" />
+            </>
+        )
+    },
     x: {
         body: (
             <>

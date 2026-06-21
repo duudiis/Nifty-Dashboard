@@ -10,5 +10,7 @@ const searchClient = new InnerTubeSearch(parser);
 export default class InnerTube {
     constructor() {
         this.search = (query) => searchClient.search(query);
+        // Album / playlist / artist pages, parsed into structured data.
+        this.browse = (id) => browseClient.browse(id).then((json) => parser.parseBrowse(id, json));
     }
 }

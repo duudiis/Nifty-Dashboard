@@ -1,48 +1,68 @@
+import { useState } from "react";
+
 import { useNifty } from "../../context/NiftyContext.js";
-import { artworkOrFallback } from "../../lib/format.js";
 import Icon from "../Icon.js";
 import { Stagger, StaggerItem } from "../motion/index.js";
-import { useContextMenu } from "../menu/ContextMenu.js";
-import { useTrackMenu } from "../menu/trackMenu.js";
+import Tile from "../browse/Tile.js";
+import TrackRow from "../browse/TrackRow.js";
+import EntityRow from "../browse/EntityRow.js";
 
-function Result({ result }) {
-    const { play, selected } = useNifty();
-    const trackMenu = useTrackMenu();
-    const { onContextMenu, active } = useContextMenu(() => trackMenu(result, { source: "search" }));
-
+function FilterBar({ sections, type, setType, display, setDisplay }) {
+    const types = [{ kind: "all", title: "All" }, ...sections.map((s) => ({ kind: s.kind, title: s.title }))];
     return (
-        <div
-            onDoubleClick={() => selected && play(result.url)}
-            onContextMenu={onContextMenu}
-            className={`group flex items-center gap-3 rounded-md p-2 transition hover:bg-elevated ${active ? "bg-elevated" : ""}`}
-        >
-            <div className="relative h-11 w-11 shrink-0">
-                <img
-                    src={artworkOrFallback(result.artwork)}
-                    onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
-                    className="h-11 w-11 rounded object-cover"
-                    alt=""
-                />
-                <button
-                    disabled={!selected}
-                    onClick={() => play(result.url)}
-                    className="absolute inset-0 flex items-center justify-center rounded bg-black/50 text-white opacity-0 transition group-hover:opacity-100 disabled:cursor-not-allowed"
-                    title={selected ? "Add to queue" : "Select a server first"}
-                >
-                    <Icon name="play" className="h-5 w-5" />
-                </button>
+        <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap gap-1.5">
+                {types.map((t) => (
+                    <button
+                        key={t.kind}
+                        onClick={() => setType(t.kind)}
+                        className={`rounded-full px-3 py-1 text-xs font-bold transition ${
+                            type === t.kind ? "bg-maintext text-canvas" : "bg-elevated text-subtext hover:text-maintext"
+                        }`}
+                    >
+                        {t.title}
+                    </button>
+                ))}
             </div>
-
-            <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                <span className="truncate text-[13px] text-maintext">{result.title}</span>
-                <span className="truncate text-[11px] text-subtext">{result.artist}</span>
+            <div className="flex shrink-0 items-center gap-1 rounded-full bg-elevated p-1">
+                {["list", "grid"].map((d) => (
+                    <button
+                        key={d}
+                        onClick={() => setDisplay(d)}
+                        title={d === "list" ? "List" : "Tiles"}
+                        className={`flex h-7 w-7 items-center justify-center rounded-full transition ${
+                            display === d ? "bg-surface text-maintext" : "text-subtext hover:text-maintext"
+                        }`}
+                    >
+                        <Icon name={d} className="h-4 w-4" />
+                    </button>
+                ))}
             </div>
+        </div>
+    );
+}
 
-            <span className="shrink-0 rounded-full bg-elevated px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-subtext">
-                {result.type}
-            </span>
-            {result.duration && (
-                <span className="w-12 shrink-0 text-right text-[11px] text-subtext">{result.duration}</span>
+function Section({ section, display }) {
+    const isTrack = section.kind === "song" || section.kind === "video";
+    return (
+        <div className="flex flex-col gap-3">
+            <h3 className="text-lg font-bold text-maintext">{section.title}</h3>
+            {display === "grid" ? (
+                <Stagger className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                    {section.items.map((item, i) => (
+                        <StaggerItem key={item.videoId || item.browseId || i}>
+                            <Tile item={item} />
+                        </StaggerItem>
+                    ))}
+                </Stagger>
+            ) : (
+                <Stagger className="flex flex-col gap-1">
+                    {section.items.map((item, i) => (
+                        <StaggerItem key={item.videoId || item.browseId || i}>
+                            {isTrack ? <TrackRow track={item} /> : <EntityRow item={item} />}
+                        </StaggerItem>
+                    ))}
+                </Stagger>
             )}
         </div>
     );
@@ -50,10 +70,14 @@ function Result({ result }) {
 
 export default function SearchResults() {
     const { search, selected } = useNifty();
-    const { query, results, loading } = search;
+    const { query, sections, loading } = search;
+    const [type, setType] = useState("all");
+    const [display, setDisplay] = useState("list");
+
+    const visible = type === "all" ? sections : sections.filter((s) => s.kind === type);
 
     return (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-5">
             <h2 className="text-2xl font-bold">
                 {query ? <>Results for <span className="text-accent">{query}</span></> : "Search"}
             </h2>
@@ -76,16 +100,15 @@ export default function SearchResults() {
                         </div>
                     ))}
                 </div>
-            ) : results.length === 0 ? (
+            ) : sections.length === 0 ? (
                 <p className="text-sm text-subtext">{query ? "No results found." : "Type something above to search."}</p>
             ) : (
-                <Stagger className="flex flex-col gap-1">
-                    {results.map((result, i) => (
-                        <StaggerItem key={`${result.url}-${i}`}>
-                            <Result result={result} />
-                        </StaggerItem>
+                <>
+                    <FilterBar sections={sections} type={type} setType={setType} display={display} setDisplay={setDisplay} />
+                    {visible.map((section) => (
+                        <Section key={section.kind} section={section} display={display} />
                     ))}
-                </Stagger>
+                </>
             )}
         </div>
     );
