@@ -32,6 +32,7 @@ export function NiftyProvider({ user, children }) {
 
     const [connected, setConnected] = useState(false);
     const [updateAvailable, setUpdateAvailable] = useState(false);
+    const [reloading, setReloading] = useState(false);
     const [sessions, setSessions] = useState([]);     // aggregated across bots
     const [selected, setSelected] = useState(null);   // { botName, guildId, ... }
     const [player, setPlayer] = useState(null);        // null = nothing playing
@@ -320,7 +321,13 @@ export function NiftyProvider({ user, children }) {
         player,
         queue,
         updateAvailable,
-        reloadApp: () => window.location.reload(),
+        reloading,
+        // Show the loading screen, then reload — gives the overlay time to cover
+        // the page so the refresh is seamless (no double content animation).
+        reloadApp: () => {
+            setReloading(true);
+            setTimeout(() => window.location.reload(), 450);
+        },
         view, setView,
         entityId, openEntity,
         search, runSearch,

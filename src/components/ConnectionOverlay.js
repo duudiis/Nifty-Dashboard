@@ -4,9 +4,9 @@ import { useNifty } from "../context/NiftyContext.js";
 import Logo from "./Logo.js";
 import { AnimatePresence, motion, EASE } from "./motion/index.js";
 
-// Full-page overlay shown on first load (until the first connect) and whenever
-// the browser later loses its link to the dashboard hub. The bot keeps playing
-// regardless. Brief later blips are ridden out before the overlay reappears.
+// Full-page overlay shown on first load (until the first connect), whenever the
+// browser later loses its link to the dashboard hub, and while updating. The bot
+// keeps playing regardless. Brief later blips are ridden out before reappearing.
 const SHOW_DELAY = 5000; // wait this long after a *drop* before showing
 const MIN_VISIBLE = 2000; // once shown, stay up at least this long
 
@@ -26,7 +26,7 @@ const TIPS = [
 ];
 
 export default function ConnectionOverlay() {
-    const { connected } = useNifty();
+    const { connected, reloading } = useNifty();
     // Shown immediately on page load and kept up until the very first connect.
     const [visible, setVisible] = useState(true);
     const visibleRef = useRef(true);
@@ -65,40 +65,55 @@ export default function ConnectionOverlay() {
         };
     }, [connected]);
 
+    const show = visible || reloading;
+
     // Rotate tips while the overlay is up.
     useEffect(() => {
-        if (!visible) return;
+        if (!show) return;
         const id = setInterval(() => setTip((t) => (t + 1) % TIPS.length), 4500);
         return () => clearInterval(id);
-    }, [visible]);
+    }, [show]);
+
+    const status = reloading ? "LOADING" : mode;
+    // Updating fades the screen in over the dashboard; first load is instant.
+    const bgFades = everConnected.current || reloading;
+    // Don't replay the content entrance on the pre-reload screen (it animates
+    // once on the fresh page after the refresh).
+    const animateContent = !reloading;
 
     return (
         <AnimatePresence>
-            {visible && (
+            {show && (
                 <motion.div
-                    // No fade-in on the very first (load) appearance; reconnects fade.
-                    initial={everConnected.current ? { opacity: 0 } : false}
+                    initial={bgFades ? { opacity: 0 } : false}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.35, ease: EASE }}
                     className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-canvas px-6 text-center"
                 >
-                    <Logo className="h-20 w-20 animate-pulse text-white" />
-                    <div className="mt-10 flex flex-col items-center gap-3">
-                        <p className="text-xs font-bold uppercase tracking-[0.15em] text-subtext">{mode}</p>
-                        <AnimatePresence mode="wait">
-                            <motion.p
-                                key={tip}
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                transition={{ duration: 0.3, ease: EASE }}
-                                className="max-w-sm text-sm text-subtext"
-                            >
-                                {TIPS[tip]}
-                            </motion.p>
-                        </AnimatePresence>
-                    </div>
+                    <motion.div
+                        initial={animateContent ? { opacity: 0, y: 14 } : false}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.45, ease: EASE, delay: 0.05 }}
+                        className="flex flex-col items-center"
+                    >
+                        <Logo className="h-28 w-28 animate-pulse text-white" />
+                        <div className="mt-14 flex flex-col items-center gap-2">
+                            <p className="text-sm font-extrabold uppercase tracking-[0.1em] text-maintext">{status}</p>
+                            <AnimatePresence mode="wait">
+                                <motion.p
+                                    key={tip}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 0.3, ease: EASE }}
+                                    className="max-w-sm text-sm text-subtext"
+                                >
+                                    {TIPS[tip]}
+                                </motion.p>
+                            </AnimatePresence>
+                        </div>
+                    </motion.div>
                 </motion.div>
             )}
         </AnimatePresence>

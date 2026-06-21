@@ -71,10 +71,9 @@ export default function TopBar() {
                     <button
                         onClick={reloadApp}
                         title="A new version is available — click to update"
-                        className="flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-bold text-canvas transition hover:brightness-110"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-canvas transition hover:brightness-110"
                     >
-                        <Icon name="sync" className="h-3.5 w-3.5" />
-                        <span className="hidden sm:block">Update</span>
+                        <Icon name="download" className="h-4 w-4" />
                     </button>
                 )}
                 <Account />
