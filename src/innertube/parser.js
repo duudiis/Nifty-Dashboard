@@ -12,10 +12,12 @@ export default class InnerTubeParser {
 
     /* ----------------------------------------------------------------- search */
 
-    // Returns { sections: [{ kind, title, items: [...] }] } ordered
-    // Songs → Albums → Artists → Playlists → Videos. Episodes/podcasts/profiles
-    // are dropped.
-    parseSearchResults(json) {
+    // Accepts an array of type-filtered responses ({ kind, json }) and merges
+    // them into { sections: [...] } ordered Songs → Albums → Artists →
+    // Playlists → Videos. Episodes/podcasts/profiles are dropped. The filter
+    // kind hints whether a watchable item is a song or a video.
+    parseSearchResults(responses) {
+        const list = Array.isArray(responses) ? responses : [responses];
         const buckets = { song: [], album: [], artist: [], playlist: [], video: [] };
         const seen = new Set();
         const add = (e) => {
@@ -26,16 +28,23 @@ export default class InnerTubeParser {
             buckets[e.kind]?.push(e);
         };
 
-        const sections =
-            json?.contents?.tabbedSearchResultsRenderer?.tabs?.[0]?.tabRenderer
-                ?.content?.sectionListRenderer?.contents || [];
-
-        for (const section of sections) {
-            if (section.musicCardShelfRenderer) add(this.parseCard(section.musicCardShelfRenderer));
-            const rows = section?.itemSectionRenderer?.contents || section?.musicShelfRenderer?.contents || [];
-            for (const row of rows) {
-                const item = row?.musicResponsiveListItemRenderer;
-                if (item) add(this.classifyItem(item));
+        for (const entry of list) {
+            const json = entry?.json ?? entry;
+            const hint = entry?.kind;
+            const sections =
+                json?.contents?.tabbedSearchResultsRenderer?.tabs?.[0]?.tabRenderer
+                    ?.content?.sectionListRenderer?.contents || [];
+            for (const section of sections) {
+                if (section.musicCardShelfRenderer) add(this.parseCard(section.musicCardShelfRenderer));
+                const rows = section?.musicShelfRenderer?.contents || section?.itemSectionRenderer?.contents || [];
+                for (const row of rows) {
+                    const item = row?.musicResponsiveListItemRenderer;
+                    if (!item) continue;
+                    const entryItem = this.classifyItem(item);
+                    // A song/video filter knows the type better than the subtitle does.
+                    if (entryItem?.videoId && (hint === "song" || hint === "video")) entryItem.kind = hint;
+                    add(entryItem);
+                }
             }
         }
 
