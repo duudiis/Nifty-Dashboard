@@ -41,11 +41,15 @@ export function addedByOf(track) {
 
 export const FALLBACK_ARTWORK = "/images/fallback.svg";
 
-// YouTube/Google image hosts encode the size in the URL (=wXX-hXX or =sXX) and
-// happily serve a bigger one — search thumbnails arrive at 120px, so request a
-// crisp size instead. Unknown hosts (e.g. i.ytimg.com) are left untouched.
-export function hiResArtwork(url, size = 544) {
-    if (!url || !/(googleusercontent|ggpht|lh3\.google)/.test(url)) return url;
+// Swap a YouTube thumbnail to a specific size variant (keeps the video id).
+function ytThumb(url, name) {
+    return url.replace(/\/(default|mqdefault|hqdefault|sddefault|maxresdefault|hq720)\.jpg.*$/, `/${name}.jpg`);
+}
+
+// Google image hosts encode the size in the URL (=wXX-hXX / =sXX) and serve a
+// bigger one on request — search thumbnails arrive at 120px.
+function googleUpscale(url, size) {
+    if (!/(googleusercontent|ggpht|lh3\.google)/.test(url)) return url;
     if (/=w\d+-h\d+/.test(url)) return url.replace(/=w\d+-h\d+/, `=w${size}-h${size}`);
     if (/=s\d+/.test(url)) {
         const current = parseInt(url.match(/=s(\d+)/)?.[1] || "0", 10);
@@ -54,7 +58,35 @@ export function hiResArtwork(url, size = 544) {
     return url;
 }
 
-// Use on <img onError> and for null artwork so we always show something.
+// Foreground covers: request the sharpest size. YouTube video thumbnails jump
+// to maxresdefault (bar-free, hi-res) — pair with onArtworkError so videos
+// without a maxres fall back to mqdefault.
+export function hiResArtwork(url, size = 544) {
+    if (!url) return url;
+    if (/i\.ytimg\.com\/vi\//.test(url)) return ytThumb(url, "maxresdefault");
+    return googleUpscale(url, size);
+}
+
+// Backgrounds (CSS background-image, which can't fall back on error): never
+// maxres — keep a guaranteed bar-free size so the blurred backdrop always loads.
+export function bgArtwork(url, size = 544) {
+    if (!url) return url;
+    if (/i\.ytimg\.com\/vi\//.test(url)) return ytThumb(url, "mqdefault");
+    return googleUpscale(url, size);
+}
+
+// Use for an <img> src and for null artwork so we always show something.
 export function artworkOrFallback(url) {
     return url && url.length > 0 ? hiResArtwork(url) : FALLBACK_ARTWORK;
+}
+
+// <img onError>: step maxresdefault → mqdefault (bar-free) → placeholder.
+export function onArtworkError(e) {
+    const img = e.currentTarget;
+    const src = img.getAttribute("src") || "";
+    if (src.includes("maxresdefault")) {
+        img.src = ytThumb(src, "mqdefault");
+        return;
+    }
+    if (!src.endsWith(FALLBACK_ARTWORK)) img.src = FALLBACK_ARTWORK;
 }

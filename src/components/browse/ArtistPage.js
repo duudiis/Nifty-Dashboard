@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
-import { artworkOrFallback } from "../../lib/format.js";
+import { artworkOrFallback, onArtworkError } from "../../lib/format.js";
 import Icon from "../Icon.js";
 import TrackRow from "./TrackRow.js";
 import Tile from "./Tile.js";
@@ -52,7 +52,7 @@ export default function ArtistPage({ id }) {
             >
                 <img
                     src={artworkOrFallback(data.artwork)}
-                    onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
+                    onError={onArtworkError}
                     className="h-40 w-40 shrink-0 rounded-full object-cover shadow-2xl"
                     alt=""
                 />

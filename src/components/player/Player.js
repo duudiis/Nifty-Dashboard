@@ -1,5 +1,5 @@
 import { useNifty } from "../../context/NiftyContext.js";
-import { artworkOrFallback } from "../../lib/format.js";
+import { artworkOrFallback, onArtworkError } from "../../lib/format.js";
 import Icon from "../Icon.js";
 import AddedBy from "../AddedBy.js";
 import Marquee from "../Marquee.js";
@@ -71,7 +71,7 @@ function Song({ track, idle }) {
         >
             <img
                 src={artworkOrFallback(track?.artwork)}
-                onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
+                onError={onArtworkError}
                 className={`h-12 w-12 shrink-0 rounded-md object-cover shadow-md transition ${idle ? "opacity-50 saturate-0" : ""}`}
                 alt=""
             />

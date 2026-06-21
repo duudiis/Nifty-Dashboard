@@ -1,5 +1,5 @@
 import { useNifty } from "../../context/NiftyContext.js";
-import { msToClock, artworkOrFallback } from "../../lib/format.js";
+import { msToClock, artworkOrFallback, onArtworkError } from "../../lib/format.js";
 import Icon from "../Icon.js";
 import AddedBy from "../AddedBy.js";
 import Equalizer from "../Equalizer.js";
@@ -44,7 +44,7 @@ export default function QueueItem({ track, index, isCurrent, dense, innerRef }) 
             <div className={`relative shrink-0 ${dense ? "h-9 w-9" : "h-10 w-10"}`}>
                 <img
                     src={artworkOrFallback(track.artwork)}
-                    onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
+                    onError={onArtworkError}
                     className="h-full w-full rounded object-cover"
                     alt=""
                 />

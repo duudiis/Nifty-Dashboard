@@ -1,5 +1,5 @@
 import { useNifty } from "../../context/NiftyContext.js";
-import { artworkOrFallback } from "../../lib/format.js";
+import { artworkOrFallback, onArtworkError } from "../../lib/format.js";
 import Icon from "../Icon.js";
 
 const key = (s) => `${s.botName}:${s.guildId}`;
@@ -33,7 +33,7 @@ export default function ConnectPanel() {
                     >
                         <img
                             src={artworkOrFallback(s.guildIcon)}
-                            onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
+                            onError={onArtworkError}
                             className="h-10 w-10 shrink-0 rounded-lg object-cover"
                             alt=""
                         />

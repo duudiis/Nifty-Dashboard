@@ -1,5 +1,5 @@
 import { useNifty } from "../../context/NiftyContext.js";
-import { artworkOrFallback } from "../../lib/format.js";
+import { artworkOrFallback, onArtworkError } from "../../lib/format.js";
 import Icon from "../Icon.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
@@ -24,7 +24,7 @@ export default function TrackRow({ track, index }) {
             <div className="relative h-11 w-11 shrink-0">
                 <img
                     src={artworkOrFallback(track.artwork)}
-                    onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
+                    onError={onArtworkError}
                     className="h-11 w-11 rounded object-cover"
                     alt=""
                 />

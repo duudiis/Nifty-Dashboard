@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
-import { artworkOrFallback } from "../../lib/format.js";
+import { bgArtwork } from "../../lib/format.js";
 import Icon from "../Icon.js";
 import { AnimatePresence, motion, EASE } from "../motion/index.js";
 
@@ -84,7 +84,7 @@ export default function LyricsView() {
     const scroller = useRef(null);
     const lineRefs = useRef([]);
 
-    const art = artworkOrFallback(track?.artwork);
+    const art = bgArtwork(track?.artwork);
 
     // Fetch (server-cached) lyrics whenever the track changes. Clear the old
     // lyrics immediately so the view never lingers on the previous song.
