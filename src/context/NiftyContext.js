@@ -31,6 +31,7 @@ export function NiftyProvider({ user, children }) {
     const router = useRouter();
 
     const [connected, setConnected] = useState(false);
+    const [updateAvailable, setUpdateAvailable] = useState(false);
     const [sessions, setSessions] = useState([]);     // aggregated across bots
     const [selected, setSelected] = useState(null);   // { botName, guildId, ... }
     const [player, setPlayer] = useState(null);        // null = nothing playing
@@ -117,6 +118,15 @@ export function NiftyProvider({ user, children }) {
 
                     case "identify_success": {
                         setConnected(true);
+                        // On every (re)connect, check whether a newer dashboard
+                        // build has been deployed than the one this tab is running.
+                        fetch("/api/version", { cache: "no-store" })
+                            .then((r) => r.json())
+                            .then(({ version }) => {
+                                const current = window.__NEXT_DATA__?.buildId;
+                                if (version && current && version !== current) setUpdateAvailable(true);
+                            })
+                            .catch(() => {});
                         ws.send(JSON.stringify({ operation: "sessions_request" }));
                         const sel = selectedRef.current;
                         if (sel?.guildId) {
@@ -233,7 +243,9 @@ export function NiftyProvider({ user, children }) {
         const k = (s) => `${s.botName}:${s.guildId}`;
         const cur = selectedRef.current;
         if (!cur || !sessions.some((s) => k(s) === k(cur))) {
-            selectSession(sessions[0], { switchView: false });
+            // Prefer a server where the bot is already playing something.
+            const active = sessions.find((s) => s.nowPlaying?.title);
+            selectSession(active || sessions[0], { switchView: false });
         }
     }, [sessions, selectSession]);
 
@@ -307,6 +319,8 @@ export function NiftyProvider({ user, children }) {
         selected,
         player,
         queue,
+        updateAvailable,
+        reloadApp: () => window.location.reload(),
         view, setView,
         entityId, openEntity,
         search, runSearch,

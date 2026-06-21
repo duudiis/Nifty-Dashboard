@@ -7,7 +7,7 @@ import Account from "./Account.js";
 import { useNifty } from "../../context/NiftyContext.js";
 
 export default function TopBar() {
-    const { runSearch, setView } = useNifty();
+    const { runSearch, setView, updateAvailable, reloadApp } = useNifty();
     const router = useRouter();
     const [query, setQuery] = useState(() => (router.query.q ? String(router.query.q) : ""));
     const inputRef = useRef(null);
@@ -65,8 +65,18 @@ export default function TopBar() {
                 </div>
             </form>
 
-            {/* Account (right third) */}
+            {/* Update prompt + account (right third) */}
             <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+                {updateAvailable && (
+                    <button
+                        onClick={reloadApp}
+                        title="A new version is available — click to update"
+                        className="flex items-center gap-1.5 rounded-full bg-accent px-3 py-1.5 text-xs font-bold text-canvas transition hover:brightness-110"
+                    >
+                        <Icon name="sync" className="h-3.5 w-3.5" />
+                        <span className="hidden sm:block">Update</span>
+                    </button>
+                )}
                 <Account />
             </div>
         </header>

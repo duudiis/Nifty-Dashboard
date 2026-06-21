@@ -67,7 +67,7 @@ export default function QueueItem({ track, index, isCurrent, dense, innerRef }) 
 
             {/* album */}
             {!dense && (
-                <AlbumCell track={track} className="hidden w-52 shrink-0 truncate text-[11px] text-subtext xl:block" />
+                <AlbumCell track={track} className="hidden w-64 shrink-0 truncate text-[11px] text-subtext xl:block" />
             )}
 
             {/* added by (avatar + name) */}

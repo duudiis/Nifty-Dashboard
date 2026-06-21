@@ -72,7 +72,7 @@ function Song({ track, idle }) {
             <img
                 src={artworkOrFallback(track?.artwork)}
                 onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
-                className={`h-12 w-12 shrink-0 rounded-md object-cover shadow-md transition ${idle ? "opacity-50 saturate-0" : ""}`}
+                className={`h-14 w-14 shrink-0 rounded-md object-cover shadow-md transition ${idle ? "opacity-50 saturate-0" : ""}`}
                 alt=""
             />
             <div className="flex min-w-0 max-w-[14rem] flex-col leading-tight">

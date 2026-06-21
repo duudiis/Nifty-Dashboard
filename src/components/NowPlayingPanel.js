@@ -40,33 +40,46 @@ function EmptyState({ icon, title, hint }) {
     );
 }
 
+const panelFade = {
+    initial: { opacity: 0 },
+    animate: { opacity: 1 },
+    exit: { opacity: 0 },
+    transition: { duration: 0.28, ease: EASE }
+};
+
 export default function NowPlayingPanel() {
     const { player, queue, selected } = useNifty();
     const track = useStableTrack(player?.track || null);
     const trackMenu = useTrackMenu();
     const { onContextMenu } = useContextMenu(() => (track ? trackMenu(track, { source: "player" }) : []));
 
-    if (!selected) {
-        return <EmptyState icon="connect" title="Nothing selected" hint="Choose a server to see what's playing." />;
-    }
+    const stateKey = !selected ? "noserver" : !track ? "empty" : "track";
 
-    if (!track) {
-        return <EmptyState icon="now-playing" title="Not playing" hint="Queue something to get started." />;
-    }
-
-    const art = artworkOrFallback(track.artwork);
+    const art = track ? artworkOrFallback(track.artwork) : null;
     // Backfill "added by" from the matching queue entry if the player omitted it.
-    const queued = (queue.tracks || []).find(
-        (t) => t.track_id === queue.position || t.songUrl === track.songUrl
-    );
-    const addedTrack = { ...queued, ...track };
+    const queued = track
+        ? (queue.tracks || []).find((t) => t.track_id === queue.position || t.songUrl === track.songUrl)
+        : null;
+    const addedTrack = track ? { ...queued, ...track } : null;
 
+    // One AnimatePresence so the not-playing states and a live track crossfade
+    // into each other (and the cover + content crossfade between tracks).
     return (
-        <div onContextMenu={onContextMenu} className="relative">
-            {/* large gradient backdrop drawn from the cover art's own colours,
-                tall enough to sit behind the header and the cover. The blurred
-                image crossfades between tracks. */}
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-[560px] overflow-hidden">
+        <AnimatePresence mode="wait" initial={false}>
+            {stateKey === "noserver" ? (
+                <motion.div key="noserver" {...panelFade} className="flex min-h-full">
+                    <EmptyState icon="connect" title="Nothing selected" hint="Choose a server to see what's playing." />
+                </motion.div>
+            ) : stateKey === "empty" ? (
+                <motion.div key="empty" {...panelFade} className="flex min-h-full">
+                    <EmptyState icon="now-playing" title="Not playing" hint="Queue something to get started." />
+                </motion.div>
+            ) : (
+                <motion.div key="track" {...panelFade} onContextMenu={onContextMenu} className="relative">
+                    {/* large gradient backdrop drawn from the cover art's own colours,
+                        tall enough to sit behind the header and the cover. The
+                        blurred image crossfades between tracks. */}
+                    <div className="pointer-events-none absolute inset-x-0 top-0 h-[560px] overflow-hidden">
                 <AnimatePresence initial={false}>
                     <motion.img
                         key={art}
@@ -124,10 +137,12 @@ export default function NowPlayingPanel() {
 
                     <AddedBy track={addedTrack} size={22} className="text-xs text-subtext" />
 
-                        <SongInfo track={track} />
-                    </motion.div>
-                </AnimatePresence>
-            </div>
-        </div>
+                            <SongInfo track={track} />
+                        </motion.div>
+                    </AnimatePresence>
+                    </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
     );
 }
