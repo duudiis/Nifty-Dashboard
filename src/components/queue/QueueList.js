@@ -31,12 +31,14 @@ export default function QueueList({ dense = false }) {
     const { queue, player, selected } = useNifty();
     const tracks = queue.tracks || [];
 
-    // Cross-reference the player so the "now playing" highlight tracks playback
-    // changes immediately, even before a fresh queue snapshot arrives.
+    // The actually-playing track is the single source of truth, so exactly one
+    // row is ever marked current. queue.position is only a fallback for when the
+    // player track isn't in the list (it can briefly disagree after a jump).
     const current = player?.track;
-    const isCurrent = (track) =>
-        track.track_id === queue.position ||
-        (current && ((current.songUrl && current.songUrl === track.songUrl) || current.track_id === track.track_id));
+    const matchesPlayer = (track) =>
+        current && ((current.songUrl && current.songUrl === track.songUrl) || current.track_id === track.track_id);
+    const hasPlayerMatch = current && tracks.some(matchesPlayer);
+    const isCurrent = (track) => (hasPlayerMatch ? matchesPlayer(track) : track.track_id === queue.position);
 
     const currentTrack = tracks.find(isCurrent);
     const currentId = currentTrack ? `${currentTrack.track_id}-${currentTrack.songUrl}` : null;
