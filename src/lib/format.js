@@ -41,7 +41,20 @@ export function addedByOf(track) {
 
 export const FALLBACK_ARTWORK = "/images/fallback.svg";
 
+// YouTube/Google image hosts encode the size in the URL (=wXX-hXX or =sXX) and
+// happily serve a bigger one — search thumbnails arrive at 120px, so request a
+// crisp size instead. Unknown hosts (e.g. i.ytimg.com) are left untouched.
+export function hiResArtwork(url, size = 544) {
+    if (!url || !/(googleusercontent|ggpht|lh3\.google)/.test(url)) return url;
+    if (/=w\d+-h\d+/.test(url)) return url.replace(/=w\d+-h\d+/, `=w${size}-h${size}`);
+    if (/=s\d+/.test(url)) {
+        const current = parseInt(url.match(/=s(\d+)/)?.[1] || "0", 10);
+        return current < size ? url.replace(/=s\d+/, `=s${size}`) : url;
+    }
+    return url;
+}
+
 // Use on <img onError> and for null artwork so we always show something.
 export function artworkOrFallback(url) {
-    return url && url.length > 0 ? url : FALLBACK_ARTWORK;
+    return url && url.length > 0 ? hiResArtwork(url) : FALLBACK_ARTWORK;
 }
