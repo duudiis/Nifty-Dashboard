@@ -3,6 +3,7 @@ import { msToClock, artworkOrFallback } from "../../lib/format.js";
 import Icon from "../Icon.js";
 import AddedBy from "../AddedBy.js";
 import Equalizer from "../Equalizer.js";
+import AlbumCell from "./AlbumCell.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
 
@@ -63,6 +64,11 @@ export default function QueueItem({ track, index, isCurrent, dense, innerRef }) 
                 <span className={`truncate text-[13px] ${isCurrent ? "text-accent" : "text-maintext"}`}>{track.title}</span>
                 <span className="truncate text-[11px] text-subtext">{track.artist}</span>
             </div>
+
+            {/* album */}
+            {!dense && (
+                <AlbumCell track={track} className="hidden w-40 shrink-0 truncate text-[11px] text-subtext xl:block" />
+            )}
 
             {/* added by (avatar + name) */}
             {!dense && (
