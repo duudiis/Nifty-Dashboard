@@ -133,10 +133,10 @@ export default class InnerTubeParser {
 
     parseBrowse(browseId, json) {
         if (browseId.startsWith("UC") || browseId.startsWith("MPLA")) return this.parseArtistPage(json);
-        return this.parseCollection(json, browseId.startsWith("MPREb") ? "album" : "playlist");
+        return this.parseCollection(json, browseId.startsWith("MPREb") ? "album" : "playlist", browseId);
     }
 
-    parseCollection(json, type) {
+    parseCollection(json, type, browseId) {
         const mf = this.microformat(json);
         const header = this.findHeader(json);
 
@@ -156,7 +156,21 @@ export default class InnerTubeParser {
             .map((r) => this.parseTrackRow(r?.musicResponsiveListItemRenderer, { fallbackArtwork: artwork, fallbackArtist: albumArtist }))
             .filter(Boolean);
 
-        return { type, title, subtitle, artwork, tracks };
+        // The whole-collection playlist, so "queue all" loads it in order in one
+        // request. Albums expose an audio playlist (OLAK…) via the play button;
+        // playlists are just their own id (browseId without the VL prefix).
+        let playlistId = null;
+        if (type === "playlist") {
+            playlistId = browseId?.startsWith("VL") ? browseId.slice(2) : browseId || null;
+        } else {
+            for (const b of header?.buttons || []) {
+                const pid = b?.musicPlayButtonRenderer?.playNavigationEndpoint?.watchEndpoint?.playlistId;
+                if (pid) { playlistId = pid; break; }
+            }
+            if (!playlistId) playlistId = (JSON.stringify(json).match(/OLAK5uy_[A-Za-z0-9_-]+/) || [])[0] || null;
+        }
+
+        return { type, title, subtitle, artwork, tracks, playlistId };
     }
 
     parseArtistPage(json) {
