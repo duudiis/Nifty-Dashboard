@@ -1,23 +1,33 @@
 import Head from "next/head";
 import { parse } from "cookie";
 
-import { verifySession } from "../lib/jwt.js";
-import { NiftyProvider } from "../context/NiftyContext.js";
-import { ContextMenuProvider } from "../components/menu/ContextMenu.js";
+import { verifySession } from "../../lib/jwt.js";
+import { NiftyProvider } from "../../context/NiftyContext.js";
+import { ContextMenuProvider } from "../../components/menu/ContextMenu.js";
 
-import TopBar from "../components/layout/TopBar.js";
-import LeftSidebar from "../components/layout/LeftSidebar.js";
-import CenterContent from "../components/layout/CenterContent.js";
-import RightSidebar from "../components/layout/RightSidebar.js";
-import Player from "../components/player/Player.js";
-import ConnectionOverlay from "../components/ConnectionOverlay.js";
+import TopBar from "../../components/layout/TopBar.js";
+import LeftSidebar from "../../components/layout/LeftSidebar.js";
+import CenterContent from "../../components/layout/CenterContent.js";
+import RightSidebar from "../../components/layout/RightSidebar.js";
+import Player from "../../components/player/Player.js";
+import ConnectionOverlay from "../../components/ConnectionOverlay.js";
 
-export async function getServerSideProps({ req }) {
+// Real, refresh-safe URLs for each page. Everything under /dashboard renders
+// this same component; the active view is read from the path by the context.
+const VIEWS = ["queue", "search", "lyrics"];
+
+export async function getServerSideProps({ req, params }) {
     const cookies = parse(req.headers.cookie || "");
     const user = await verifySession(cookies.session);
 
     if (!user) {
         return { redirect: { destination: "/login", permanent: false } };
+    }
+
+    // Keep the URL space tidy: anything that isn't a known page bounces home.
+    const seg = params?.view?.[0];
+    if (params?.view && (params.view.length > 1 || (seg && !VIEWS.includes(seg)))) {
+        return { redirect: { destination: "/dashboard", permanent: false } };
     }
 
     return { props: { user } };

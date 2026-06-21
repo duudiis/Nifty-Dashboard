@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 
 import Logo from "../Logo.js";
 import Icon from "../Icon.js";
@@ -7,15 +8,17 @@ import { useNifty } from "../../context/NiftyContext.js";
 
 export default function TopBar() {
     const { runSearch, setView } = useNifty();
-    const [query, setQuery] = useState("");
+    const router = useRouter();
+    const [query, setQuery] = useState(() => (router.query.q ? String(router.query.q) : ""));
 
-    // Auto-search as the user types (debounced), no Enter needed.
+    // Auto-search as the user types (debounced), no Enter needed. Skip when the
+    // text already matches the URL's ?q= (e.g. on landing) so we don't re-fetch.
     useEffect(() => {
         const q = query.trim();
-        if (!q) return;
+        if (!q || q === (router.query.q ? String(router.query.q) : "")) return;
         const t = setTimeout(() => runSearch(q), 350);
         return () => clearTimeout(t);
-    }, [query, runSearch]);
+    }, [query, runSearch, router.query.q]);
 
     const submit = (e) => {
         e.preventDefault();

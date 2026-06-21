@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
+import { useRouter } from "next/router";
 
 const NiftyContext = createContext(null);
 
@@ -19,7 +20,13 @@ function loadSettings() {
     }
 }
 
+// Center pages that have a real URL under /dashboard. "home" is the bare path.
+const VIEWS = ["queue", "search", "lyrics"];
+const pathForView = (v) => (v === "home" ? "/dashboard" : `/dashboard/${v}`);
+
 export function NiftyProvider({ user, children }) {
+
+    const router = useRouter();
 
     const [connected, setConnected] = useState(false);
     const [sessions, setSessions] = useState([]);     // aggregated across bots
@@ -27,7 +34,14 @@ export function NiftyProvider({ user, children }) {
     const [player, setPlayer] = useState(null);        // null = nothing playing
     const [queue, setQueue] = useState({ tracks: [], position: 0 });
 
-    const [view, setView] = useState("home");          // "home" | "search" | "queue"
+    // The active page is derived from the URL (refresh-safe); setView navigates.
+    const viewSeg = Array.isArray(router.query.view) ? router.query.view[0] : null;
+    const view = VIEWS.includes(viewSeg) ? viewSeg : "home";
+    const setView = useCallback(
+        (v) => { router.push(pathForView(v), undefined, { shallow: true }); },
+        [router]
+    );
+
     const [search, setSearch] = useState({ query: "", results: [], loading: false });
 
     const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -214,21 +228,6 @@ export function NiftyProvider({ user, children }) {
         }
     }, [sessions, selectSession]);
 
-    /* ---- mirror the current page in the URL hash (#queue, #search, #lyrics),
-       and restore it on load. Purely cosmetic — the app stays single-page ---- */
-
-    useEffect(() => {
-        const h = window.location.hash.replace("#", "");
-        if (["queue", "search", "lyrics"].includes(h)) setView(h);
-    }, []);
-
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        const base = window.location.pathname + window.location.search;
-        const url = view && view !== "home" ? `${base}#${view}` : base;
-        window.history.replaceState(null, "", url);
-    }, [view]);
-
     const control = useCallback((action, extra = {}) => {
         const sel = selectedRef.current;
         if (!sel?.guildId) return;
@@ -255,18 +254,37 @@ export function NiftyProvider({ user, children }) {
     const moveToTop = useCallback((trackId) => control("moveToTop", { trackId }), [control]);
     const removeTrack = useCallback((trackId) => control("remove", { trackId }), [control]);
 
-    const runSearch = useCallback(async (query) => {
-        if (!query?.trim()) return;
-        setView("search");
-        setSearch({ query, results: [], loading: true });
+    // The actual fetch. `initiatedRef` guards against running the same query
+    // twice when both a click and the URL-sync effect fire.
+    const initiatedRef = useRef("");
+    const doSearch = useCallback(async (query) => {
+        const q = query.trim();
+        if (!q) return;
+        initiatedRef.current = q;
+        setSearch({ query: q, results: [], loading: true });
         try {
-            const res = await fetch(`/api/search?query=${encodeURIComponent(query)}`);
+            const res = await fetch(`/api/search?query=${encodeURIComponent(q)}`);
             const json = await res.json();
-            setSearch({ query, results: json.results || [], loading: false });
+            setSearch({ query: q, results: json.results || [], loading: false });
         } catch {
-            setSearch({ query, results: [], loading: false });
+            setSearch({ query: q, results: [], loading: false });
         }
     }, []);
+
+    // Navigate to the search page (real URL with ?q=…) and run the search.
+    const runSearch = useCallback((query) => {
+        if (!query?.trim()) return;
+        const q = query.trim();
+        router.push(`/dashboard/search?q=${encodeURIComponent(q)}`, undefined, { shallow: true });
+        doSearch(q);
+    }, [router, doSearch]);
+
+    // Run the search when landing on / navigating (back/forward) to a search URL.
+    useEffect(() => {
+        if (view !== "search") return;
+        const q = (router.query.q ?? "").toString();
+        if (q && q !== initiatedRef.current) doSearch(q);
+    }, [view, router.query.q, doSearch]);
 
     const logout = useCallback(async () => {
         try { await fetch("/api/auth/logout", { method: "POST" }); } catch {}
