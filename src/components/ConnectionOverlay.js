@@ -12,10 +12,12 @@ const MIN_VISIBLE = 2000; // once shown, stay up at least this long
 
 export default function ConnectionOverlay() {
     const { connected } = useNifty();
-    const [visible, setVisible] = useState(false);
-    const visibleRef = useRef(false);
+    // Shown immediately on page load and kept up until the very first connect.
+    const [visible, setVisible] = useState(true);
+    const visibleRef = useRef(true);
     visibleRef.current = visible;
-    const shownAt = useRef(0);
+    const everConnected = useRef(false);
+    const shownAt = useRef(Date.now());
     const showTimer = useRef();
     const hideTimer = useRef();
 
@@ -23,17 +25,21 @@ export default function ConnectionOverlay() {
         clearTimeout(showTimer.current);
         clearTimeout(hideTimer.current);
 
-        if (!connected) {
-            // Might reconnect instantly — only surface the overlay if it lasts.
+        if (connected) {
+            everConnected.current = true;
+            if (visibleRef.current) {
+                // Hold for the minimum so the initial splash / reconnect doesn't flash.
+                const remaining = Math.max(0, MIN_VISIBLE - (Date.now() - shownAt.current));
+                hideTimer.current = setTimeout(() => setVisible(false), remaining);
+            }
+        } else if (everConnected.current) {
+            // A later drop might reconnect instantly — only surface it if it lasts.
             showTimer.current = setTimeout(() => {
                 shownAt.current = Date.now();
                 setVisible(true);
             }, SHOW_DELAY);
-        } else if (visibleRef.current) {
-            // Reconnected while shown: hold for the minimum, then hide.
-            const remaining = Math.max(0, MIN_VISIBLE - (Date.now() - shownAt.current));
-            hideTimer.current = setTimeout(() => setVisible(false), remaining);
         }
+        // Initial load (never connected yet): the overlay is already visible — leave it.
 
         return () => {
             clearTimeout(showTimer.current);
