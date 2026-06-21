@@ -10,7 +10,6 @@ import LeftSidebar from "../components/layout/LeftSidebar.js";
 import CenterContent from "../components/layout/CenterContent.js";
 import RightSidebar from "../components/layout/RightSidebar.js";
 import Player from "../components/player/Player.js";
-import SettingsModal from "../components/SettingsModal.js";
 import ConnectionOverlay from "../components/ConnectionOverlay.js";
 
 export async function getServerSideProps({ req }) {
@@ -48,7 +47,6 @@ export default function Dashboard({ user }) {
                         <Player />
                     </div>
 
-                    <SettingsModal />
                     <ConnectionOverlay />
                 </div>
             </ContextMenuProvider>

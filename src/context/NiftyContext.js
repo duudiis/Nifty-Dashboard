@@ -31,7 +31,6 @@ export function NiftyProvider({ user, children }) {
     const [search, setSearch] = useState({ query: "", results: [], loading: false });
 
     const [settings, setSettings] = useState(DEFAULT_SETTINGS);
-    const [settingsOpen, setSettingsOpen] = useState(false);
 
     const wsRef = useRef(null);
     const heartbeatRef = useRef(null);
@@ -257,7 +256,6 @@ export function NiftyProvider({ user, children }) {
         view, setView,
         search, runSearch,
         settings, updateSettings,
-        settingsOpen, setSettingsOpen,
         selectSession,
         control,
         play,

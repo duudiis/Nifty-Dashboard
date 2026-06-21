@@ -31,7 +31,7 @@ export default function TopBar() {
                 onClick={() => setView("home")}
                 className="flex items-center gap-3 text-white transition-opacity hover:opacity-90"
             >
-                <Logo className="h-9 w-9 text-accent" />
+                <Logo className="h-9 w-9 text-white" />
                 <span className="hidden text-3xl font-extrabold tracking-tight sm:block">Nifty</span>
             </button>
 

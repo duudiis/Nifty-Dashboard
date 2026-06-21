@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
+import Icon from "../Icon.js";
+import { AnimatePresence, motion, EASE } from "../motion/index.js";
 
 // Interpolates a smooth, ~frame-accurate playback position between the 1s
 // progress pushes from the bot, so line/word highlighting lands on time.
@@ -27,15 +29,16 @@ function useSmoothProgress(player) {
     return ms;
 }
 
+// Left-aligned, sized/spaced like the real lyric lines, with a visible shimmer.
 function LyricsSkeleton() {
-    const widths = ["62%", "78%", "45%", "70%", "55%", "82%", "40%", "66%"];
+    const widths = ["70%", "52%", "84%", "61%", "45%", "76%", "58%", "68%"];
     return (
-        <div className="flex w-full max-w-xl flex-col items-center gap-7">
+        <div className="flex w-full flex-col items-start gap-9">
             {widths.map((w, i) => (
                 <div
                     key={i}
-                    className="h-8 animate-pulse rounded-lg bg-white/15"
-                    style={{ width: w, animationDelay: `${i * 0.12}s` }}
+                    className="skeleton-shimmer h-9 rounded-lg sm:h-11"
+                    style={{ width: w, animationDelay: `${i * 0.15}s` }}
                 />
             ))}
         </div>
@@ -75,19 +78,23 @@ export default function LyricsView() {
 
     const [data, setData] = useState(null); // { synced, plain, instrumental, source }
     const [loading, setLoading] = useState(false);
+    const [autoSync, setAutoSync] = useState(true);
 
     const scroller = useRef(null);
     const lineRefs = useRef([]);
 
     const art = artworkOrFallback(track?.artwork);
 
-    // Fetch (server-cached) lyrics whenever the track changes.
+    // Fetch (server-cached) lyrics whenever the track changes. Clear the old
+    // lyrics immediately so the view never lingers on the previous song.
     useEffect(() => {
         if (!track?.title) {
             setData(null);
             return;
         }
         let stale = false;
+        setData(null);
+        setAutoSync(true);
         setLoading(true);
         const qs = new URLSearchParams({
             title: track.title,
@@ -117,14 +124,25 @@ export default function LyricsView() {
         return i;
     }, [synced, ms]);
 
-    // Auto-scroll the active line to the vertical centre.
-    useEffect(() => {
+    const scrollToActive = useCallback((behavior = "smooth") => {
         const el = lineRefs.current[activeIndex];
         const box = scroller.current;
         if (!el || !box) return;
         const top = el.offsetTop - box.clientHeight / 2 + el.clientHeight / 2;
-        box.scrollTo({ top, behavior: "smooth" });
+        box.scrollTo({ top, behavior });
     }, [activeIndex]);
+
+    // Keep the active line centred — unless the user has scrolled away.
+    useEffect(() => {
+        if (autoSync) scrollToActive();
+    }, [activeIndex, autoSync, scrollToActive]);
+
+    // A manual scroll/wheel/touch detaches sync until the user taps "Sync".
+    const detach = () => setAutoSync(false);
+    const resync = () => {
+        setAutoSync(true);
+        scrollToActive();
+    };
 
     const Background = (
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -152,9 +170,12 @@ export default function LyricsView() {
 
     if (loading && !data) {
         return (
-            <Frame>
-                <LyricsSkeleton />
-            </Frame>
+            <div className="relative flex h-full flex-col overflow-hidden rounded-lg">
+                {Background}
+                <div className="relative flex flex-1 flex-col justify-center px-8 sm:px-14">
+                    <LyricsSkeleton />
+                </div>
+            </div>
         );
     }
 
@@ -173,6 +194,8 @@ export default function LyricsView() {
                 {Background}
                 <div
                     ref={scroller}
+                    onWheel={detach}
+                    onTouchMove={detach}
                     className="relative flex-1 space-y-9 overflow-y-auto px-8 py-[42vh] sm:px-14"
                 >
                     {synced.map((line, i) => (
@@ -185,17 +208,33 @@ export default function LyricsView() {
                         />
                     ))}
                 </div>
+
+                <AnimatePresence>
+                    {!autoSync && (
+                        <motion.button
+                            onClick={resync}
+                            initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                            transition={{ duration: 0.16, ease: EASE }}
+                            className="absolute bottom-4 right-4 flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-bold text-white shadow-lg backdrop-blur-md transition hover:bg-white/25"
+                        >
+                            <Icon name="sync" className="h-4 w-4" />
+                            Sync
+                        </motion.button>
+                    )}
+                </AnimatePresence>
             </div>
         );
     }
 
-    // Plain (un-timed) lyrics fallback.
+    // Plain (un-timed) lyrics fallback — left aligned.
     if (data?.plain) {
         return (
             <div className="relative flex h-full flex-col overflow-hidden rounded-lg">
                 {Background}
                 <div className="relative flex-1 overflow-y-auto px-8 py-12 sm:px-14">
-                    <pre className="whitespace-pre-wrap text-center font-unbounded text-xl font-bold leading-relaxed text-white/80">
+                    <pre className="whitespace-pre-wrap text-left font-unbounded text-2xl font-extrabold leading-relaxed text-white/85">
                         {data.plain}
                     </pre>
                 </div>

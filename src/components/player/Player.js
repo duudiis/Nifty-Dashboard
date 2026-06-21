@@ -83,7 +83,7 @@ function Song({ track, idle }) {
                 </span>
             </div>
             {!idle && (
-                <AddedBy track={track} size={20} className="min-w-0 max-w-[45%] text-[11px] text-subtext/80" />
+                <AddedBy track={track} size={20} className="ml-3 w-24 shrink-0 text-[11px] text-subtext/80" />
             )}
         </div>
     );
