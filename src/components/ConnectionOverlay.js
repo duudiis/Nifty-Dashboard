@@ -16,7 +16,13 @@ const TIPS = [
     "Tap the lyrics icon in the player for time-synced lyrics.",
     "Use Connect to switch which server you're controlling.",
     "Search covers songs, albums, artists, playlists and videos.",
-    "Nifty keeps playing even when this dashboard is closed."
+    "Nifty keeps playing even when this dashboard is closed.",
+    "Double-click a track to queue it instantly.",
+    "The now-playing track stays pinned to the top of the queue.",
+    "Switch Queue, Now Playing and Connect from the player bar.",
+    "Long titles scroll so you can read the whole thing.",
+    "Toggle list or grid layout on your search results.",
+    "Right-click a queued track to play it next or move it to the top."
 ];
 
 export default function ConnectionOverlay() {
@@ -29,6 +35,8 @@ export default function ConnectionOverlay() {
     const shownAt = useRef(Date.now());
     const showTimer = useRef();
     const hideTimer = useRef();
+    // Latched when the overlay starts showing, so it doesn't flip mid-display.
+    const [mode, setMode] = useState("LOADING");
     const [tip, setTip] = useState(0);
 
     useEffect(() => {
@@ -45,6 +53,7 @@ export default function ConnectionOverlay() {
             // A later drop might reconnect instantly — only surface it if it lasts.
             showTimer.current = setTimeout(() => {
                 shownAt.current = Date.now();
+                setMode("RECONNECTING");
                 setVisible(true);
             }, SHOW_DELAY);
         }
@@ -59,11 +68,9 @@ export default function ConnectionOverlay() {
     // Rotate tips while the overlay is up.
     useEffect(() => {
         if (!visible) return;
-        const id = setInterval(() => setTip((t) => (t + 1) % TIPS.length), 5000);
+        const id = setInterval(() => setTip((t) => (t + 1) % TIPS.length), 4500);
         return () => clearInterval(id);
     }, [visible]);
-
-    const status = everConnected.current ? "RECONNECTING" : "LOADING";
 
     return (
         <AnimatePresence>
@@ -74,11 +81,11 @@ export default function ConnectionOverlay() {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.35, ease: EASE }}
-                    className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-6 bg-canvas px-6 text-center"
+                    className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-canvas px-6 text-center"
                 >
-                    <Logo draw className="h-24 w-24 text-white" />
-                    <div className="flex flex-col items-center gap-3">
-                        <p className="text-xs font-bold uppercase tracking-[0.3em] text-subtext">{status}</p>
+                    <Logo className="h-20 w-20 animate-pulse text-white" />
+                    <div className="mt-10 flex flex-col items-center gap-3">
+                        <p className="text-xs font-bold uppercase tracking-[0.15em] text-subtext">{mode}</p>
                         <AnimatePresence mode="wait">
                             <motion.p
                                 key={tip}
