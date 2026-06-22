@@ -41,23 +41,23 @@ export default function LeftSidebar() {
                 />
             </nav>
 
-            {/* Library — header lines up with the nav icons above (px-5 + h-6 icon) */}
+            {/* Library */}
             <div className="flex min-h-0 flex-1 flex-col rounded-lg bg-surface">
-                <div className="flex items-center gap-4 px-5 py-3 text-sm font-bold text-subtext">
-                    <Icon name="library" className="h-6 w-6" />
+                <div className="flex items-center gap-3 px-4 py-3 text-xs font-bold text-subtext">
+                    <Icon name="library" className="h-5 w-5" />
                     Library
                 </div>
 
                 <div className="relative min-h-0 flex-1 overflow-hidden">
-                    {/* ghost library entries: aligned with the header icon, wider than the
-                        column and many, so they bleed off the right/bottom edges */}
-                    <div className="flex flex-col gap-3 px-5 pt-1">
-                        {[220, 180, 260, 200, 250, 190, 240, 170, 230, 210].map((w, i) => (
+                    {/* ghost library entries: aligned with the header icon, many and tall
+                        so they bleed off the bottom edge (overflow hidden) */}
+                    <div className="flex flex-col gap-3 px-4 pt-1">
+                        {[140, 115, 160, 130, 150, 110, 145, 120, 155, 125].map((w, i) => (
                             <div key={i} className="flex animate-pulse items-center gap-3" style={{ animationDelay: `${i * 0.16}s` }}>
                                 <div className="h-12 w-12 shrink-0 rounded-md bg-elevated" />
                                 <div className="flex shrink-0 flex-col gap-2">
                                     <div className="h-3.5 rounded bg-elevated" style={{ width: `${w}px` }} />
-                                    <div className="h-2.5 w-24 rounded bg-elevated" />
+                                    <div className="h-2.5 w-20 rounded bg-elevated" />
                                 </div>
                             </div>
                         ))}
