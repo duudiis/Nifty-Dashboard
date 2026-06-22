@@ -188,27 +188,10 @@ export function NiftyProvider({ user, children }) {
         };
     }, [user]);
 
-    /* ---- light periodic refresh of the sessions list (keeps the Connect panel
-       and auto-select aware of other servers). Player/queue are event-driven,
-       so they are NOT re-requested here. ---- */
-
-    useEffect(() => {
-        if (!connected) return;
-        const id = setInterval(() => send("sessions_request"), 15000);
-        return () => clearInterval(id);
-    }, [connected, send]);
-
-    /* ---- rare reconcile of the selected guild's player/queue, purely as a
-       safety net against a dropped push (normally everything is event-driven) ---- */
-
-    useEffect(() => {
-        if (!connected) return;
-        const id = setInterval(() => {
-            const sel = selectedRef.current;
-            if (sel?.guildId) send("subscribe", { guildId: sel.guildId });
-        }, 60000);
-        return () => clearInterval(id);
-    }, [connected, send]);
+    // Everything is event-driven: the bot pushes player/queue on change, and
+    // sessions on first connect (identify_success) + voice changes. The Connect
+    // panel polls sessions while it's open (see ConnectPanel) via this helper.
+    const refreshSessions = useCallback(() => send("sessions_request"), [send]);
 
     /* ---- when the playing track changes, pull a fresh queue right away so the
        "now playing" highlight tracks playback without waiting for the poll ---- */
@@ -332,6 +315,7 @@ export function NiftyProvider({ user, children }) {
         queue,
         updateAvailable,
         reloading,
+        refreshSessions,
         // Show the loading screen, then reload — gives the overlay time to cover
         // the page so the refresh is seamless (no double content animation).
         reloadApp: () => {

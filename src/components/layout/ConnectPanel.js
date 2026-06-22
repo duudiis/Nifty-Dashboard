@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
 import Icon from "../Icon.js";
@@ -7,7 +9,14 @@ const key = (s) => `${s.botName}:${s.guildId}`;
 // Spotify-"Connect"-style list of the servers/voice channels the bot(s) are in.
 // Picking one makes it the active session.
 export default function ConnectPanel() {
-    const { sessions, selected, selectSession } = useNifty();
+    const { sessions, selected, selectSession, refreshSessions } = useNifty();
+
+    // While this panel is open, keep the list fresh (immediately, then every 5s).
+    useEffect(() => {
+        refreshSessions();
+        const id = setInterval(refreshSessions, 5000);
+        return () => clearInterval(id);
+    }, [refreshSessions]);
 
     if (sessions.length === 0) {
         return (
