@@ -248,14 +248,14 @@ function Prompt({ mode }) {
         <div className="flex flex-col items-center gap-1 text-center">
             <span className="text-sm font-bold text-maintext">Nothing in the queue</span>
             <span className="text-[11px] text-subtext">
-                Find something to play —{" "}
+                Use{" "}
                 <button
                     onClick={() => document.getElementById("nifty-search")?.focus()}
                     className="inline-flex items-center gap-1 align-middle font-medium text-maintext hover:underline"
                 >
-                    <Icon name="search" className="h-3 w-3" /> search
+                    <Icon name="search" className="h-2.5 w-2.5" /> search
                 </button>{" "}
-                for a song, album or artist.
+                to add a song, album or artist.
             </span>
         </div>
     );

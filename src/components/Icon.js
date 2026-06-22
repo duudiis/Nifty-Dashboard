@@ -170,13 +170,11 @@ const ICONS = {
         )
     },
     lyrics: {
-        // microphone (karaoke)
+        // handheld karaoke microphone (ball head + grip handle)
         body: (
             <>
-                <rect x="9" y="2" width="6" height="11" rx="3" />
-                <path d="M5 10a7 7 0 0 0 14 0" />
-                <path d="M12 17v4" />
-                <path d="M8 21h8" />
+                <circle cx="15.5" cy="8.5" r="4.5" />
+                <path d="M12.3 11.7 4.6 19.4a1.5 1.5 0 1 0 2.1 2.1l7.7-7.7" />
             </>
         )
     },
@@ -209,15 +207,15 @@ const ICONS = {
         )
     },
     connect: {
-        // devices: a screen + a speaker (Spotify "connect to a device")
+        // devices: a monitor + a speaker (Spotify "connect to a device")
         body: (
             <>
-                <rect x="2" y="4" width="13" height="11" rx="1.5" />
-                <path d="M6.5 19h6" />
-                <path d="M9.5 15v4" />
-                <rect x="17" y="3" width="5" height="17" rx="1.5" />
-                <circle cx="19.5" cy="8" r="1" />
-                <circle cx="19.5" cy="15" r="1.6" />
+                <rect x="2" y="4" width="13" height="10" rx="2" />
+                <path d="M9 14v3" />
+                <path d="M6 18h6" />
+                <rect x="17.5" y="6" width="4.5" height="12" rx="1.5" />
+                <circle cx="19.75" cy="14.5" r="1.5" />
+                <path d="M19.75 9.5h.01" />
             </>
         )
     },
