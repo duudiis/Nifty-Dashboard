@@ -92,14 +92,14 @@ export default function ConnectionOverlay() {
                     className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-canvas px-6 text-center"
                 >
                     <motion.div
-                        initial={animateContent ? { opacity: 0, y: 14 } : false}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.45, ease: EASE, delay: 0.05 }}
+                        initial={animateContent ? { opacity: 0 } : false}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.45, ease: EASE }}
                         className="flex flex-col items-center"
                     >
-                        <Logo className="h-28 w-28 animate-pulse text-white" />
-                        <div className="mt-14 flex flex-col items-center gap-2">
-                            <p className="text-sm font-extrabold uppercase tracking-[0.1em] text-maintext">{status}</p>
+                        <Logo draw className="h-32 w-32 text-white" />
+                        <div className="mt-20 flex flex-col items-center gap-2">
+                            <p className="text-shimmer text-xs font-extrabold uppercase tracking-[0.1em]">{status}</p>
                             <AnimatePresence mode="wait">
                                 <motion.p
                                     key={tip}
