@@ -14,12 +14,12 @@ import Volume from "./Volume.js";
 /* ---- control buttons ---- */
 
 // Small accent dot under active toggles (Spotify-style); absolute so it never
-// shifts the icon's position.
+// shifts the icon's position. Same size/offset everywhere it's used.
 function ActiveDot() {
-    return <span className="absolute -bottom-1.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-accent" />;
+    return <span className="absolute -bottom-2 left-1/2 h-[3px] w-[3px] -translate-x-1/2 rounded-full bg-accent" />;
 }
 
-function IconButton({ onClick, active, title, large, disabled, children }) {
+function IconButton({ onClick, active, title, large, disabled, className = "", children }) {
     if (large) {
         return (
             <button
@@ -39,7 +39,7 @@ function IconButton({ onClick, active, title, large, disabled, children }) {
             disabled={disabled}
             className={`relative flex items-center justify-center transition disabled:cursor-not-allowed disabled:opacity-40 ${
                 active ? "text-accent" : "text-subtext hover:text-maintext"
-            }`}
+            } ${className}`}
         >
             {children}
             {active && <ActiveDot />}
@@ -53,7 +53,7 @@ function Controls({ playing, onPlayPause, sideDisabled, playDisabled }) {
 
     return (
         <div className="flex items-center justify-center gap-4">
-            <IconButton onClick={() => control("shuffle")} active={player?.shuffle} disabled={sideDisabled} title="Shuffle">
+            <IconButton onClick={() => control("shuffle")} active={player?.shuffle} disabled={sideDisabled} title="Shuffle" className="mr-2">
                 <Icon name="shuffle" className="h-[17px] w-[17px]" />
             </IconButton>
 
@@ -69,7 +69,7 @@ function Controls({ playing, onPlayPause, sideDisabled, playDisabled }) {
                 <Icon name="next" className="h-[18px] w-[18px]" />
             </IconButton>
 
-            <IconButton onClick={() => control("loop")} active={loopActive} disabled={sideDisabled} title={`Loop: ${player?.loop || "off"}`}>
+            <IconButton onClick={() => control("loop")} active={loopActive} disabled={sideDisabled} title={`Loop: ${player?.loop || "off"}`} className="ml-2">
                 <Icon name={player?.loop === "track" ? "loop-one" : "loop"} className="h-[17px] w-[17px]" />
             </IconButton>
         </div>
