@@ -45,7 +45,7 @@ export default function TopBar() {
             <div className="flex min-w-0 flex-1 items-center justify-start">
                 <button
                     onClick={() => setView("home")}
-                    className="ml-3 flex items-center gap-3 text-white transition-opacity hover:opacity-90"
+                    className="ml-1 flex items-center gap-3 text-white transition-opacity hover:opacity-90"
                 >
                     <Logo className="h-11 w-11 text-white" />
                     <span className="hidden text-3xl font-extrabold tracking-tight sm:block">Nifty</span>
@@ -77,7 +77,7 @@ export default function TopBar() {
                         title="A new version is available — click to update"
                         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-accent transition hover:bg-white/15"
                     >
-                        <Icon name="download" className="h-4 w-4" />
+                        <Icon name="download" className="h-[18px] w-[18px]" />
                     </motion.button>
                 )}
                 <Account />

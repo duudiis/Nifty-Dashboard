@@ -112,13 +112,16 @@
         animation: logo-stroke 1.5s ease-in-out infinite;
     }
     @keyframes logo-stroke {
-        0%   { stroke-dashoffset: 1; }
-        45%  { stroke-dashoffset: 0; }
-        100% { stroke-dashoffset: 0; }
+        0%   { stroke-dashoffset: 1; } /* undrawn */
+        40%  { stroke-dashoffset: 0; } /* drawn */
+        75%  { stroke-dashoffset: 0; } /* hold */
+        90%  { stroke-dashoffset: 1; } /* un-draw while already faded out */
+        100% { stroke-dashoffset: 1; }
     }
     @keyframes logo-fade {
         0%   { opacity: 1; }
-        72%  { opacity: 1; }
+        75%  { opacity: 1; }
+        87%  { opacity: 0; } /* fully faded before the strokes reset */
         100% { opacity: 0; }
     }
 
