@@ -170,13 +170,13 @@ const ICONS = {
         )
     },
     lyrics: {
+        // microphone (karaoke)
         body: (
             <>
-                <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
-                <path d="M7 10h6" />
-                <path d="M7 14h4" />
-                <path d="M16 9.5v5" />
-                <circle cx="14.5" cy="14.5" r="1.4" />
+                <rect x="9" y="2" width="6" height="11" rx="3" />
+                <path d="M5 10a7 7 0 0 0 14 0" />
+                <path d="M12 17v4" />
+                <path d="M8 21h8" />
             </>
         )
     },
@@ -209,12 +209,35 @@ const ICONS = {
         )
     },
     connect: {
+        // devices: a screen + a speaker (Spotify "connect to a device")
         body: (
             <>
-                <path d="M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6" />
-                <path d="M2 12a9 9 0 0 1 8 8" />
-                <path d="M2 16a5 5 0 0 1 4 4" />
-                <path d="M2 20h.01" />
+                <rect x="2" y="4" width="13" height="11" rx="1.5" />
+                <path d="M6.5 19h6" />
+                <path d="M9.5 15v4" />
+                <rect x="17" y="3" width="5" height="17" rx="1.5" />
+                <circle cx="19.5" cy="8" r="1" />
+                <circle cx="19.5" cy="15" r="1.6" />
+            </>
+        )
+    },
+    fullscreen: {
+        body: (
+            <>
+                <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                <path d="M16 3h3a2 2 0 0 1 2 2v3" />
+                <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+                <path d="M8 21H5a2 2 0 0 1-2-2v-3" />
+            </>
+        )
+    },
+    "fullscreen-exit": {
+        body: (
+            <>
+                <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+                <path d="M16 3v3a2 2 0 0 0 2 2h3" />
+                <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+                <path d="M8 21v-3a2 2 0 0 0-2-2H3" />
             </>
         )
     },

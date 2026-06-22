@@ -57,6 +57,7 @@ export default function TopBar() {
                 <div className="flex w-full items-center gap-2 rounded-full bg-white/10 px-4 py-2 ring-white/0 transition focus-within:bg-white/15 focus-within:ring-2 focus-within:ring-white/20">
                     <Icon name="search" className="h-5 w-5 shrink-0 text-white/60" />
                     <input
+                        id="nifty-search"
                         ref={inputRef}
                         value={query}
                         onChange={onChange}

@@ -7,9 +7,9 @@ import ConnectPanel from "./ConnectPanel.js";
 import PanelHeader from "./PanelHeader.js";
 import Icon from "../Icon.js";
 
-// Each panel (header + content) animates as a single unit: it fades in while
-// sliding up from below, and fades out while sliding up to the top.
-function PanelBody({ panel }) {
+// Each panel (header + content) animates as one unit: Queue/Connect slide down
+// out and Now playing rises from below — so closing a panel reveals it.
+function PanelBody({ panel, onClose }) {
     if (panel === "queue") {
         return (
             <>
@@ -17,6 +17,9 @@ function PanelBody({ panel }) {
                 <div className="sticky top-0 z-10 flex items-center gap-2.5 bg-gradient-to-b from-surface via-surface to-transparent px-4 pb-8 pt-5 text-sm font-bold text-maintext">
                     <Icon name="queue" className="h-4 w-4 text-subtext" />
                     Queue
+                    <button onClick={onClose} title="Close" className="ml-auto text-subtext transition hover:text-maintext">
+                        <Icon name="x" className="h-4 w-4" />
+                    </button>
                 </div>
                 <div className="-mt-3 flex min-h-0 flex-1 flex-col px-2">
                     <QueueList dense />
@@ -27,7 +30,7 @@ function PanelBody({ panel }) {
     if (panel === "connect") {
         return (
             <>
-                <PanelHeader icon="connect" title="Connect" />
+                <PanelHeader icon="connect" title="Connect" onClose={onClose} />
                 <div className="flex min-h-0 flex-1 flex-col">
                     <ConnectPanel />
                 </div>
@@ -39,8 +42,9 @@ function PanelBody({ panel }) {
 }
 
 export default function RightSidebar() {
-    const { settings } = useNifty();
+    const { settings, updateSettings } = useNifty();
     const panel = settings.rightPanel;
+    const close = () => updateSettings({ rightPanel: "nowplaying" });
 
     return (
         <aside className="hidden w-[340px] shrink-0 flex-col overflow-hidden rounded-lg bg-surface lg:flex">
@@ -48,11 +52,11 @@ export default function RightSidebar() {
                 <motion.section
                     key={panel}
                     className="flex min-h-0 flex-1 flex-col overflow-y-auto"
-                    initial={{ opacity: 0, y: 18 }}
+                    initial={{ opacity: 0, y: 24 }}
                     animate={{ opacity: 1, y: 0, transition: { duration: 0.28, ease: EASE } }}
-                    exit={{ opacity: 0, y: -18, transition: { duration: 0.16, ease: EASE } }}
+                    exit={{ opacity: 0, y: 24, transition: { duration: 0.18, ease: EASE } }}
                 >
-                    <PanelBody panel={panel} />
+                    <PanelBody panel={panel} onClose={close} />
                 </motion.section>
             </AnimatePresence>
         </aside>

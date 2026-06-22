@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
@@ -11,38 +11,43 @@ import { useTrackMenu } from "../menu/trackMenu.js";
 import ProgressBar from "./ProgressBar.js";
 import Volume from "./Volume.js";
 
-// Placeholder "recommendations" — no algorithm yet, just a designed prompt.
-const SUGGESTIONS = [
-    { title: "Blinding Lights", artist: "The Weeknd" },
-    { title: "Get Lucky", artist: "Daft Punk" },
-    { title: "Levitating", artist: "Dua Lipa" },
-    { title: "As It Was", artist: "Harry Styles" },
-    { title: "Bohemian Rhapsody", artist: "Queen" },
-    { title: "Sunflower", artist: "Post Malone" }
-];
-
 /* ---- control buttons ---- */
 
+// Small accent dot under active toggles (Spotify-style); absolute so it never
+// shifts the icon's position.
+function ActiveDot() {
+    return <span className="absolute -bottom-1.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-accent" />;
+}
+
 function IconButton({ onClick, active, title, large, disabled, children }) {
+    if (large) {
+        return (
+            <button
+                onClick={onClick}
+                title={title}
+                disabled={disabled}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-maintext text-canvas transition hover:scale-105 active:scale-95 disabled:opacity-40 disabled:hover:scale-100"
+            >
+                {children}
+            </button>
+        );
+    }
     return (
         <button
             onClick={onClick}
             title={title}
             disabled={disabled}
-            className={`flex items-center justify-center transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                large
-                    ? "h-9 w-9 rounded-full bg-maintext text-canvas hover:scale-105 active:scale-95"
-                    : active
-                    ? "text-accent"
-                    : "text-subtext hover:text-maintext"
+            className={`relative flex items-center justify-center transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                active ? "text-accent" : "text-subtext hover:text-maintext"
             }`}
         >
             {children}
+            {active && <ActiveDot />}
         </button>
     );
 }
 
-function Controls({ playing, onPlayPause, sideDisabled }) {
+function Controls({ playing, onPlayPause, sideDisabled, playDisabled }) {
     const { player, control } = useNifty();
     const loopActive = player?.loop && player.loop !== "disabled";
 
@@ -56,8 +61,8 @@ function Controls({ playing, onPlayPause, sideDisabled }) {
                 <Icon name="prev" className="h-[18px] w-[18px]" />
             </IconButton>
 
-            <IconButton onClick={onPlayPause} large title={playing ? "Pause" : "Play"}>
-                <Icon name={playing ? "pause" : "play"} className="h-[17px] w-[17px]" />
+            <IconButton onClick={onPlayPause} large disabled={playDisabled} title={playing ? "Pause" : "Play"}>
+                <Icon name={playing ? "pause" : "play"} className="h-[19px] w-[19px]" />
             </IconButton>
 
             <IconButton onClick={() => control("skip")} disabled={sideDisabled} title="Next">
@@ -95,7 +100,21 @@ function Song({ track }) {
     );
 }
 
-/* ---- panel toggles (mirror Spotify's bottom-right controls) ---- */
+// Matches the Song layout exactly, for the brief stopped-state load.
+function SongSkeleton() {
+    return (
+        <div className="-mx-2 flex min-w-0 items-center gap-3 px-2 py-1">
+            <div className="h-14 w-14 shrink-0 animate-pulse rounded-md bg-elevated" />
+            <div className="flex min-w-0 max-w-[14rem] flex-col gap-2">
+                <div className="h-3 w-32 animate-pulse rounded bg-elevated" />
+                <div className="h-2.5 w-20 animate-pulse rounded bg-elevated" />
+            </div>
+            <div className="ml-3 h-5 w-24 shrink-0 animate-pulse rounded-full bg-elevated" />
+        </div>
+    );
+}
+
+/* ---- panel toggles + fullscreen ---- */
 
 // Hoisted so it isn't a fresh component type each render (which would remount
 // the buttons every progress tick and replay their hover transitions).
@@ -104,9 +123,10 @@ function Toggle({ icon, on, onClick, title }) {
         <button
             onClick={onClick}
             title={title}
-            className={`flex items-center justify-center transition ${on ? "text-accent" : "text-subtext hover:text-maintext"}`}
+            className={`relative flex items-center justify-center transition ${on ? "text-accent" : "text-subtext hover:text-maintext"}`}
         >
             <Icon name={icon} className="h-[18px] w-[18px]" />
+            {on && <ActiveDot />}
         </button>
     );
 }
@@ -114,14 +134,40 @@ function Toggle({ icon, on, onClick, title }) {
 function PanelToggles() {
     const { view, setView, settings, updateSettings } = useNifty();
     const rightPanel = settings.rightPanel;
+    // Toggling a panel that's already open returns to the default (now playing).
+    const togglePanel = (p) => updateSettings({ rightPanel: rightPanel === p ? "nowplaying" : p });
 
     return (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
             <Toggle icon="lyrics" title="Lyrics" on={view === "lyrics"} onClick={() => setView(view === "lyrics" ? "home" : "lyrics")} />
-            <Toggle icon="queue" title="Queue" on={rightPanel === "queue"} onClick={() => updateSettings({ rightPanel: "queue" })} />
-            <Toggle icon="now-playing" title="Now playing" on={rightPanel === "nowplaying"} onClick={() => updateSettings({ rightPanel: "nowplaying" })} />
-            <Toggle icon="connect" title="Connect to a server" on={rightPanel === "connect"} onClick={() => updateSettings({ rightPanel: "connect" })} />
+            <Toggle icon="queue" title="Queue" on={rightPanel === "queue"} onClick={() => togglePanel("queue")} />
+            <Toggle icon="connect" title="Connect to a server" on={rightPanel === "connect"} onClick={() => togglePanel("connect")} />
         </div>
+    );
+}
+
+function FullscreenButton() {
+    const [fs, setFs] = useState(false);
+
+    useEffect(() => {
+        const handler = () => setFs(!!document.fullscreenElement);
+        document.addEventListener("fullscreenchange", handler);
+        return () => document.removeEventListener("fullscreenchange", handler);
+    }, []);
+
+    const toggle = () => {
+        if (document.fullscreenElement) document.exitFullscreen?.();
+        else document.documentElement.requestFullscreen?.();
+    };
+
+    return (
+        <button
+            onClick={toggle}
+            title={fs ? "Exit fullscreen" : "Fullscreen"}
+            className="flex items-center justify-center text-subtext transition hover:text-maintext"
+        >
+            <Icon name={fs ? "fullscreen-exit" : "fullscreen"} className="h-[18px] w-[18px]" />
+        </button>
     );
 }
 
@@ -137,7 +183,7 @@ function Glow() {
 }
 
 function Prompt({ mode }) {
-    const { inviteUrl, summon, play, selected, updateSettings } = useNifty();
+    const { inviteUrl, summon, selected, updateSettings } = useNifty();
     const [summoning, setSummoning] = useState(false);
 
     const onSummon = () => {
@@ -180,10 +226,7 @@ function Prompt({ mode }) {
                             "your channel"
                         )}{" "}
                         yet.{" "}
-                        <button
-                            onClick={() => updateSettings({ rightPanel: "connect" })}
-                            className="text-subtext/50 transition hover:text-maintext"
-                        >
+                        <button onClick={() => updateSettings({ rightPanel: "connect" })} className="text-subtext/50 transition hover:text-maintext">
                             Wrong channel?
                         </button>
                     </span>
@@ -200,25 +243,20 @@ function Prompt({ mode }) {
         );
     }
 
-    // recommend
+    // recommend (connected, queue empty)
     return (
-        <div className="flex w-full flex-col items-center gap-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-subtext">Nothing queued — try one of these</span>
-            <div className="flex max-w-full items-center gap-2 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {SUGGESTIONS.map((s) => (
-                    <button
-                        key={`${s.title}-${s.artist}`}
-                        onClick={() => play(`ytmsearch:${s.title} ${s.artist}`, "queue")}
-                        className="group flex shrink-0 items-center gap-2 rounded-full bg-elevated px-3 py-1.5 text-left transition hover:bg-surface"
-                    >
-                        <Icon name="enqueue" className="h-3.5 w-3.5 text-subtext group-hover:text-accent" />
-                        <span className="flex flex-col leading-tight">
-                            <span className="text-[12px] font-bold text-maintext">{s.title}</span>
-                            <span className="text-[10px] text-subtext">{s.artist}</span>
-                        </span>
-                    </button>
-                ))}
-            </div>
+        <div className="flex flex-col items-center gap-1 text-center">
+            <span className="text-sm font-bold text-maintext">Nothing in the queue</span>
+            <span className="text-[11px] text-subtext">
+                Find something to play —{" "}
+                <button
+                    onClick={() => document.getElementById("nifty-search")?.focus()}
+                    className="inline-flex items-center gap-1 align-middle font-medium text-maintext hover:underline"
+                >
+                    <Icon name="search" className="h-3 w-3" /> search
+                </button>{" "}
+                for a song, album or artist.
+            </span>
         </div>
     );
 }
@@ -231,7 +269,6 @@ export default function Player() {
     const tracks = queue.tracks || [];
     const hasQueue = tracks.length > 0;
 
-    // Fresh session info for the selected guild (botActive / sameChannel).
     const session = sessions.find((s) => String(s.guildId) === String(selected?.guildId)) || selected;
     const botHere = !!(session && session.botActive && session.sameChannel);
 
@@ -244,14 +281,24 @@ export default function Player() {
 
     const contextual = mode === "invite" || mode === "summon" || mode === "recommend";
 
-    // "playing" uses the live track; "ended" pins the first queued track, paused
-    // at 0:00, where Play restarts the queue (jump, not unpause).
     const queued = track && tracks.find((t) => t.track_id === queue.position || t.songUrl === track.songUrl);
     const songTrack = track ? { ...queued, ...track } : mode === "ended" ? tracks[0] : null;
     const ended = mode === "ended";
     const onPlayPause = ended
         ? () => control("jump", { trackId: tracks[0]?.track_id ?? 0 })
         : () => control("togglePause");
+
+    // Brief skeleton when the queue stops, in case the bot is still settling.
+    const [endedLoading, setEndedLoading] = useState(false);
+    useEffect(() => {
+        if (mode !== "ended") {
+            setEndedLoading(false);
+            return;
+        }
+        setEndedLoading(true);
+        const t = setTimeout(() => setEndedLoading(false), 2000);
+        return () => clearTimeout(t);
+    }, [mode, tracks[0]?.songUrl]);
 
     return (
         <motion.div
@@ -277,16 +324,36 @@ export default function Player() {
                             </div>
                             <div className="relative flex shrink-0 items-center justify-end gap-4">
                                 <PanelToggles />
+                                <FullscreenButton />
                             </div>
                         </>
                     ) : (
                         <>
                             <div className="flex min-w-0 flex-1 items-center">
-                                <Song track={songTrack} />
+                                {ended ? (
+                                    <AnimatePresence mode="wait" initial={false}>
+                                        {endedLoading ? (
+                                            <motion.div key="sk" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25, ease: EASE }} className="w-full">
+                                                <SongSkeleton />
+                                            </motion.div>
+                                        ) : (
+                                            <motion.div key="song" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25, ease: EASE }} className="w-full">
+                                                <Song track={songTrack} />
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                ) : (
+                                    <Song track={songTrack} />
+                                )}
                             </div>
 
-                            <div className="flex w-[40%] max-w-xl flex-col items-center gap-1.5">
-                                <Controls playing={!ended && player?.playing} onPlayPause={onPlayPause} sideDisabled={ended} />
+                            <div className="flex w-[40%] max-w-xl flex-col items-center gap-2">
+                                <Controls
+                                    playing={!ended && player?.playing}
+                                    onPlayPause={onPlayPause}
+                                    sideDisabled={ended}
+                                    playDisabled={ended && endedLoading}
+                                />
                                 {ended ? (
                                     <ProgressBar progress={0} duration={songTrack?.duration || 0} disabled />
                                 ) : (
@@ -297,6 +364,7 @@ export default function Player() {
                             <div className="flex flex-1 items-center justify-end gap-4">
                                 <PanelToggles />
                                 <Volume disabled={ended} />
+                                <FullscreenButton />
                             </div>
                         </>
                     )}
