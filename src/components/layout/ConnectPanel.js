@@ -51,7 +51,7 @@ export default function ConnectPanel() {
                                 {s.guildName}
                             </span>
                             <span className="flex items-center gap-1 truncate text-[11px] text-subtext">
-                                <Icon name="mic" className="h-3 w-3" strokeWidth={2.2} />
+                                <Icon name="voice" className="h-3 w-3" />
                                 {s.voiceChannelName || "—"}
                             </span>
                         </div>

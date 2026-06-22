@@ -148,7 +148,7 @@ function Prompt({ mode }) {
 
     if (mode === "invite") {
         return (
-            <div className="flex flex-col items-center gap-2 text-center sm:flex-row sm:gap-3 sm:text-left">
+            <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:gap-8 sm:text-left">
                 <div className="flex flex-col">
                     <span className="text-sm font-bold text-maintext">I can&apos;t see you anywhere!</span>
                     <span className="text-[11px] text-subtext">Invite Nifty to your server and hop into a voice channel.</span>
@@ -167,14 +167,22 @@ function Prompt({ mode }) {
 
     if (mode === "summon") {
         return (
-            <div className="flex flex-col items-center gap-2 text-center sm:flex-row sm:gap-3 sm:text-left">
+            <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:gap-8 sm:text-left">
                 <div className="flex flex-col">
                     <span className="text-sm font-bold text-maintext">Ready when you are</span>
                     <span className="text-[11px] text-subtext">
-                        Nifty isn&apos;t in {selected?.voiceChannelName ? `#${selected.voiceChannelName}` : "your channel"} yet.{" "}
+                        Nifty isn&apos;t in{" "}
+                        {selected?.voiceChannelName ? (
+                            <span className="inline-flex items-center gap-0.5 align-middle font-medium text-maintext">
+                                <Icon name="voice" className="h-3 w-3" /> {selected.voiceChannelName}
+                            </span>
+                        ) : (
+                            "your channel"
+                        )}{" "}
+                        yet.{" "}
                         <button
                             onClick={() => updateSettings({ rightPanel: "connect" })}
-                            className="font-bold text-maintext underline-offset-2 hover:underline"
+                            className="text-subtext transition hover:text-maintext"
                         >
                             Wrong channel?
                         </button>
@@ -185,7 +193,7 @@ function Prompt({ mode }) {
                     disabled={summoning}
                     className="flex shrink-0 items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-xs font-bold text-canvas transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                    {summoning && <Icon name="sync" className="h-3.5 w-3.5 animate-spin" />}
+                    {summoning && <Icon name="spinner" className="h-3.5 w-3.5 animate-spin" />}
                     {summoning ? "Summoning…" : "Summon Nifty"}
                 </button>
             </div>

@@ -218,6 +218,23 @@ const ICONS = {
             </>
         )
     },
+    spinner: {
+        body: (
+            <>
+                <circle cx="12" cy="12" r="9" opacity="0.25" />
+                <path d="M21 12a9 9 0 0 0-9-9" />
+            </>
+        )
+    },
+    voice: {
+        body: (
+            <>
+                <path d="M11 5 6 9H2v6h4l5 4z" />
+                <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+                <path d="M19.5 5a9 9 0 0 1 0 14" />
+            </>
+        )
+    },
     download: {
         body: (
             <>
