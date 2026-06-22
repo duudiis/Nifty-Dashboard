@@ -102,16 +102,24 @@
         animation: pop-in 0.12s cubic-bezier(0.4, 0, 0.2, 1) forwards;
     }
 
-    /* Reconnecting/loading logo: strokes draw on, hold, then fade out and loop. */
+    /* Reconnecting/loading logo: strokes draw on, hold, then the whole mark fades
+       out as one group (so overlapping strokes fade evenly, not additively). */
+    .logo-draw {
+        animation: logo-fade 1.5s ease-in-out infinite;
+    }
     .logo-draw path {
         stroke-dasharray: 1;
-        animation: logo-draw 1.5s ease-in-out infinite;
+        animation: logo-stroke 1.5s ease-in-out infinite;
     }
-    @keyframes logo-draw {
-        0%   { stroke-dashoffset: 1; opacity: 1; }
-        45%  { stroke-dashoffset: 0; opacity: 1; }
-        72%  { stroke-dashoffset: 0; opacity: 1; }
-        100% { stroke-dashoffset: 0; opacity: 0; }
+    @keyframes logo-stroke {
+        0%   { stroke-dashoffset: 1; }
+        45%  { stroke-dashoffset: 0; }
+        100% { stroke-dashoffset: 0; }
+    }
+    @keyframes logo-fade {
+        0%   { opacity: 1; }
+        72%  { opacity: 1; }
+        100% { opacity: 0; }
     }
 
     /* Shimmering label (LOADING / RECONNECTING). */

@@ -45,9 +45,9 @@ export default function TopBar() {
             <div className="flex min-w-0 flex-1 items-center justify-start">
                 <button
                     onClick={() => setView("home")}
-                    className="flex items-center gap-3 text-white transition-opacity hover:opacity-90"
+                    className="ml-3 flex items-center gap-3 text-white transition-opacity hover:opacity-90"
                 >
-                    <Logo className="h-9 w-9 text-white" />
+                    <Logo className="h-11 w-11 text-white" />
                     <span className="hidden text-3xl font-extrabold tracking-tight sm:block">Nifty</span>
                 </button>
             </div>
