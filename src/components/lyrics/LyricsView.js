@@ -116,12 +116,25 @@ export default function LyricsView() {
 
     const synced = data?.synced || [];
 
+    // Bot time updates are coarse, so the position can wobble back a few hundred
+    // ms between pushes. Don't let that walk the active line backwards — only
+    // regress on a genuine seek (time landing well before the current line).
+    const SEEK_BACK_MS = 1500;
+    const activeRef = useRef(-1);
     const activeIndex = useMemo(() => {
-        if (!synced.length) return -1;
+        if (!synced.length) {
+            activeRef.current = -1;
+            return -1;
+        }
+        const t = ms + 250; // small lead so the line lights up just as it's sung
         let i = -1;
-        // small lead so the line lights up just as it's sung
-        const t = ms + 250;
         while (i + 1 < synced.length && synced[i + 1].time <= t) i++;
+
+        const prev = activeRef.current;
+        if (i < prev && prev < synced.length && t > (synced[prev]?.time ?? 0) - SEEK_BACK_MS) {
+            return prev; // small backward wobble — hold the current line
+        }
+        activeRef.current = i;
         return i;
     }, [synced, ms]);
 
