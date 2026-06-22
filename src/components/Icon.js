@@ -236,6 +236,18 @@ const ICONS = {
             </>
         )
     },
+    boombox: {
+        body: (
+            <>
+                <path d="M7 8V6.5a5 5 0 0 1 10 0V8" />
+                <rect x="2" y="8" width="20" height="12" rx="2" />
+                <circle cx="7.5" cy="14" r="3" />
+                <circle cx="16.5" cy="14" r="3" />
+                <path d="M12 12.5h.01" />
+                <path d="M12 16h.01" />
+            </>
+        )
+    },
     spinner: {
         body: (
             <>
