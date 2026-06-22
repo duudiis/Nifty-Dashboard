@@ -188,15 +188,25 @@ export function NiftyProvider({ user, children }) {
         };
     }, [user]);
 
-    /* ---- safety net: periodically refresh sessions + re-subscribe ---- */
+    /* ---- light periodic refresh of the sessions list (keeps the Connect panel
+       and auto-select aware of other servers). Player/queue are event-driven,
+       so they are NOT re-requested here. ---- */
+
+    useEffect(() => {
+        if (!connected) return;
+        const id = setInterval(() => send("sessions_request"), 15000);
+        return () => clearInterval(id);
+    }, [connected, send]);
+
+    /* ---- rare reconcile of the selected guild's player/queue, purely as a
+       safety net against a dropped push (normally everything is event-driven) ---- */
 
     useEffect(() => {
         if (!connected) return;
         const id = setInterval(() => {
-            send("sessions_request");
             const sel = selectedRef.current;
             if (sel?.guildId) send("subscribe", { guildId: sel.guildId });
-        }, 5000);
+        }, 60000);
         return () => clearInterval(id);
     }, [connected, send]);
 
