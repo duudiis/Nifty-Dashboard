@@ -36,12 +36,18 @@ export async function getServerSideProps({ req, params }) {
         }
     }
 
-    return { props: { user } };
+    // Invite link for adding the bot to a server (read at runtime).
+    const clientId = process.env.DISCORD_CLIENT_ID || "";
+    const inviteUrl = clientId
+        ? `https://discord.com/oauth2/authorize?client_id=${clientId}&permissions=3148800&scope=bot+applications.commands`
+        : null;
+
+    return { props: { user, inviteUrl } };
 }
 
-export default function Dashboard({ user }) {
+export default function Dashboard({ user, inviteUrl }) {
     return (
-        <NiftyProvider user={user}>
+        <NiftyProvider user={user} inviteUrl={inviteUrl}>
             <ContextMenuProvider>
                 <Head>
                     <title>Nifty Dashboard</title>

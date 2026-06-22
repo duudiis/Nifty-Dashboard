@@ -26,7 +26,7 @@ const VIEWS = ["queue", "search", "lyrics"];
 const ENTITY_VIEWS = ["album", "playlist", "artist"];
 const pathForView = (v) => (v === "home" ? "/dashboard" : `/dashboard/${v}`);
 
-export function NiftyProvider({ user, children }) {
+export function NiftyProvider({ user, inviteUrl = null, children }) {
 
     const router = useRouter();
 
@@ -249,6 +249,9 @@ export function NiftyProvider({ user, children }) {
         send("action", { guildId: sel.guildId, action, ...extra });
     }, [send]);
 
+    // Ask the bot to join the user's voice channel in the selected guild.
+    const summon = useCallback(() => control("summon"), [control]);
+
     // Queue a track by query/URL. `mode` lets callers ask the bot to place it:
     //   "queue" (default, append) · "now" (play immediately) · "next" (play next)
     const play = useCallback((query, mode = "queue") => {
@@ -316,6 +319,8 @@ export function NiftyProvider({ user, children }) {
         updateAvailable,
         reloading,
         refreshSessions,
+        inviteUrl,
+        summon,
         // Show the loading screen, then reload — gives the overlay time to cover
         // the page so the refresh is seamless (no double content animation).
         reloadApp: () => {
