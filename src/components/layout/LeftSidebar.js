@@ -48,19 +48,28 @@ export default function LeftSidebar() {
                     Library
                 </div>
 
-                <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-6 pb-6 text-center">
-                    <Icon name="library" className="h-10 w-10 text-subtext/50" />
-                    <div className="flex flex-col gap-1.5">
-                        <span className="inline-flex items-center justify-center gap-2 text-sm font-bold text-maintext">
-                            Library
-                            <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">
-                                Soon
-                            </span>
-                        </span>
-                        <p className="text-xs leading-relaxed text-subtext">
-                            Save your liked songs and playlists right here, and link external
-                            platforms — YouTube, Spotify, Deezer, Tidal — to see them all in one place.
-                        </p>
+                <div className="relative min-h-0 flex-1 overflow-hidden">
+                    {/* ghost library entries, fading in and out */}
+                    <div className="flex flex-col gap-2 p-2">
+                        {[62, 78, 50, 70, 56, 74, 48, 66].map((w, i) => (
+                            <div key={i} className="flex animate-pulse items-center gap-3" style={{ animationDelay: `${i * 0.18}s` }}>
+                                <div className="h-11 w-11 shrink-0 rounded-md bg-elevated" />
+                                <div className="flex flex-1 flex-col gap-1.5">
+                                    <div className="h-3 rounded bg-elevated" style={{ width: `${w}%` }} />
+                                    <div className="h-2.5 w-1/3 rounded bg-elevated" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* centered message scrimmed over the skeleton */}
+                    <div
+                        className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-6 text-center"
+                        style={{ background: "radial-gradient(circle at 50% 45%, rgb(var(--c-surface)) 30%, rgb(var(--c-surface) / 0.85) 48%, transparent 78%)" }}
+                    >
+                        <Icon name="library" className="mb-1 h-8 w-8 text-subtext/60" />
+                        <span className="text-sm font-bold text-maintext">Coming soon</span>
+                        <span className="text-[11px] text-subtext">Your saved music, all in one place.</span>
                     </div>
                 </div>
             </div>

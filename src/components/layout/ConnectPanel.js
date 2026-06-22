@@ -11,15 +11,11 @@ const key = (s) => `${s.botName}:${s.guildId}`;
 function InviteBlock({ centered }) {
     const { inviteUrl } = useNifty();
     return (
-        <div className={`flex flex-col items-center gap-3 px-6 text-center ${centered ? "flex-1 justify-center" : "mt-auto border-t border-border/60 py-6"}`}>
-            <Icon name="boombox" className="h-9 w-9 text-subtext/70" />
+        <div className={`flex flex-col items-center gap-3 px-6 text-center ${centered ? "flex-1 justify-center" : "mt-auto py-6"}`}>
+            <Icon name="connect" className="h-8 w-8 text-subtext/60" />
             <div className="flex flex-col gap-1">
                 <p className="text-sm font-bold text-maintext">{centered ? "No active servers" : "Not seeing your server?"}</p>
-                <p className="text-xs leading-relaxed text-subtext">
-                    {centered
-                        ? "Join a voice channel with Nifty in it — or it may be missing permissions or not invited to your server yet."
-                        : "Nifty might be missing permissions, or hasn't been invited to that server yet."}
-                </p>
+                <p className="text-xs text-subtext">Nifty may need an invite or more permissions.</p>
             </div>
             <a
                 href={inviteUrl || "#"}
