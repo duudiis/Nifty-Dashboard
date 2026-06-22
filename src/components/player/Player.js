@@ -1,9 +1,11 @@
+import { useState } from "react";
+
 import { useNifty } from "../../context/NiftyContext.js";
-import { artworkOrFallback, msToClock } from "../../lib/format.js";
+import { artworkOrFallback } from "../../lib/format.js";
 import Icon from "../Icon.js";
 import AddedBy from "../AddedBy.js";
 import Marquee from "../Marquee.js";
-import { motion, EASE, DUR } from "../motion/index.js";
+import { AnimatePresence, motion, EASE, DUR } from "../motion/index.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
 import ProgressBar from "./ProgressBar.js";
@@ -95,11 +97,10 @@ function Song({ track }) {
 
 /* ---- panel toggles (mirror Spotify's bottom-right controls) ---- */
 
-function PanelToggles() {
-    const { view, setView, settings, updateSettings } = useNifty();
-    const rightPanel = settings.rightPanel;
-
-    const Toggle = ({ icon, on, onClick, title }) => (
+// Hoisted so it isn't a fresh component type each render (which would remount
+// the buttons every progress tick and replay their hover transitions).
+function Toggle({ icon, on, onClick, title }) {
+    return (
         <button
             onClick={onClick}
             title={title}
@@ -108,6 +109,11 @@ function PanelToggles() {
             <Icon name={icon} className="h-[18px] w-[18px]" />
         </button>
     );
+}
+
+function PanelToggles() {
+    const { view, setView, settings, updateSettings } = useNifty();
+    const rightPanel = settings.rightPanel;
 
     return (
         <div className="flex items-center gap-3">
@@ -131,11 +137,18 @@ function Glow() {
 }
 
 function Prompt({ mode }) {
-    const { inviteUrl, summon, play, selected } = useNifty();
+    const { inviteUrl, summon, play, selected, updateSettings } = useNifty();
+    const [summoning, setSummoning] = useState(false);
+
+    const onSummon = () => {
+        setSummoning(true);
+        summon();
+        setTimeout(() => setSummoning(false), 8000); // re-enable if it didn't take
+    };
 
     if (mode === "invite") {
         return (
-            <div className="flex flex-col items-center gap-2 text-center sm:flex-row sm:gap-4 sm:text-left">
+            <div className="flex flex-col items-center gap-2 text-center sm:flex-row sm:gap-3 sm:text-left">
                 <div className="flex flex-col">
                     <span className="text-sm font-bold text-maintext">I can&apos;t see you anywhere!</span>
                     <span className="text-[11px] text-subtext">Invite Nifty to your server and hop into a voice channel.</span>
@@ -144,9 +157,9 @@ function Prompt({ mode }) {
                     href={inviteUrl || "#"}
                     target="_blank"
                     rel="noreferrer"
-                    className={`flex shrink-0 items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-xs font-bold text-canvas transition hover:brightness-110 ${inviteUrl ? "" : "pointer-events-none opacity-40"}`}
+                    className={`shrink-0 rounded-full bg-accent px-4 py-2 text-xs font-bold text-canvas transition hover:brightness-110 ${inviteUrl ? "" : "pointer-events-none opacity-40"}`}
                 >
-                    <Icon name="connect" className="h-4 w-4" /> Invite Nifty
+                    Invite Nifty
                 </a>
             </div>
         );
@@ -154,18 +167,26 @@ function Prompt({ mode }) {
 
     if (mode === "summon") {
         return (
-            <div className="flex flex-col items-center gap-2 text-center sm:flex-row sm:gap-4 sm:text-left">
+            <div className="flex flex-col items-center gap-2 text-center sm:flex-row sm:gap-3 sm:text-left">
                 <div className="flex flex-col">
                     <span className="text-sm font-bold text-maintext">Ready when you are</span>
                     <span className="text-[11px] text-subtext">
-                        Nifty isn&apos;t in {selected?.voiceChannelName ? `#${selected.voiceChannelName}` : "your channel"} yet.
+                        Nifty isn&apos;t in {selected?.voiceChannelName ? `#${selected.voiceChannelName}` : "your channel"} yet.{" "}
+                        <button
+                            onClick={() => updateSettings({ rightPanel: "connect" })}
+                            className="font-bold text-maintext underline-offset-2 hover:underline"
+                        >
+                            Wrong channel?
+                        </button>
                     </span>
                 </div>
                 <button
-                    onClick={summon}
-                    className="flex shrink-0 items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-xs font-bold text-canvas transition hover:brightness-110"
+                    onClick={onSummon}
+                    disabled={summoning}
+                    className="flex shrink-0 items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-xs font-bold text-canvas transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                    <Icon name="play" className="h-4 w-4" /> Summon Nifty
+                    {summoning && <Icon name="sync" className="h-3.5 w-3.5 animate-spin" />}
+                    {summoning ? "Summoning…" : "Summon Nifty"}
                 </button>
             </div>
         );
@@ -215,8 +236,8 @@ export default function Player() {
 
     const contextual = mode === "invite" || mode === "summon" || mode === "recommend";
 
-    // For "playing" use the live track; for "ended" pin the first queued track,
-    // paused at 0:00, where Play restarts the queue (jump, not unpause).
+    // "playing" uses the live track; "ended" pins the first queued track, paused
+    // at 0:00, where Play restarts the queue (jump, not unpause).
     const queued = track && tracks.find((t) => t.track_id === queue.position || t.songUrl === track.songUrl);
     const songTrack = track ? { ...queued, ...track } : mode === "ended" ? tracks[0] : null;
     const ended = mode === "ended";
@@ -229,43 +250,50 @@ export default function Player() {
             initial={{ y: 24, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: DUR.slow, ease: EASE }}
-            className="relative flex h-20 shrink-0 items-center gap-4 px-4"
+            className="relative h-20 shrink-0"
         >
-            {contextual ? (
-                <>
-                    <Glow />
-                    <div className="relative flex min-w-0 flex-1 items-center justify-center">
-                        <Prompt mode={mode} />
-                    </div>
-                    <div className="relative flex shrink-0 items-center justify-end gap-4">
-                        <PanelToggles />
-                    </div>
-                </>
-            ) : (
-                <>
-                    <div className="flex min-w-0 flex-1 items-center">
-                        <Song track={songTrack} />
-                    </div>
-
-                    <div className="flex w-[40%] max-w-xl flex-col items-center gap-1.5">
-                        <Controls playing={!ended && player?.playing} onPlayPause={onPlayPause} sideDisabled={ended} />
-                        {ended ? (
-                            <div className="flex w-full items-center gap-2 text-[11px] text-subtext">
-                                <span>0:00</span>
-                                <div className="h-1 flex-1 rounded-full bg-border/60" />
-                                <span>{msToClock(songTrack?.duration)}</span>
+            <AnimatePresence initial={false}>
+                <motion.div
+                    key={mode}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.25, ease: EASE }}
+                    className="absolute inset-0 flex items-center gap-4 px-4"
+                >
+                    {contextual ? (
+                        <>
+                            <Glow />
+                            <div className="relative flex min-w-0 flex-1 items-center justify-center">
+                                <Prompt mode={mode} />
                             </div>
-                        ) : (
-                            <ProgressBar />
-                        )}
-                    </div>
+                            <div className="relative flex shrink-0 items-center justify-end gap-4">
+                                <PanelToggles />
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="flex min-w-0 flex-1 items-center">
+                                <Song track={songTrack} />
+                            </div>
 
-                    <div className="flex flex-1 items-center justify-end gap-4">
-                        <PanelToggles />
-                        <Volume disabled={ended} />
-                    </div>
-                </>
-            )}
+                            <div className="flex w-[40%] max-w-xl flex-col items-center gap-1.5">
+                                <Controls playing={!ended && player?.playing} onPlayPause={onPlayPause} sideDisabled={ended} />
+                                {ended ? (
+                                    <ProgressBar progress={0} duration={songTrack?.duration || 0} disabled />
+                                ) : (
+                                    <ProgressBar />
+                                )}
+                            </div>
+
+                            <div className="flex flex-1 items-center justify-end gap-4">
+                                <PanelToggles />
+                                <Volume disabled={ended} />
+                            </div>
+                        </>
+                    )}
+                </motion.div>
+            </AnimatePresence>
         </motion.div>
     );
 }
