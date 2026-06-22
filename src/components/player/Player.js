@@ -148,7 +148,7 @@ function Prompt({ mode }) {
 
     if (mode === "invite") {
         return (
-            <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:gap-8 sm:text-left">
+            <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:gap-32 sm:text-left">
                 <div className="flex flex-col">
                     <span className="text-sm font-bold text-maintext">I can&apos;t see you anywhere!</span>
                     <span className="text-[11px] text-subtext">Invite Nifty to your server and hop into a voice channel.</span>
@@ -167,7 +167,7 @@ function Prompt({ mode }) {
 
     if (mode === "summon") {
         return (
-            <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:gap-8 sm:text-left">
+            <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:gap-32 sm:text-left">
                 <div className="flex flex-col">
                     <span className="text-sm font-bold text-maintext">Ready when you are</span>
                     <span className="text-[11px] text-subtext">
@@ -182,7 +182,7 @@ function Prompt({ mode }) {
                         yet.{" "}
                         <button
                             onClick={() => updateSettings({ rightPanel: "connect" })}
-                            className="text-subtext transition hover:text-maintext"
+                            className="text-subtext/50 transition hover:text-maintext"
                         >
                             Wrong channel?
                         </button>
