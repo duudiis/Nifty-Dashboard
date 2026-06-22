@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import Logo from "../Logo.js";
 import Icon from "../Icon.js";
 import Account from "./Account.js";
+import { motion, EASE } from "../motion/index.js";
 import { useNifty } from "../../context/NiftyContext.js";
 
 export default function TopBar() {
@@ -68,13 +69,16 @@ export default function TopBar() {
             {/* Update prompt + account (right third) */}
             <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
                 {updateAvailable && (
-                    <button
+                    <motion.button
+                        initial={{ opacity: 0, scale: 0.85 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.25, ease: EASE }}
                         onClick={reloadApp}
                         title="A new version is available — click to update"
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-canvas transition hover:brightness-110"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-accent transition hover:bg-white/15"
                     >
                         <Icon name="download" className="h-4 w-4" />
-                    </button>
+                    </motion.button>
                 )}
                 <Account />
             </div>

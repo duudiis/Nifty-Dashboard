@@ -105,7 +105,7 @@
     /* Reconnecting/loading logo: strokes draw on, hold, then fade out and loop. */
     .logo-draw path {
         stroke-dasharray: 1;
-        animation: logo-draw 3.2s ease-in-out infinite;
+        animation: logo-draw 1.5s ease-in-out infinite;
     }
     @keyframes logo-draw {
         0%   { stroke-dashoffset: 1; opacity: 1; }
