@@ -122,14 +122,12 @@ const ICONS = {
         )
     },
     queue: {
+        // Spotify "queue" — filled, 16x16 grid.
+        viewBox: "0 0 16 16",
+        fill: true,
+        stroke: false,
         body: (
-            <>
-                <line x1="3" y1="7" x2="14" y2="7" />
-                <line x1="3" y1="12.5" x2="14" y2="12.5" />
-                <line x1="3" y1="18" x2="10" y2="18" />
-                <circle cx="17.5" cy="17.5" r="3" />
-                <path d="M20.5 17.5V4.5l-6 1.7" />
-            </>
+            <path d="M15 15H1v-1.5h14zm0-4.5H1V9h14zm-14-7A2.5 2.5 0 0 1 3.5 1h9a2.5 2.5 0 0 1 0 5h-9A2.5 2.5 0 0 1 1 3.5m2.5-1a1 1 0 0 0 0 2h9a1 1 0 1 0 0-2z" />
         )
     },
     library: {
