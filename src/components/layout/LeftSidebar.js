@@ -43,7 +43,7 @@ export default function LeftSidebar() {
 
             {/* Library */}
             <div className="flex min-h-0 flex-1 flex-col rounded-lg bg-surface">
-                <div className="flex items-center gap-3 px-4 py-3 text-xs font-bold text-subtext">
+                <div className="flex items-center gap-3 px-4 pb-3 pt-4 text-xs font-bold text-subtext">
                     <Icon name="library" className="h-5 w-5" />
                     Library
                 </div>

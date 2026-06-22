@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
@@ -278,7 +278,28 @@ export default function Player() {
     else if (hasQueue) mode = "ended";
     else mode = "recommend";
 
-    const contextual = mode === "invite" || mode === "summon" || mode === "recommend";
+    // Switching servers clears player/queue until the new server's data lands.
+    // Hold a brief loading state so we don't flash an empty "Nothing in the
+    // queue" prompt in that gap.
+    const [switching, setSwitching] = useState(false);
+    const prevGuild = useRef(selected?.guildId);
+    useEffect(() => {
+        if (prevGuild.current !== selected?.guildId) {
+            prevGuild.current = selected?.guildId;
+            if (selected?.guildId) setSwitching(true);
+        }
+    }, [selected?.guildId]);
+    useEffect(() => {
+        if (!switching) return;
+        if (track || hasQueue) {
+            setSwitching(false);
+            return;
+        }
+        const t = setTimeout(() => setSwitching(false), 1000);
+        return () => clearTimeout(t);
+    }, [switching, track, hasQueue]);
+
+    const contextual = !switching && (mode === "invite" || mode === "summon" || mode === "recommend");
 
     const queued = track && tracks.find((t) => t.track_id === queue.position || t.songUrl === track.songUrl);
     const songTrack = track ? { ...queued, ...track } : mode === "ended" ? tracks[0] : null;
@@ -299,7 +320,7 @@ export default function Player() {
         return () => clearTimeout(t);
     }, [mode, tracks[0]?.songUrl]);
 
-    const showSkeleton = ended && endedLoading;
+    const showSkeleton = (ended && endedLoading) || switching;
 
     return (
         <motion.div
@@ -322,10 +343,13 @@ export default function Player() {
                     {contextual ? (
                         <>
                             <Glow />
-                            <div className="relative flex min-w-0 flex-1 items-center justify-center">
+                            {/* equal flex-1 spacers on both sides keep the prompt in the
+                                true centre of the bar, not just the space left of the toggles */}
+                            <div className="flex-1" />
+                            <div className="relative flex shrink-0 items-center justify-center">
                                 <Prompt mode={mode} />
                             </div>
-                            <div className="relative flex shrink-0 items-center justify-end gap-4">
+                            <div className="relative flex flex-1 items-center justify-end gap-4">
                                 <PanelToggles />
                                 <FullscreenButton />
                             </div>
