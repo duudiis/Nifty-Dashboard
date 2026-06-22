@@ -100,7 +100,7 @@ function Song({ track }) {
     );
 }
 
-// Matches the Song layout exactly, for the brief stopped-state load.
+// Matches the Song layout (art + title + artist) for the brief stopped-state load.
 function SongSkeleton() {
     return (
         <div className="-mx-2 flex min-w-0 items-center gap-3 px-2 py-1">
@@ -109,7 +109,6 @@ function SongSkeleton() {
                 <div className="h-3 w-32 animate-pulse rounded bg-elevated" />
                 <div className="h-2.5 w-20 animate-pulse rounded bg-elevated" />
             </div>
-            <div className="ml-3 h-5 w-24 shrink-0 animate-pulse rounded-full bg-elevated" />
         </div>
     );
 }
@@ -296,9 +295,11 @@ export default function Player() {
             return;
         }
         setEndedLoading(true);
-        const t = setTimeout(() => setEndedLoading(false), 2000);
+        const t = setTimeout(() => setEndedLoading(false), 1000);
         return () => clearTimeout(t);
     }, [mode, tracks[0]?.songUrl]);
+
+    const showSkeleton = ended && endedLoading;
 
     return (
         <motion.div
@@ -309,7 +310,9 @@ export default function Player() {
         >
             <AnimatePresence initial={false}>
                 <motion.div
-                    key={mode}
+                    // playing and ended share one key so starting playback from
+                    // the stopped state is seamless (no crossfade blink).
+                    key={contextual ? mode : "player"}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
@@ -330,21 +333,20 @@ export default function Player() {
                     ) : (
                         <>
                             <div className="flex min-w-0 flex-1 items-center">
-                                {ended ? (
-                                    <AnimatePresence mode="wait" initial={false}>
-                                        {endedLoading ? (
-                                            <motion.div key="sk" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25, ease: EASE }} className="w-full">
-                                                <SongSkeleton />
-                                            </motion.div>
-                                        ) : (
-                                            <motion.div key="song" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.25, ease: EASE }} className="w-full">
-                                                <Song track={songTrack} />
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                ) : (
-                                    <Song track={songTrack} />
-                                )}
+                                {/* skeleton <-> song crossfade (popLayout overlaps them);
+                                    playing and loaded-ended share the "song" key, so
+                                    switching between them doesn't re-animate. */}
+                                <AnimatePresence mode="popLayout" initial={false}>
+                                    {showSkeleton ? (
+                                        <motion.div key="skeleton" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: EASE }} className="w-full">
+                                            <SongSkeleton />
+                                        </motion.div>
+                                    ) : (
+                                        <motion.div key="song" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: EASE }} className="w-full">
+                                            <Song track={songTrack} />
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                             </div>
 
                             <div className="flex w-[40%] max-w-xl flex-col items-center gap-2">
@@ -352,7 +354,7 @@ export default function Player() {
                                     playing={!ended && player?.playing}
                                     onPlayPause={onPlayPause}
                                     sideDisabled={ended}
-                                    playDisabled={ended && endedLoading}
+                                    playDisabled={showSkeleton}
                                 />
                                 {ended ? (
                                     <ProgressBar progress={0} duration={songTrack?.duration || 0} disabled />

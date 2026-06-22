@@ -170,12 +170,12 @@ const ICONS = {
         )
     },
     lyrics: {
-        // handheld karaoke microphone (ball head + grip handle)
+        // Spotify "lyrics" (karaoke mic) — filled, 16x16 grid.
+        viewBox: "0 0 16 16",
+        fill: true,
+        stroke: false,
         body: (
-            <>
-                <circle cx="15.5" cy="8.5" r="4.5" />
-                <path d="M12.3 11.7 4.6 19.4a1.5 1.5 0 1 0 2.1 2.1l7.7-7.7" />
-            </>
+            <path d="M13.426 2.574a2.831 2.831 0 0 0-4.797 1.55l3.247 3.247a2.831 2.831 0 0 0 1.55-4.797M10.5 8.118l-2.619-2.62L4.74 9.075 2.065 12.12a1.287 1.287 0 0 0 1.816 1.816l3.06-2.688 3.56-3.129zM7.12 4.094a4.331 4.331 0 1 1 4.786 4.786l-3.974 3.493-3.06 2.689a2.787 2.787 0 0 1-3.933-3.933l2.676-3.045z" />
         )
     },
     "now-playing": {
@@ -207,15 +207,14 @@ const ICONS = {
         )
     },
     connect: {
-        // devices: a monitor + a speaker (Spotify "connect to a device")
+        // Spotify "connect to a device" — filled, 16x16 grid.
+        viewBox: "0 0 16 16",
+        fill: true,
+        stroke: false,
         body: (
             <>
-                <rect x="2" y="4" width="13" height="10" rx="2" />
-                <path d="M9 14v3" />
-                <path d="M6 18h6" />
-                <rect x="17.5" y="6" width="4.5" height="12" rx="1.5" />
-                <circle cx="19.75" cy="14.5" r="1.5" />
-                <path d="M19.75 9.5h.01" />
+                <path d="M6 2.75C6 1.784 6.784 1 7.75 1h6.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0 1 14.25 15h-6.5A1.75 1.75 0 0 1 6 13.25zm1.75-.25a.25.25 0 0 0-.25.25v10.5c0 .138.112.25.25.25h6.5a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25zm-6 0a.25.25 0 0 0-.25.25v6.5c0 .138.112.25.25.25H4V11H1.75A1.75 1.75 0 0 1 0 9.25v-6.5C0 1.784.784 1 1.75 1H4v1.5zM4 15H2v-1.5h2z" />
+                <path d="M13 10a2 2 0 1 1-4 0 2 2 0 0 1 4 0m-1-5a1 1 0 1 1-2 0 1 1 0 0 1 2 0" />
             </>
         )
     },
@@ -389,14 +388,15 @@ const ICONS = {
 const Icon = forwardRef(function Icon({ name, className = "h-5 w-5", strokeWidth = 2, ...rest }, ref) {
     const icon = ICONS[name];
     if (!icon) return null;
+    const stroked = icon.stroke !== false; // some glyphs (e.g. Spotify paths) are pure fill
     return (
         <svg
             ref={ref}
-            viewBox="0 0 24 24"
+            viewBox={icon.viewBox || "0 0 24 24"}
             className={`pointer-events-none inline-block shrink-0 overflow-visible ${className}`}
             fill={icon.fill ? "currentColor" : "none"}
-            stroke="currentColor"
-            strokeWidth={strokeWidth}
+            stroke={stroked ? "currentColor" : "none"}
+            strokeWidth={stroked ? strokeWidth : 0}
             strokeLinecap="round"
             strokeLinejoin="round"
             aria-hidden="true"
