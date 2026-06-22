@@ -11,9 +11,18 @@ const key = (s) => `${s.botName}:${s.guildId}`;
 function InviteBlock({ centered }) {
     const { inviteUrl } = useNifty();
     return (
-        <div className={`flex flex-col items-center gap-3 px-6 text-center ${centered ? "flex-1 justify-center" : "mt-auto py-6"}`}>
-            <Icon name="connect" className="h-8 w-8 text-subtext/60" />
-            <div className="flex flex-col gap-1">
+        <div className={`relative flex flex-col items-center px-6 text-center ${centered ? "flex-1 justify-center" : "mt-auto py-8"}`}>
+            {/* subtle light from below (or centre when it's the only thing shown) */}
+            <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                <div
+                    className={`absolute left-1/2 h-32 w-[75%] -translate-x-1/2 rounded-[100%] bg-white/[0.06] blur-3xl ${
+                        centered ? "top-1/2 -translate-y-1/2" : "bottom-0 translate-y-1/3"
+                    }`}
+                />
+            </div>
+
+            <Icon name="connect" className="relative h-8 w-8 text-subtext/60" />
+            <div className="relative mt-5 flex flex-col gap-1">
                 <p className="text-sm font-bold text-maintext">{centered ? "No active servers" : "Not seeing your server?"}</p>
                 <p className="text-xs text-subtext">Nifty may need an invite or more permissions.</p>
             </div>
@@ -21,7 +30,7 @@ function InviteBlock({ centered }) {
                 href={inviteUrl || "#"}
                 target="_blank"
                 rel="noreferrer"
-                className={`rounded-full bg-accent px-4 py-2 text-xs font-bold text-canvas transition hover:brightness-110 ${inviteUrl ? "" : "pointer-events-none opacity-40"}`}
+                className={`relative mt-6 rounded-full bg-accent px-4 py-2 text-xs font-bold text-canvas transition hover:brightness-110 ${inviteUrl ? "" : "pointer-events-none opacity-40"}`}
             >
                 Invite Nifty
             </a>
