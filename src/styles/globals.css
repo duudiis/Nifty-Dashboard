@@ -113,15 +113,15 @@
     }
     @keyframes logo-stroke {
         0%   { stroke-dashoffset: 1; } /* undrawn */
-        40%  { stroke-dashoffset: 0; } /* drawn */
-        75%  { stroke-dashoffset: 0; } /* hold */
-        90%  { stroke-dashoffset: 1; } /* un-draw while already faded out */
+        35%  { stroke-dashoffset: 0; } /* drawn */
+        85%  { stroke-dashoffset: 0; } /* stay drawn through the fade-out */
+        93%  { stroke-dashoffset: 1; } /* un-draw while already invisible */
         100% { stroke-dashoffset: 1; }
     }
     @keyframes logo-fade {
         0%   { opacity: 1; }
-        75%  { opacity: 1; }
-        87%  { opacity: 0; } /* fully faded before the strokes reset */
+        55%  { opacity: 1; } /* hold */
+        85%  { opacity: 0; } /* smooth fade-out over 55%-85% */
         100% { opacity: 0; }
     }
 
