@@ -2,12 +2,34 @@ import { parse } from "cookie";
 
 import { verifySession } from "../../lib/jwt.js";
 
-// Time-synced lyrics via LRCLIB (https://lrclib.net) — free, no key.
-// Cached in-process and keyed by artist|title|duration, so the upstream API is
-// hit at most once per song for the whole user base (until redeploy).
+// Time-synced lyrics via LRCLIB. We query our own self-hosted instance first
+// (over the internal Docker network — see /opt/lyrics-lrclib, served publicly
+// at https://lyrics.dudis.space), then fall back to the public lrclib.net.
+// Cached in-process and keyed by artist|title|duration, so upstream is hit at
+// most once per song for the whole user base (until redeploy).
 const cache = new Map();
 const TTL = 1000 * 60 * 60 * 24 * 14; // 14 days
 const UA = "Nifty-Dashboard (https://nifty.dudis.space)";
+
+// Primary = our instance (override with LRCLIB_BASE); fallback = public LRCLIB.
+const PRIMARY = (process.env.LRCLIB_BASE || "http://lrclib:3300").replace(/\/$/, "");
+const FALLBACK = "https://lrclib.net";
+const BASES = PRIMARY === FALLBACK ? [FALLBACK] : [PRIMARY, FALLBACK];
+
+// A slow/cold primary shouldn't stall the request — bail and try the fallback.
+async function fetchJson(url) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 4000);
+    try {
+        const r = await fetch(url, { headers: { "User-Agent": UA }, signal: ctrl.signal });
+        if (!r.ok) return null;
+        return await r.json();
+    } catch {
+        return null;
+    } finally {
+        clearTimeout(timer);
+    }
+}
 
 // Parses an LRC string into sorted { time(ms), text } lines. A single line may
 // carry several timestamps ([..][..] text); we expand each into its own entry.
@@ -28,17 +50,13 @@ function parseLRC(lrc) {
     return out.sort((a, b) => a.time - b.time);
 }
 
-async function lrclibGet(params) {
-    const r = await fetch(`https://lrclib.net/api/get?${params}`, { headers: { "User-Agent": UA } });
-    if (!r.ok) return null;
-    return r.json();
+async function lrclibGet(base, params) {
+    return fetchJson(`${base}/api/get?${params}`);
 }
 
-async function lrclibSearch(title, artist) {
+async function lrclibSearch(base, title, artist) {
     const qs = new URLSearchParams({ track_name: title, artist_name: artist });
-    const r = await fetch(`https://lrclib.net/api/search?${qs}`, { headers: { "User-Agent": UA } });
-    if (!r.ok) return null;
-    const arr = await r.json();
+    const arr = await fetchJson(`${base}/api/search?${qs}`);
     return Array.isArray(arr) ? arr[0] : null;
 }
 
@@ -68,8 +86,13 @@ export default async function handler(req, res) {
         if (album) params.set("album_name", album);
         if (durationSec) params.set("duration", String(durationSec));
 
-        let record = await lrclibGet(params);
-        if (!record) record = await lrclibSearch(title, artist);
+        // Try each backend in turn (ours, then lrclib.net); first hit wins.
+        let record = null;
+        for (const base of BASES) {
+            record = await lrclibGet(base, params);
+            if (!record) record = await lrclibSearch(base, title, artist);
+            if (record) break;
+        }
 
         const data = record
             ? {
