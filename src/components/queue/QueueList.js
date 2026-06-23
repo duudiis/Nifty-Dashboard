@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 
 import QueueItem from "./QueueItem.js";
 import { useNifty } from "../../context/NiftyContext.js";
 import Icon from "../Icon.js";
-import { Reorder, AnimatePresence } from "../motion/index.js";
+import { Reorder } from "../motion/index.js";
 
 const keyOf = (t) => `${t.track_id}-${t.songUrl}`;
 const listKey = (arr) => arr.map(keyOf).join("|");
@@ -31,26 +31,30 @@ function EmptyState({ icon, title, hint }) {
     );
 }
 
+function SectionLabel({ children }) {
+    return <div className="px-2 pb-1 pt-4 text-sm font-bold text-maintext">{children}</div>;
+}
+
 export default function QueueList({ dense = false }) {
     const { queue, selected, moveTrack } = useNifty();
     const tracks = queue.tracks || [];
     const position = queue.position ?? 0;
 
-    // Local, reorderable copy of the queue. Re-synced whenever the bot pushes a
-    // different list (after a move/remove commits, or playback advances).
+    // Local, reorderable copy of the queue. Re-synced from the bot whenever it
+    // pushes a different list — but never while a drag is in progress.
     const [order, setOrder] = useState(tracks);
+    const draggingRef = useRef(false);
     const tracksKey = listKey(tracks);
-    useEffect(() => { setOrder(tracks); }, [tracksKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => {
+        if (!draggingRef.current) setOrder(tracks);
+    }, [tracksKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // The cursor is authoritative: exactly the track at queue.position is current
-    // (so repeated tracks don't all light up, and the last track stays current
-    // when the bot stops).
-    const isCurrent = (t) => t.track_id === position;
-
-    // A dragged track ended at its index within `arr`; map that to an absolute
-    // queue index and ask the bot to move it (no-op if it didn't actually move).
-    const commit = (track, arr, base = 0) => {
-        const to = base + arr.findIndex((t) => keyOf(t) === keyOf(track));
+    const onDragStart = () => { draggingRef.current = true; };
+    // The dragged track is now at some index in `order`; tell the bot to move it
+    // there (track_id is its old/authoritative index). The bot echo re-syncs us.
+    const commit = (track) => {
+        draggingRef.current = false;
+        const to = order.findIndex((t) => keyOf(t) === keyOf(track));
         if (to >= 0 && to !== track.track_id) moveTrack(track.track_id, to);
     };
 
@@ -62,44 +66,32 @@ export default function QueueList({ dense = false }) {
     }
 
     if (dense) {
-        const current = tracks.find(isCurrent) || null;
-        const upOrder = order.filter((t) => t.track_id > position);
-        const setUpOrder = (next) => {
-            const others = order.filter((t) => t.track_id <= position);
-            setOrder([...others, ...next]);
-        };
-
+        let nextLabelShown = false;
         return (
-            <div className="flex flex-col pb-4">
-                {current && (
-                    <>
-                        <div className="px-2 pb-1 pt-2 text-[11px] font-bold uppercase tracking-wide text-subtext">Now playing</div>
-                        <QueueItem track={current} isCurrent dense draggable={false} />
-                    </>
-                )}
-
-                {upOrder.length > 0 && (
-                    <>
-                        <div className="px-2 pb-1 pt-5 leading-tight">
-                            <div className="text-[11px] text-subtext">Next from</div>
-                            <div className="text-sm font-bold text-maintext">Queue</div>
-                        </div>
-                        <Reorder.Group as="div" axis="y" values={upOrder} onReorder={setUpOrder} className="flex flex-col gap-0.5">
-                            <AnimatePresence mode="popLayout" initial={false}>
-                                {upOrder.map((track) => (
-                                    <QueueItem
-                                        key={keyOf(track)}
-                                        track={track}
-                                        isCurrent={false}
-                                        dense
-                                        onDragEnd={() => commit(track, upOrder, position + 1)}
-                                    />
-                                ))}
-                            </AnimatePresence>
-                        </Reorder.Group>
-                    </>
-                )}
-            </div>
+            <Reorder.Group as="div" axis="y" values={order} onReorder={setOrder} className="flex flex-col gap-0.5 pb-4">
+                {order.map((track) => {
+                    const isCurrent = track.track_id === position;
+                    let label = null;
+                    if (isCurrent) {
+                        label = "Now playing";
+                    } else if (track.track_id > position && !nextLabelShown) {
+                        label = "Next from: Queue";
+                        nextLabelShown = true;
+                    }
+                    return (
+                        <Fragment key={keyOf(track)}>
+                            {label && <SectionLabel>{label}</SectionLabel>}
+                            <QueueItem
+                                track={track}
+                                isCurrent={isCurrent}
+                                dense
+                                onDragStart={onDragStart}
+                                onDragEnd={() => commit(track)}
+                            />
+                        </Fragment>
+                    );
+                })}
+            </Reorder.Group>
         );
     }
 
@@ -107,18 +99,17 @@ export default function QueueList({ dense = false }) {
         <div className="flex flex-col gap-1">
             <ColumnHeader />
             <Reorder.Group as="div" axis="y" values={order} onReorder={setOrder} className="flex flex-col gap-1">
-                <AnimatePresence mode="popLayout" initial={false}>
-                    {order.map((track) => (
-                        <QueueItem
-                            key={keyOf(track)}
-                            track={track}
-                            number={track.track_id + 1}
-                            isCurrent={isCurrent(track)}
-                            dense={false}
-                            onDragEnd={() => commit(track, order, 0)}
-                        />
-                    ))}
-                </AnimatePresence>
+                {order.map((track, i) => (
+                    <QueueItem
+                        key={keyOf(track)}
+                        track={track}
+                        number={i + 1}
+                        isCurrent={track.track_id === position}
+                        dense={false}
+                        onDragStart={onDragStart}
+                        onDragEnd={() => commit(track)}
+                    />
+                ))}
             </Reorder.Group>
         </div>
     );

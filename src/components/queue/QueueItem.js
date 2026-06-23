@@ -6,24 +6,18 @@ import Equalizer from "../Equalizer.js";
 import AlbumCell from "./AlbumCell.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
-import { Reorder, motion, EASE } from "../motion/index.js";
+import { Reorder } from "../motion/index.js";
 
-const anim = {
-    layout: true,
-    initial: { opacity: 0 },
-    animate: { opacity: 1 },
-    exit: { opacity: 0 },
-    transition: { duration: 0.2, ease: EASE }
-};
-
-export default function QueueItem({ track, number, isCurrent, dense, draggable = true, onDragEnd }) {
+// A single draggable queue row. Reorder.Item already handles the smooth drag +
+// neighbours-shift animation; we don't add any extra layout/exit motion (that
+// was what made it janky).
+export default function QueueItem({ track, number, isCurrent, dense, onDragStart, onDragEnd }) {
     const { control, player, removeTrack } = useNifty();
     const trackMenu = useTrackMenu();
     const { onContextMenu, active } = useContextMenu(() => trackMenu(track, { source: "queue" }));
 
     const playing = isCurrent && player?.playing;
 
-    // The current track toggles pause/resume in place; others jump to play.
     const activate = () =>
         isCurrent ? control("togglePause") : control("jump", { trackId: track.track_id });
     const playPauseTitle = playing ? "Pause" : isCurrent ? "Resume" : "Play";
@@ -33,12 +27,16 @@ export default function QueueItem({ track, number, isCurrent, dense, draggable =
         removeTrack(track.track_id);
     };
 
-    const rowClass = `group flex w-full items-center gap-3 rounded-md px-2 py-1.5 transition hover:bg-elevated ${active ? "bg-elevated" : ""} ${draggable ? "cursor-grab active:cursor-grabbing" : ""}`;
-
-    const inner = (
-        <>
-            {/* main list keeps a number / play-pause column; the dense sidebar
-                drops it and puts the control over the cover instead */}
+    return (
+        <Reorder.Item
+            as="div"
+            value={track}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+            onDoubleClick={activate}
+            onContextMenu={onContextMenu}
+            className={`group flex w-full cursor-grab items-center gap-3 rounded-md px-2 py-1.5 transition hover:bg-elevated active:cursor-grabbing ${active ? "bg-elevated" : ""}`}
+        >
             {!dense && (
                 <div className="flex w-6 shrink-0 items-center justify-center">
                     <span className={`flex items-center justify-center text-xs ${isCurrent ? "text-accent" : "text-subtext"} group-hover:hidden`}>
@@ -50,7 +48,6 @@ export default function QueueItem({ track, number, isCurrent, dense, draggable =
                 </div>
             )}
 
-            {/* artwork (with an overlaid play/pause control) */}
             <div className={`relative shrink-0 ${dense ? "h-9 w-9" : "h-10 w-10"}`}>
                 <img
                     src={artworkOrFallback(track.artwork)}
@@ -69,18 +66,15 @@ export default function QueueItem({ track, number, isCurrent, dense, draggable =
                 )}
             </div>
 
-            {/* title / artist */}
             <div className="flex min-w-0 flex-1 flex-col leading-tight">
                 <span className={`truncate text-[13px] ${isCurrent ? "text-accent" : "text-maintext"}`}>{track.title}</span>
                 <span className="truncate text-[11px] text-subtext">{track.artist}</span>
             </div>
 
-            {/* album (main list only) */}
             {!dense && (
                 <AlbumCell track={track} className="hidden w-64 shrink-0 truncate text-[11px] text-subtext xl:block" />
             )}
 
-            {/* added by — name + avatar on the main list, avatar only in the sidebar */}
             {!dense ? (
                 <AddedBy track={track} size={18} className="hidden w-28 shrink-0 text-[11px] text-subtext lg:flex" />
             ) : (
@@ -98,28 +92,6 @@ export default function QueueItem({ track, number, isCurrent, dense, draggable =
                     <Icon name="trash" className="h-4 w-4" />
                 </button>
             </div>
-        </>
-    );
-
-    if (!draggable) {
-        // Non-draggable (e.g. the "Now playing" row, outside any Reorder.Group).
-        return (
-            <motion.div {...anim} onDoubleClick={activate} onContextMenu={onContextMenu} className={rowClass}>
-                {inner}
-            </motion.div>
-        );
-    }
-
-    return (
-        <Reorder.Item
-            value={track}
-            {...anim}
-            onDragEnd={onDragEnd}
-            onDoubleClick={activate}
-            onContextMenu={onContextMenu}
-            className={rowClass}
-        >
-            {inner}
         </Reorder.Item>
     );
 }
