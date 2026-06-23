@@ -44,7 +44,7 @@ async function shareLink(url, title) {
 }
 
 export function useTrackMenu() {
-    const { selected, queue, play, jump, playNextTrack, moveToTop, moveToLast, removeTrack } = useNifty();
+    const { selected, play, jump, playNextTrack, moveToTop, removeTrack } = useNifty();
 
     return useCallback(
         (track, { source }) => {
@@ -62,35 +62,20 @@ export function useTrackMenu() {
                 { label: "Copy link", icon: "link", onClick: () => copyLink(url), disabled: !url }
             ];
 
-            // Reposition helpers shared by every queue-addressable surface.
-            const moveItems = (id) => [
-                { label: "Move to top", icon: "move-top", onClick: () => moveToTop(id), disabled: !selected },
-                { label: "Move to last", icon: "move-bottom", onClick: () => moveToLast(id), disabled: !selected }
-            ];
-            const removeItem = (id) => ({ label: "Remove from queue", icon: "trash", danger: true, onClick: () => removeTrack(id), disabled: !selected });
-
             if (source === "queue") {
                 const id = track.track_id;
                 return [
                     { label: "Play now", icon: "play-now", onClick: () => jump(id), disabled: !selected },
                     { label: "Play next", icon: "play-next", onClick: () => playNextTrack(id), disabled: !selected },
-                    ...moveItems(id),
+                    { label: "Move to top", icon: "move-top", onClick: () => moveToTop(id), disabled: !selected },
                     ...linkItems,
                     { separator: true },
-                    removeItem(id)
+                    { label: "Remove from queue", icon: "trash", danger: true, onClick: () => removeTrack(id), disabled: !selected }
                 ];
             }
 
-            // The currently-playing track (player bar + Now playing sidebar). It's
-            // addressed by the queue cursor, so it can be repositioned / removed too.
             if (source === "player") {
-                const id = queue?.position;
-                const hasIndex = typeof id === "number" && (queue?.tracks?.length || 0) > 0;
-                return [
-                    ...(hasIndex ? moveItems(id) : []),
-                    ...linkItems,
-                    ...(hasIndex ? [{ separator: true }, removeItem(id)] : [])
-                ];
+                return linkItems.slice(1); // drop the leading separator
             }
 
             // search results
@@ -101,6 +86,6 @@ export function useTrackMenu() {
                 ...linkItems
             ];
         },
-        [selected, queue, play, jump, playNextTrack, moveToTop, moveToLast, removeTrack]
+        [selected, play, jump, playNextTrack, moveToTop, removeTrack]
     );
 }

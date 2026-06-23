@@ -14,7 +14,7 @@ function PanelBody({ panel, onClose }) {
         return (
             <>
                 {/* fixed at the top; tracks fade out behind it as they scroll up */}
-                <div className="sticky top-0 z-10 flex items-center gap-2.5 bg-gradient-to-b from-surface via-surface via-[68%] to-transparent px-4 pb-8 pt-5 text-sm font-bold text-maintext">
+                <div className="sticky top-0 z-10 flex items-center gap-2.5 bg-gradient-to-b from-surface via-surface to-transparent px-4 pb-8 pt-5 text-sm font-bold text-maintext">
                     <Icon name="queue" className="h-4 w-4 text-subtext" />
                     Queue
                     <button onClick={onClose} title="Close" className="ml-auto text-subtext transition hover:text-maintext">
