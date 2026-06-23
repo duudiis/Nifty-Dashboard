@@ -29,7 +29,7 @@ function EmptyState({ icon, title, hint }) {
 
 // Spotify-style section label: white, normal case.
 function SectionHeader({ children }) {
-    return <div className="px-2 pb-2 pt-5 text-[13px] font-bold text-maintext">{children}</div>;
+    return <div className="px-2 pb-2 pt-8 text-[13px] font-bold text-maintext">{children}</div>;
 }
 
 export default function QueueList({ dense = false }) {
@@ -43,12 +43,19 @@ export default function QueueList({ dense = false }) {
     const currentIndex = player?.track ? position : -1;
     const isCurrent = (track) => currentIndex >= 0 && track.track_id === currentIndex;
 
-    // dense sidebar: keep the now-playing section pinned near the top
+    // dense sidebar: smoothly bring the now-playing row into view, but only on
+    // a real cursor move and after layout has settled (the section reshape on
+    // track change otherwise cancels the smooth scroll and snaps to the top).
     const currentRef = useRef(null);
+    const lastScrolledIndex = useRef(-1);
     useEffect(() => {
-        if (dense && currentRef.current) {
-            currentRef.current.scrollIntoView({ block: "start", behavior: "smooth" });
-        }
+        if (!dense || currentIndex < 0) return;
+        if (lastScrolledIndex.current === currentIndex) return;
+        lastScrolledIndex.current = currentIndex;
+        const id = requestAnimationFrame(() => {
+            currentRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        });
+        return () => cancelAnimationFrame(id);
     }, [dense, currentIndex]);
 
     if (!selected) {
