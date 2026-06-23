@@ -288,16 +288,21 @@ export default function Player() {
         : () => control("togglePause");
 
     // Brief skeleton when the queue stops, in case the bot is still settling.
+    const [prevTrigger, setPrevTrigger] = useState({ mode, url: tracks[0]?.songUrl });
     const [endedLoading, setEndedLoading] = useState(false);
+
+    // Intercept state changes during render to prevent the flashing
+    if (mode !== prevTrigger.mode || tracks[0]?.songUrl !== prevTrigger.url) {
+        setPrevTrigger({ mode, url: tracks[0]?.songUrl });
+        setEndedLoading(mode === "ended"); 
+    }
+
     useEffect(() => {
-        if (mode !== "ended") {
-            setEndedLoading(false);
-            return;
+        if (endedLoading) {
+            const t = setTimeout(() => setEndedLoading(false), 2000);
+            return () => clearTimeout(t);
         }
-        setEndedLoading(true);
-        const t = setTimeout(() => setEndedLoading(false), 1000);
-        return () => clearTimeout(t);
-    }, [mode, tracks[0]?.songUrl]);
+    }, [endedLoading]);
 
     const showSkeleton = ended && endedLoading;
 
