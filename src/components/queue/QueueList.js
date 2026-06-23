@@ -79,8 +79,11 @@ const SectionHeader = forwardRef(({ children, innerRef, padTop = "pt-5", id, ...
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.22, ease: EASE }}
-        className={`px-2 pb-2 ${padTop} text-[13px] font-bold text-maintext`}
+        transition={{
+            layout: { duration: SLIDE_DUR, ease: EASE },
+            opacity: { duration: EXIT_DUR, ease: EASE }
+        }}
+        className={`px-2 pb-2 mb-0.5 ${padTop} text-[13px] font-bold text-maintext`}
         // CRITICAL: Let Framer Motion inject its position: absolute styles
         {...props}
     >
@@ -262,6 +265,7 @@ export default function QueueList({ dense = false }) {
                     layout: { duration: SLIDE_DUR, ease: EASE },
                     opacity: { duration: EXIT_DUR, ease: EASE }
                 }}
+                className="mb-0.5"
             >
                 <QueueItem track={track} index={track.track_id} isCurrent={isCurrent(track)} dense />
             </motion.div>
@@ -269,7 +273,7 @@ export default function QueueList({ dense = false }) {
     });
 
     return (
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-col">
             <AnimatePresence initial={false} mode="popLayout">
                 {rows}
             </AnimatePresence>
