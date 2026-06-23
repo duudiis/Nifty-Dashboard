@@ -51,7 +51,7 @@ export default function NowPlayingPanel() {
     const { player, queue, selected } = useNifty();
     const track = useStableTrack(player?.track || null);
     const trackMenu = useTrackMenu();
-    const { onContextMenu } = useContextMenu(() => (track ? trackMenu(track, { source: "player", trackId: queue.position }) : []));
+    const { onContextMenu } = useContextMenu(() => (track ? trackMenu(track, { source: "player" }) : []));
 
     const stateKey = !selected ? "noserver" : !track ? "empty" : "track";
 

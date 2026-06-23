@@ -77,9 +77,8 @@ function Controls({ playing, onPlayPause, sideDisabled, playDisabled }) {
 }
 
 function Song({ track }) {
-    const { queue } = useNifty();
     const trackMenu = useTrackMenu();
-    const { onContextMenu, active } = useContextMenu(() => (track ? trackMenu(track, { source: "player", trackId: queue.position }) : []));
+    const { onContextMenu, active } = useContextMenu(() => (track ? trackMenu(track, { source: "player" }) : []));
 
     return (
         <div

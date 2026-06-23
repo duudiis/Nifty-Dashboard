@@ -32,10 +32,10 @@ function QueueHeader() {
 }
 
 function Home() {
-    const { selected, player, queue, setView } = useNifty();
+    const { selected, player, setView } = useNifty();
     const trackMenu = useTrackMenu();
     const track = player?.track || null;
-    const { onContextMenu, active } = useContextMenu(() => (track ? trackMenu(track, { source: "player", trackId: queue.position }) : []));
+    const { onContextMenu, active } = useContextMenu(() => (track ? trackMenu(track, { source: "player" }) : []));
 
     return (
         <div className="flex flex-col gap-6 p-6">

@@ -44,12 +44,10 @@ async function shareLink(url, title) {
 }
 
 export function useTrackMenu() {
-    const { selected, play, jump, playNextTrack, moveToTop, moveToLast, removeTrack } = useNifty();
+    const { selected, play, jump, playNextTrack, moveToTop, removeTrack } = useNifty();
 
     return useCallback(
-        // `trackId` lets sources without a track_id on the track itself (the
-        // player / now-playing) address the queue entry — pass queue.position.
-        (track, { source, trackId } = {}) => {
+        (track, { source }) => {
             if (!track) return [];
 
             const url = track.url || track.songUrl || null;
@@ -64,25 +62,20 @@ export function useTrackMenu() {
                 { label: "Copy link", icon: "link", onClick: () => copyLink(url), disabled: !url }
             ];
 
-            // An existing queue entry — either a row in the queue, or the current
-            // player/now-playing track (addressed by the supplied trackId).
-            const id = track.track_id ?? trackId;
-            if (source === "queue" || source === "player") {
-                if (id == null || id < 0) {
-                    return source === "player" ? linkItems.slice(1) : [];
-                }
-                const isCurrent = source === "player";
-                const items = [];
-                if (!isCurrent) {
-                    items.push({ label: "Play now", icon: "play-now", onClick: () => jump(id), disabled: !selected });
-                    items.push({ label: "Play next", icon: "play-next", onClick: () => playNextTrack(id), disabled: !selected });
-                }
-                items.push({ label: "Move to top", icon: "move-top", onClick: () => moveToTop(id), disabled: !selected });
-                items.push({ label: "Move to last", icon: "move-bottom", onClick: () => moveToLast(id), disabled: !selected });
-                items.push(...linkItems);
-                items.push({ separator: true });
-                items.push({ label: "Remove from queue", icon: "trash", danger: true, onClick: () => removeTrack(id), disabled: !selected });
-                return items;
+            if (source === "queue") {
+                const id = track.track_id;
+                return [
+                    { label: "Play now", icon: "play-now", onClick: () => jump(id), disabled: !selected },
+                    { label: "Play next", icon: "play-next", onClick: () => playNextTrack(id), disabled: !selected },
+                    { label: "Move to top", icon: "move-top", onClick: () => moveToTop(id), disabled: !selected },
+                    ...linkItems,
+                    { separator: true },
+                    { label: "Remove from queue", icon: "trash", danger: true, onClick: () => removeTrack(id), disabled: !selected }
+                ];
+            }
+
+            if (source === "player") {
+                return linkItems.slice(1); // drop the leading separator
             }
 
             // search results
@@ -93,6 +86,6 @@ export function useTrackMenu() {
                 ...linkItems
             ];
         },
-        [selected, play, jump, playNextTrack, moveToTop, moveToLast, removeTrack]
+        [selected, play, jump, playNextTrack, moveToTop, removeTrack]
     );
 }

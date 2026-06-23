@@ -359,15 +359,6 @@ const ICONS = {
             </>
         )
     },
-    "move-bottom": {
-        body: (
-            <>
-                <line x1="12" y1="3" x2="12" y2="17" />
-                <path d="m6 11 6 6 6-6" />
-                <line x1="5" y1="20.5" x2="19" y2="20.5" />
-            </>
-        )
-    },
     trash: {
         body: (
             <>

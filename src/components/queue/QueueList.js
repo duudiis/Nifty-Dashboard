@@ -1,12 +1,8 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 import QueueItem from "./QueueItem.js";
 import { useNifty } from "../../context/NiftyContext.js";
 import Icon from "../Icon.js";
-import { Reorder } from "../motion/index.js";
-
-const keyOf = (t) => `${t.track_id}-${t.songUrl}`;
-const listKey = (arr) => arr.map(keyOf).join("|");
 
 function ColumnHeader() {
     return (
@@ -31,86 +27,57 @@ function EmptyState({ icon, title, hint }) {
     );
 }
 
-function SectionLabel({ children }) {
-    return <div className="px-2 pb-1 pt-4 text-sm font-bold text-maintext">{children}</div>;
-}
-
 export default function QueueList({ dense = false }) {
-    const { queue, selected, moveTrack } = useNifty();
+    const { queue, player, selected } = useNifty();
     const tracks = queue.tracks || [];
-    const position = queue.position ?? 0;
 
-    // Local, reorderable copy of the queue. Re-synced from the bot whenever it
-    // pushes a different list — but never while a drag is in progress.
-    const [order, setOrder] = useState(tracks);
-    const draggingRef = useRef(false);
-    const tracksKey = listKey(tracks);
+    // The actually-playing track is the single source of truth, so exactly one
+    // row is ever marked current. queue.position is only a fallback for when the
+    // player track isn't in the list (it can briefly disagree after a jump).
+    const current = player?.track;
+    const matchesPlayer = (track) =>
+        current && ((current.songUrl && current.songUrl === track.songUrl) || current.track_id === track.track_id);
+    const hasPlayerMatch = current && tracks.some(matchesPlayer);
+    const isCurrent = (track) => (hasPlayerMatch ? matchesPlayer(track) : track.track_id === queue.position);
+
+    const currentTrack = tracks.find(isCurrent);
+    const currentId = currentTrack ? `${currentTrack.track_id}-${currentTrack.songUrl}` : null;
+
+    // In the dense sidebar, keep the currently-playing track pinned to the top
+    // (older tracks remain above — scroll up to see them).
+    const currentRef = useRef(null);
     useEffect(() => {
-        if (!draggingRef.current) setOrder(tracks);
-    }, [tracksKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    const onDragStart = () => { draggingRef.current = true; };
-    // The dragged track is now at some index in `order`; tell the bot to move it
-    // there (track_id is its old/authoritative index). The bot echo re-syncs us.
-    const commit = (track) => {
-        draggingRef.current = false;
-        const to = order.findIndex((t) => keyOf(t) === keyOf(track));
-        if (to >= 0 && to !== track.track_id) moveTrack(track.track_id, to);
-    };
+        if (dense && currentRef.current) {
+            currentRef.current.scrollIntoView({ block: "start", behavior: "smooth" });
+        }
+    }, [dense, currentId]);
 
     if (!selected) {
         return <EmptyState icon="connect" title="No server selected" hint="Pick a server to see its queue." />;
     }
+
     if (tracks.length === 0) {
         return <EmptyState icon="queue" title="The queue is empty" hint="Search above to add a track and get the party started." />;
     }
 
-    if (dense) {
-        let nextLabelShown = false;
-        return (
-            <Reorder.Group as="div" axis="y" values={order} onReorder={setOrder} className="flex flex-col gap-0.5 pb-4">
-                {order.map((track) => {
-                    const isCurrent = track.track_id === position;
-                    let label = null;
-                    if (isCurrent) {
-                        label = "Now playing";
-                    } else if (track.track_id > position && !nextLabelShown) {
-                        label = "Next from: Queue";
-                        nextLabelShown = true;
-                    }
-                    return (
-                        <Fragment key={keyOf(track)}>
-                            {label && <SectionLabel>{label}</SectionLabel>}
-                            <QueueItem
-                                track={track}
-                                isCurrent={isCurrent}
-                                dense
-                                onDragStart={onDragStart}
-                                onDragEnd={() => commit(track)}
-                            />
-                        </Fragment>
-                    );
-                })}
-            </Reorder.Group>
-        );
-    }
-
     return (
-        <div className="flex flex-col gap-1">
-            <ColumnHeader />
-            <Reorder.Group as="div" axis="y" values={order} onReorder={setOrder} className="flex flex-col gap-1">
-                {order.map((track, i) => (
+        <div className={`flex flex-col ${dense ? "gap-0.5" : "gap-1"}`}>
+            {!dense && <ColumnHeader />}
+            {tracks.map((track) => {
+                const cur = isCurrent(track);
+                return (
                     <QueueItem
-                        key={keyOf(track)}
+                        key={`${track.track_id}-${track.songUrl}`}
+                        innerRef={cur ? currentRef : undefined}
                         track={track}
-                        number={i + 1}
-                        isCurrent={track.track_id === position}
-                        dense={false}
-                        onDragStart={onDragStart}
-                        onDragEnd={() => commit(track)}
+                        index={track.track_id}
+                        isCurrent={cur}
+                        dense={dense}
                     />
-                ))}
-            </Reorder.Group>
+                );
+            })}
+            {/* room below so even the last track can sit at the very top */}
+            {dense && <div className="h-[80vh] shrink-0" aria-hidden />}
         </div>
     );
 }
