@@ -5,9 +5,24 @@ import { useNifty } from "../../context/NiftyContext.js";
 import Icon from "../Icon.js";
 import { AnimatePresence, motion, EASE } from "../motion/index.js";
 
-// Row slide duration. The browser controls the smooth-scroll duration, so we
-// just keep this in the same ballpark.
+// Row slide duration (cursor change). Removal uses just the fade — no slide.
 const SLIDE_DUR = 0.32;
+const EXIT_DUR = 0.22;
+// Pixels above the Now Playing header when auto-scrolling. Matches the sticky
+// panel header height, so Now Playing lands right after the gradient and the
+// previous track is tucked behind it.
+const SCROLL_HEADER_PAD = 64;
+
+// Nearest scrollable ancestor of `node`.
+function findScroller(node) {
+    let p = node?.parentElement;
+    while (p) {
+        const oy = getComputedStyle(p).overflowY;
+        if (oy === "auto" || oy === "scroll") return p;
+        p = p.parentElement;
+    }
+    return null;
+}
 
 function ColumnHeader() {
     return (
@@ -45,7 +60,7 @@ const SectionHeader = ({ children, innerRef, padTop = "pt-5", id }) => (
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.22, ease: EASE }}
-        className={`scroll-mt-2 px-2 pb-2 ${padTop} text-[13px] font-bold text-maintext`}
+        className={`px-2 pb-2 ${padTop} text-[13px] font-bold text-maintext`}
     >
         {children}
     </motion.div>
@@ -135,13 +150,14 @@ export default function QueueList({ dense = false }) {
         const isFirst = lastScrolledSongRef.current === null;
         lastScrolledSongRef.current = playingSongUrl;
         const id = requestAnimationFrame(() => {
-            // Hand the scroll off to the browser. Both paths (first mount and
-            // song change) use scrollIntoView with scroll-mt-2 on the header,
-            // so they land at exactly the same position.
-            nowPlayingRef.current?.scrollIntoView({
-                block: "start",
-                behavior: isFirst ? "auto" : "smooth"
-            });
+            // scrollTo with an explicit numeric target so both paths land at
+            // the same place. offsetTop is layout-based and unaffected by
+            // framer-motion's slide transforms, so no path-dependent quirks.
+            const header = nowPlayingRef.current;
+            const scroller = header && findScroller(header);
+            if (!header || !scroller) return;
+            const target = Math.max(0, header.offsetTop - scroller.offsetTop - SCROLL_HEADER_PAD);
+            scroller.scrollTo({ top: target, behavior: isFirst ? "auto" : "smooth" });
         });
         return () => cancelAnimationFrame(id);
     }, [dense, playingSongUrl, layoutSettled]);
@@ -203,9 +219,13 @@ export default function QueueList({ dense = false }) {
                 layout="position"
                 // Only animate on exit (fade out on removal). No initial/animate
                 // so per-second player ticks don't re-trigger a fade-in on the
-                // existing rows — that's what was causing the flicker.
+                // existing rows. The opacity transition is pinned to the short
+                // exit duration so removal is a clean fade with no slide.
                 exit={{ opacity: 0 }}
-                transition={{ duration: SLIDE_DUR, ease: EASE }}
+                transition={{
+                    layout: { duration: SLIDE_DUR, ease: EASE },
+                    opacity: { duration: EXIT_DUR, ease: EASE }
+                }}
             >
                 <QueueItem track={track} index={track.track_id} isCurrent={isCurrent(track)} dense />
             </motion.div>
@@ -214,7 +234,7 @@ export default function QueueList({ dense = false }) {
 
     return (
         <div className="flex flex-col gap-0.5">
-            <AnimatePresence mode="popLayout" initial={false}>
+            <AnimatePresence initial={false}>
                 {rows}
             </AnimatePresence>
             {/* room below so even the last track can sit at the very top */}
