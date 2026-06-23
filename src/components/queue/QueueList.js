@@ -173,18 +173,10 @@ export default function QueueList({ dense = false }) {
         const target = Math.max(0, header.offsetTop - scroller.offsetTop - pad + PREV_HIDE);
 
         if (isFirst) {
-            // Sync, before browser paint — prevents the panel from starting at the top and jumping
+            // Sync, before browser paint — so the panel opens already at the
+            // right scroll position with no visible "starts at top, jumps".
             scroller.scrollTop = target;
-
-            // Defer a recalculation by one frame. On the very first synchronous pass, 
-            // heights (like images or the sticky bar) might not be 100% settled yet. 
-            // This micro-correction safely snaps it to perfectly match the "auto" position.
-            const rAF = requestAnimationFrame(() => {
-                const settledPad = getStickyPad(scroller);
-                const settledTarget = Math.max(0, header.offsetTop - scroller.offsetTop - settledPad + PREV_HIDE);
-                scroller.scrollTop = settledTarget;
-            });
-            return () => cancelAnimationFrame(rAF);
+            return;
         }
         // Song change: animate smoothly in step with the row layout slide.
         const id = requestAnimationFrame(() => {
@@ -263,7 +255,7 @@ export default function QueueList({ dense = false }) {
 
     return (
         <div className="flex flex-col gap-0.5">
-            <AnimatePresence initial={false}>
+            <AnimatePresence initial={false} mode="popLayout">
                 {rows}
             </AnimatePresence>
             {/* room below so even the last track can sit at the very top */}
