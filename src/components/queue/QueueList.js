@@ -33,7 +33,7 @@ function findScroller(node) {
 // measure it at runtime so the scroll target tracks any padding tweaks.
 function getStickyPad(scroller) {
     const bar = scroller?.querySelector(":scope > .sticky, :scope > * > .sticky");
-    return bar?.offsetHeight || 64;
+    return bar?.offsetHeight || 86;
 }
 
 function ColumnHeader() {
