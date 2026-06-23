@@ -83,7 +83,8 @@ const SectionHeader = forwardRef(({ children, innerRef, padTop = "pt-5", id, ...
             layout: { duration: SLIDE_DUR, ease: EASE },
             opacity: { duration: EXIT_DUR, ease: EASE }
         }}
-        className={`px-2 pb-2 mb-0.5 ${padTop} text-[13px] font-bold text-maintext`}
+        // FIX: Added w-full to maintain layout bounds during absolute exit
+        className={`w-full px-2 pb-2 mb-0.5 ${padTop} text-[13px] font-bold text-maintext`}
         // CRITICAL: Let Framer Motion inject its position: absolute styles
         {...props}
     >
@@ -242,7 +243,8 @@ export default function QueueList({ dense = false }) {
         if (hasCurrent && i === currentIndex) {
             rows.push(
                 <SectionHeader
-                    key="hdr-now"
+                    // FIX: Anchor the key to the specific track instance
+                    key={`hdr-now-${instances[i].id}`}
                     id="hdr-now"
                     innerRef={nowPlayingRef}
                     padTop="pt-5"
@@ -251,7 +253,8 @@ export default function QueueList({ dense = false }) {
                 </SectionHeader>
             );
         } else if (hasCurrent && i === currentIndex + 1) {
-            rows.push(<SectionHeader key="hdr-next" id="hdr-next">Next from: Queue</SectionHeader>);
+            // FIX: Anchor the key here as well
+            rows.push(<SectionHeader key={`hdr-next-${instances[i].id}`} id="hdr-next">Next from: Queue</SectionHeader>);
         }
 
         rows.push(
@@ -265,7 +268,8 @@ export default function QueueList({ dense = false }) {
                     layout: { duration: SLIDE_DUR, ease: EASE },
                     opacity: { duration: EXIT_DUR, ease: EASE }
                 }}
-                className="mb-0.5"
+                // FIX: Added w-full here as well
+                className="w-full mb-0.5"
             >
                 <QueueItem track={track} index={track.track_id} isCurrent={isCurrent(track)} dense />
             </motion.div>
