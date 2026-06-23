@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 
 import QueueItem from "./QueueItem.js";
 import { useNifty } from "../../context/NiftyContext.js";
@@ -8,6 +8,15 @@ import { AnimatePresence, motion, EASE } from "../motion/index.js";
 // Row slide duration (cursor change). Removal uses just the fade — no slide.
 const SLIDE_DUR = 0.32;
 const EXIT_DUR = 0.22;
+
+// Hide a bit more of the previous track behind the sticky bar's opaque area
+// (its gradient otherwise lets a sliver bleed through).
+const PREV_HIDE = 25;
+
+// useLayoutEffect on the client (so scroll runs synchronously before paint —
+// no visible "starts at top then jumps" on panel open) and useEffect on the
+// server (avoids the SSR warning).
+const useIsoEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 // Nearest scrollable ancestor of `node`.
 function findScroller(node) {
@@ -145,7 +154,7 @@ export default function QueueList({ dense = false }) {
     const playingSongUrl = player?.track?.songUrl || null;
     const layoutSong = tracks[currentIndex]?.songUrl || null;
     const layoutSettled = !!playingSongUrl && playingSongUrl === layoutSong;
-    useEffect(() => {
+    useIsoEffect(() => {
         if (!dense) return;
         if (!playingSongUrl) { lastScrolledSongRef.current = null; return; }
         if (!layoutSettled) return;
@@ -153,29 +162,26 @@ export default function QueueList({ dense = false }) {
         const isFirst = lastScrolledSongRef.current === null;
         lastScrolledSongRef.current = playingSongUrl;
 
-        const doScroll = () => {
-            const header = nowPlayingRef.current;
-            const scroller = header && findScroller(header);
-            if (!header || !scroller) return;
-            // offsetTop is layout-based and unaffected by framer-motion's
-            // slide transforms, so the same number lands at the same place on
-            // both paths. The pad is the measured sticky bar height, so Now
-            // Playing lands right after the gradient.
-            const pad = getStickyPad(scroller);
-            const target = Math.max(0, header.offsetTop - scroller.offsetTop - pad);
-            scroller.scrollTo({ top: target, behavior: isFirst ? "auto" : "smooth" });
-        };
+        const header = nowPlayingRef.current;
+        const scroller = header && findScroller(header);
+        if (!header || !scroller) return;
+        // offsetTop is layout-based and unaffected by framer-motion's slide
+        // transforms, so the same number lands at the same place on both
+        // paths. Subtract a bit more than the sticky bar so the previous
+        // track is fully tucked behind its opaque portion.
+        const pad = getStickyPad(scroller);
+        const target = Math.max(0, header.offsetTop - scroller.offsetTop - pad + PREV_HIDE);
 
-        // On first mount the panel itself is still animating in (motion.section
-        // translateY 24 → 0 over ~280ms) and the rows above haven't been laid
-        // out by the time a single rAF fires — which made path A land ~1 row
-        // short. Defer past the panel-open animation so the measurement is
-        // taken on a settled layout.
         if (isFirst) {
-            const id = setTimeout(doScroll, 320);
-            return () => clearTimeout(id);
+            // Sync, before browser paint — so the panel opens already at the
+            // right scroll position with no visible "starts at top, jumps".
+            scroller.scrollTop = target;
+            return;
         }
-        const id = requestAnimationFrame(doScroll);
+        // Song change: animate smoothly in step with the row layout slide.
+        const id = requestAnimationFrame(() => {
+            scroller.scrollTo({ top: target, behavior: "smooth" });
+        });
         return () => cancelAnimationFrame(id);
     }, [dense, playingSongUrl, layoutSettled]);
 
