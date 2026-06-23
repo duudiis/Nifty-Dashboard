@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
@@ -278,28 +278,7 @@ export default function Player() {
     else if (hasQueue) mode = "ended";
     else mode = "recommend";
 
-    // Switching servers clears player/queue until the new server's data lands.
-    // Hold a brief loading state so we don't flash an empty "Nothing in the
-    // queue" prompt in that gap.
-    const [switching, setSwitching] = useState(false);
-    const prevGuild = useRef(selected?.guildId);
-    useEffect(() => {
-        if (prevGuild.current !== selected?.guildId) {
-            prevGuild.current = selected?.guildId;
-            if (selected?.guildId) setSwitching(true);
-        }
-    }, [selected?.guildId]);
-    useEffect(() => {
-        if (!switching) return;
-        if (track || hasQueue) {
-            setSwitching(false);
-            return;
-        }
-        const t = setTimeout(() => setSwitching(false), 1000);
-        return () => clearTimeout(t);
-    }, [switching, track, hasQueue]);
-
-    const contextual = !switching && (mode === "invite" || mode === "summon" || mode === "recommend");
+    const contextual = mode === "invite" || mode === "summon" || mode === "recommend";
 
     const queued = track && tracks.find((t) => t.track_id === queue.position || t.songUrl === track.songUrl);
     const songTrack = track ? { ...queued, ...track } : mode === "ended" ? tracks[0] : null;
@@ -320,7 +299,7 @@ export default function Player() {
         return () => clearTimeout(t);
     }, [mode, tracks[0]?.songUrl]);
 
-    const showSkeleton = (ended && endedLoading) || switching;
+    const showSkeleton = ended && endedLoading;
 
     return (
         <motion.div

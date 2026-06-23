@@ -62,6 +62,8 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     const reconnectRef = useRef(null);
     const selectedRef = useRef(null);
     selectedRef.current = selected;
+    // Pending "blank the player" timer used while switching servers (see selectSession).
+    const switchClearRef = useRef(null);
 
     /* ---- settings: load + persist + apply theme ---- */
 
@@ -149,12 +151,18 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
                     }
 
                     case "player": {
+                        // Fresh state landed for the subscribed guild — cancel any
+                        // pending switch-clear so it can't wipe it a beat later.
+                        clearTimeout(switchClearRef.current);
+                        switchClearRef.current = null;
                         const data = message.data;
                         setPlayer(data && data.track ? data : null);
                         break;
                     }
 
                     case "queue": {
+                        clearTimeout(switchClearRef.current);
+                        switchClearRef.current = null;
                         setQueue({
                             tracks: message.data?.tracks || [],
                             position: message.data?.position ?? 0
@@ -221,11 +229,21 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
 
     const selectSession = useCallback((session, { switchView = true } = {}) => {
         setSelected(session);
-        setPlayer(null);
-        setQueue({ tracks: [], position: 0 });
+        clearTimeout(switchClearRef.current);
+        switchClearRef.current = null;
         if (session?.guildId) {
             send("subscribe", { guildId: session.guildId });
+            // Keep the current player/queue on screen until the new server's
+            // state arrives (it always pushes both on subscribe), so there's no
+            // empty-player flash. Clear only as a fallback if nothing shows up.
+            switchClearRef.current = setTimeout(() => {
+                setPlayer(null);
+                setQueue({ tracks: [], position: 0 });
+            }, 1500);
             if (switchView) setView("queue");
+        } else {
+            setPlayer(null);
+            setQueue({ tracks: [], position: 0 });
         }
     }, [send]);
 
