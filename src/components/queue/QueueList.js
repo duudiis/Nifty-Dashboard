@@ -159,29 +159,32 @@ export default function QueueList({ dense = false }) {
         if (!playingSongUrl) { lastScrolledSongRef.current = null; return; }
         if (!layoutSettled) return;
         if (lastScrolledSongRef.current === playingSongUrl) return;
+        
         const isFirst = lastScrolledSongRef.current === null;
         lastScrolledSongRef.current = playingSongUrl;
 
         const header = nowPlayingRef.current;
         const scroller = header && findScroller(header);
         if (!header || !scroller) return;
-        // offsetTop is layout-based and unaffected by framer-motion's slide
-        // transforms, so the same number lands at the same place on both
-        // paths. Subtract a bit more than the sticky bar so the previous
-        // track is fully tucked behind its opaque portion.
-        const pad = getStickyPad(scroller);
-        const target = Math.max(0, header.offsetTop - scroller.offsetTop - pad + PREV_HIDE);
 
         if (isFirst) {
-            // Sync, before browser paint — so the panel opens already at the
-            // right scroll position with no visible "starts at top, jumps".
+            // Sync calculation for initial mount (no exiting ghost elements exist yet)
+            // so we can prevent the visual "starts at top then jumps" flash.
+            const pad = getStickyPad(scroller);
+            const target = Math.max(0, header.offsetTop - scroller.offsetTop - pad + PREV_HIDE);
             scroller.scrollTop = target;
             return;
         }
-        // Song change: animate smoothly in step with the row layout slide.
+        
+        // Song change: defer the calculation to rAF!
+        // This gives Framer Motion's internal effects time to apply 'position: absolute'
+        // to exiting elements via popLayout *before* we measure the final resting layout.
         const id = requestAnimationFrame(() => {
+            const pad = getStickyPad(scroller);
+            const target = Math.max(0, header.offsetTop - scroller.offsetTop - pad + PREV_HIDE);
             scroller.scrollTo({ top: target, behavior: "smooth" });
         });
+        
         return () => cancelAnimationFrame(id);
     }, [dense, playingSongUrl, layoutSettled]);
 
@@ -255,7 +258,7 @@ export default function QueueList({ dense = false }) {
 
     return (
         <div className="flex flex-col gap-0.5">
-            <AnimatePresence initial={false} mode="popLayout">
+            <AnimatePresence initial={false}>
                 {rows}
             </AnimatePresence>
             {/* room below so even the last track can sit at the very top */}
