@@ -8,10 +8,6 @@ import { AnimatePresence, motion, EASE } from "../motion/index.js";
 // Row slide duration (cursor change). Removal uses just the fade — no slide.
 const SLIDE_DUR = 0.32;
 const EXIT_DUR = 0.22;
-// Pixels above the Now Playing header when auto-scrolling. Matches the sticky
-// panel header height, so Now Playing lands right after the gradient and the
-// previous track is tucked behind it.
-const SCROLL_HEADER_PAD = 64;
 
 // Nearest scrollable ancestor of `node`.
 function findScroller(node) {
@@ -22,6 +18,13 @@ function findScroller(node) {
         p = p.parentElement;
     }
     return null;
+}
+
+// Height of the sticky panel header (its full bar — opaque + gradient). We
+// measure it at runtime so the scroll target tracks any padding tweaks.
+function getStickyPad(scroller) {
+    const bar = scroller?.querySelector(":scope > .sticky, :scope > * > .sticky");
+    return bar?.offsetHeight || 72;
 }
 
 function ColumnHeader() {
@@ -149,16 +152,30 @@ export default function QueueList({ dense = false }) {
         if (lastScrolledSongRef.current === playingSongUrl) return;
         const isFirst = lastScrolledSongRef.current === null;
         lastScrolledSongRef.current = playingSongUrl;
-        const id = requestAnimationFrame(() => {
-            // scrollTo with an explicit numeric target so both paths land at
-            // the same place. offsetTop is layout-based and unaffected by
-            // framer-motion's slide transforms, so no path-dependent quirks.
+
+        const doScroll = () => {
             const header = nowPlayingRef.current;
             const scroller = header && findScroller(header);
             if (!header || !scroller) return;
-            const target = Math.max(0, header.offsetTop - scroller.offsetTop - SCROLL_HEADER_PAD);
+            // offsetTop is layout-based and unaffected by framer-motion's
+            // slide transforms, so the same number lands at the same place on
+            // both paths. The pad is the measured sticky bar height, so Now
+            // Playing lands right after the gradient.
+            const pad = getStickyPad(scroller);
+            const target = Math.max(0, header.offsetTop - scroller.offsetTop - pad);
             scroller.scrollTo({ top: target, behavior: isFirst ? "auto" : "smooth" });
-        });
+        };
+
+        // On first mount the panel itself is still animating in (motion.section
+        // translateY 24 → 0 over ~280ms) and the rows above haven't been laid
+        // out by the time a single rAF fires — which made path A land ~1 row
+        // short. Defer past the panel-open animation so the measurement is
+        // taken on a settled layout.
+        if (isFirst) {
+            const id = setTimeout(doScroll, 320);
+            return () => clearTimeout(id);
+        }
+        const id = requestAnimationFrame(doScroll);
         return () => cancelAnimationFrame(id);
     }, [dense, playingSongUrl, layoutSettled]);
 
