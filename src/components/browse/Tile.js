@@ -17,7 +17,7 @@ export default function Tile({ item }) {
     const round = item.kind === "artist";
     const subtitle = item.artist || item.subtitle || item.kind;
 
-    const onClick = () => (playable ? selected && play(item.playQuery || item.url) : openEntity(item.kind, item.browseId));
+    const onClick = () => (playable ? selected && play(item.playQuery || item.url, "queue", item.title) : openEntity(item.kind, item.browseId));
 
     return (
         <button

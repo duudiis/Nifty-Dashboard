@@ -8,7 +8,7 @@ import TrackRow from "./TrackRow.js";
 // Album & playlist pages: a header (cover, title, queue-all controls) plus the
 // full track list, where each row can be queued individually.
 export default function CollectionPage({ id }) {
-    const { play, selected } = useNifty();
+    const { play, selected, notify } = useNifty();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -32,10 +32,14 @@ export default function CollectionPage({ id }) {
     // order (and, for albums, as audio). Fall back to per-track only if we
     // couldn't resolve a playlist id.
     const playlistUrl = data?.playlistId ? `https://www.youtube.com/playlist?list=${data.playlistId}` : null;
-    const queueAll = () =>
+    const queueAll = () => {
         playlistUrl ? play(playlistUrl, "queue") : tracks.forEach((t) => play(t.playQuery || t.url, "queue"));
-    const playAll = () =>
+        if (data?.title) notify(`Added “${data.title}” to the queue`);
+    };
+    const playAll = () => {
         playlistUrl ? play(playlistUrl, "now") : tracks.forEach((t, i) => play(t.playQuery || t.url, i === 0 ? "now" : "queue"));
+        if (data?.title) notify(`Now playing “${data.title}”`);
+    };
 
     if (loading) {
         return (

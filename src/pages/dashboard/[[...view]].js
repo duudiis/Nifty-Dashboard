@@ -10,6 +10,7 @@ import LeftSidebar from "../../components/layout/LeftSidebar.js";
 import CenterContent from "../../components/layout/CenterContent.js";
 import RightSidebar from "../../components/layout/RightSidebar.js";
 import Player from "../../components/player/Player.js";
+import NotificationStack from "../../components/NotificationStack.js";
 import ConnectionOverlay from "../../components/ConnectionOverlay.js";
 
 // Real, refresh-safe URLs for each page. Everything under /dashboard renders
@@ -66,7 +67,10 @@ export default function Dashboard({ user, inviteUrl }) {
                             <RightSidebar />
                         </div>
 
-                        <Player />
+                        <div className="relative shrink-0">
+                            <NotificationStack />
+                            <Player />
+                        </div>
                     </div>
 
                     <ConnectionOverlay />

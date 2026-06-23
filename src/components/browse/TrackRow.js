@@ -13,7 +13,7 @@ export default function TrackRow({ track, index }) {
 
     return (
         <div
-            onDoubleClick={() => selected && play(track.playQuery || track.url)}
+            onDoubleClick={() => selected && play(track.playQuery || track.url, "queue", track.title)}
             onContextMenu={onContextMenu}
             className={`group flex items-center gap-3 rounded-md p-2 transition hover:bg-elevated ${active ? "bg-elevated" : ""}`}
         >
@@ -30,7 +30,7 @@ export default function TrackRow({ track, index }) {
                 />
                 <button
                     disabled={!selected}
-                    onClick={() => play(track.playQuery || track.url)}
+                    onClick={() => play(track.playQuery || track.url, "queue", track.title)}
                     title={selected ? "Add to queue" : "Select a server first"}
                     className="absolute inset-0 flex items-center justify-center rounded bg-black/50 text-white opacity-0 transition group-hover:opacity-100 disabled:cursor-not-allowed"
                 >

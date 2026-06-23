@@ -80,9 +80,9 @@ export function useTrackMenu() {
 
             // search results
             return [
-                { label: "Play now", icon: "play-now", onClick: () => play(queueRef, "now"), disabled: !selected },
-                { label: "Play next", icon: "play-next", onClick: () => play(queueRef, "next"), disabled: !selected },
-                { label: "Add to queue", icon: "enqueue", onClick: () => play(queueRef, "queue"), disabled: !selected },
+                { label: "Play now", icon: "play-now", onClick: () => play(queueRef, "now", title), disabled: !selected },
+                { label: "Play next", icon: "play-next", onClick: () => play(queueRef, "next", title), disabled: !selected },
+                { label: "Add to queue", icon: "enqueue", onClick: () => play(queueRef, "queue", title), disabled: !selected },
                 ...linkItems
             ];
         },

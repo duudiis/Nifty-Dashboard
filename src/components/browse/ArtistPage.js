@@ -8,7 +8,7 @@ import Tile from "./Tile.js";
 
 // Spotify-style artist page: big header, top songs, then a discography grid.
 export default function ArtistPage({ id }) {
-    const { play, selected } = useNifty();
+    const { play, selected, notify } = useNifty();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -41,7 +41,10 @@ export default function ArtistPage({ id }) {
 
     const topSongs = data.topSongs || [];
     const albums = (data.albums || []).map((a) => ({ ...a, kind: "album" }));
-    const playTop = () => topSongs.forEach((t, i) => play(t.playQuery || t.url, i === 0 ? "now" : "queue"));
+    const playTop = () => {
+        topSongs.forEach((t, i) => play(t.playQuery || t.url, i === 0 ? "now" : "queue"));
+        if (data?.title) notify(`Playing ${data.title}`);
+    };
 
     return (
         <div className="flex flex-col">

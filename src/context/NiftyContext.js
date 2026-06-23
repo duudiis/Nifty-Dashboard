@@ -37,6 +37,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     const [selected, setSelected] = useState(null);   // { botName, guildId, ... }
     const [player, setPlayer] = useState(null);        // null = nothing playing
     const [queue, setQueue] = useState({ tracks: [], position: 0 });
+    const [notifications, setNotifications] = useState([]); // transient toasts
 
     // The active page is derived from the URL (refresh-safe); setView navigates.
     const segs = Array.isArray(router.query.view) ? router.query.view : [];
@@ -62,6 +63,18 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     const reconnectRef = useRef(null);
     const selectedRef = useRef(null);
     selectedRef.current = selected;
+    const notifyIdRef = useRef(0);
+
+    /* ---- transient toast notifications (shown stacked above the player) ---- */
+
+    const notify = useCallback((message, duration = 3200) => {
+        if (!message) return;
+        const id = ++notifyIdRef.current;
+        setNotifications((prev) => [...prev, { id, message }]);
+        setTimeout(() => {
+            setNotifications((prev) => prev.filter((n) => n.id !== id));
+        }, duration);
+    }, []);
 
     /* ---- settings: load + persist + apply theme ---- */
 
@@ -254,7 +267,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
 
     // Queue a track by query/URL. `mode` lets callers ask the bot to place it:
     //   "queue" (default, append) · "now" (play immediately) · "next" (play next)
-    const play = useCallback((query, mode = "queue") => {
+    const play = useCallback((query, mode = "queue", label) => {
         const sel = selectedRef.current;
         if (!sel?.guildId || !query) return;
         send("action", {
@@ -264,7 +277,16 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
             now: mode === "now",
             next: mode === "next"
         });
-    }, [send]);
+        // A label means a single user-initiated add — toast it. Bulk callers
+        // (queue-all) pass no label and emit their own single notification.
+        if (label) {
+            notify(
+                mode === "now" ? `Now playing “${label}”`
+                : mode === "next" ? `Playing “${label}” next`
+                : `Added “${label}” to the queue`
+            );
+        }
+    }, [send, notify]);
 
     // Existing-track operations (queue items are addressed by track_id).
     const jump = useCallback((trackId) => control("jump", { trackId }), [control]);
@@ -334,6 +356,8 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         selectSession,
         control,
         play,
+        notifications,
+        notify,
         jump,
         playNextTrack,
         moveToTop,
