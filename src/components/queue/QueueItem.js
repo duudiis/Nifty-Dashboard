@@ -85,7 +85,7 @@ export default function QueueItem({ track, index, isCurrent, dense }) {
             {!dense && (
                 <AddedBy track={track} size={18} className="hidden w-28 shrink-0 text-[11px] text-subtext lg:flex" />
             )}
-            {dense && <AddedBy track={track} size={16} showName={false} className="shrink-0" />}
+            {dense && <AddedBy track={track} size={16} showName={false} className="-mr-1.5 shrink-0" />}
 
             {/* duration, swapping to a remove (trash) button on hover */}
             <div className="flex w-12 shrink-0 items-center justify-center">

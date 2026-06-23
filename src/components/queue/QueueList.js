@@ -29,7 +29,7 @@ function EmptyState({ icon, title, hint }) {
 
 // Spotify-style section label: white, normal case.
 function SectionHeader({ children }) {
-    return <div className="px-2 pb-1 pt-3 text-[13px] font-bold text-maintext">{children}</div>;
+    return <div className="px-2 pb-2 pt-5 text-[13px] font-bold text-maintext">{children}</div>;
 }
 
 export default function QueueList({ dense = false }) {
