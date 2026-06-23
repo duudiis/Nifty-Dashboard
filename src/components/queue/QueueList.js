@@ -12,6 +12,7 @@ const EXIT_DUR = 0.15;
 // Hide a bit more of the previous track behind the sticky bar's opaque area
 // (its gradient otherwise lets a sliver bleed through).
 const PREV_HIDE = 25;
+
 // useLayoutEffect on the client (so scroll runs synchronously before paint —
 // no visible "starts at top then jumps" on panel open) and useEffect on the
 // server (avoids the SSR warning).
@@ -153,7 +154,7 @@ export default function QueueList({ dense = false }) {
     const playingSongUrl = player?.track?.songUrl || null;
     const layoutSong = tracks[currentIndex]?.songUrl || null;
     const layoutSettled = !!playingSongUrl && playingSongUrl === layoutSong;
-    useEffect(() => {
+    useIsoEffect(() => {
         if (!dense) return;
         if (!playingSongUrl) { lastScrolledSongRef.current = null; return; }
         if (!layoutSettled) return;
@@ -161,34 +162,26 @@ export default function QueueList({ dense = false }) {
         const isFirst = lastScrolledSongRef.current === null;
         lastScrolledSongRef.current = playingSongUrl;
 
-        const computeAndScroll = (behavior) => {
-            const header = nowPlayingRef.current;
-            const scroller = header && findScroller(header);
-            if (!header || !scroller) return;
-            // offsetTop is layout-based and unaffected by framer-motion's
-            // slide transforms. Clamp to the scrollable range so the LAST
-            // track (or any near-bottom cursor) can't overscroll past the
-            // end and hide the Now Playing header.
-            const pad = getStickyPad(scroller);
-            const wanted = header.offsetTop - scroller.offsetTop - pad + PREV_HIDE;
-            const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
-            const target = Math.min(max, Math.max(0, wanted));
-            if (behavior === "auto") {
-                scroller.scrollTop = target;
-            } else {
-                scroller.scrollTo({ top: target, behavior });
-            }
-        };
+        const header = nowPlayingRef.current;
+        const scroller = header && findScroller(header);
+        if (!header || !scroller) return;
+        // offsetTop is layout-based and unaffected by framer-motion's slide
+        // transforms, so the same number lands at the same place on both
+        // paths. Subtract a bit more than the sticky bar so the previous
+        // track is fully tucked behind its opaque portion.
+        const pad = getStickyPad(scroller);
+        const target = Math.max(0, header.offsetTop - scroller.offsetTop - pad + PREV_HIDE);
 
         if (isFirst) {
-            // Defer briefly so framer-motion finishes laying out the rows
-            // above the cursor. The panel-open animation is still mid-fade
-            // here (~80% transparent), so the snap to the target reads as
-            // part of the fade-in, not a visible jump.
-            const id = setTimeout(() => computeAndScroll("auto"), FIRST_MOUNT_DEFER_MS);
-            return () => clearTimeout(id);
+            // Sync, before browser paint — so the panel opens already at the
+            // right scroll position with no visible "starts at top, jumps".
+            scroller.scrollTop = target;
+            return;
         }
-        const id = requestAnimationFrame(() => computeAndScroll("smooth"));
+        // Song change: animate smoothly in step with the row layout slide.
+        const id = requestAnimationFrame(() => {
+            scroller.scrollTo({ top: target, behavior: "smooth" });
+        });
         return () => cancelAnimationFrame(id);
     }, [dense, playingSongUrl, layoutSettled]);
 
