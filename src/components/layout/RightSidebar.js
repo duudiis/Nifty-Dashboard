@@ -51,7 +51,10 @@ export default function RightSidebar() {
             <AnimatePresence mode="wait" initial={false}>
                 <motion.section
                     key={panel}
-                    className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+                    // overflow-anchor:none disables Chrome's scroll anchoring,
+                    // which would otherwise fight the framer-motion layout
+                    // slide (auto-shifting scrollTop and causing flicker).
+                    className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none]"
                     initial={{ opacity: 0, y: 24 }}
                     animate={{ opacity: 1, y: 0, transition: { duration: 0.28, ease: EASE } }}
                     exit={{ opacity: 0, y: 24, transition: { duration: 0.18, ease: EASE } }}

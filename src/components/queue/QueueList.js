@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import QueueItem from "./QueueItem.js";
 import { useNifty } from "../../context/NiftyContext.js";
@@ -67,6 +67,60 @@ export default function QueueList({ dense = false }) {
     const tracks = queue.tracks || [];
     const position = queue.position ?? 0;
 
+    // Stable per-row instance IDs that survive a single removal/insertion —
+    // including with duplicate songs in the queue (where a songUrl-based key
+    // would otherwise fade the wrong copy). Falls back to fresh IDs for any
+    // shape change we can't trivially diff.
+    const instancesRef = useRef([]);
+    const nextIdRef = useRef(0);
+    const instances = useMemo(() => {
+        const old = instancesRef.current;
+        const sameShape =
+            old.length === tracks.length &&
+            old.every((inst, i) => inst.songUrl === tracks[i].songUrl);
+        if (sameShape) return old;
+        // Single removal: find the diverging slot and drop just that instance.
+        if (old.length === tracks.length + 1) {
+            let p = old.length - 1;
+            for (let i = 0; i < tracks.length; i++) {
+                if (old[i].songUrl !== tracks[i].songUrl) { p = i; break; }
+            }
+            let ok = true;
+            for (let i = p; i < tracks.length; i++) {
+                if (old[i + 1]?.songUrl !== tracks[i].songUrl) { ok = false; break; }
+            }
+            if (ok) {
+                const next = [...old.slice(0, p), ...old.slice(p + 1)];
+                instancesRef.current = next;
+                return next;
+            }
+        }
+        // Single insertion: splice in a fresh instance at the diverging slot.
+        if (old.length === tracks.length - 1) {
+            let p = old.length;
+            for (let i = 0; i < old.length; i++) {
+                if (old[i].songUrl !== tracks[i].songUrl) { p = i; break; }
+            }
+            let ok = true;
+            for (let i = p; i < old.length; i++) {
+                if (old[i].songUrl !== tracks[i + 1].songUrl) { ok = false; break; }
+            }
+            if (ok) {
+                const next = [
+                    ...old.slice(0, p),
+                    { id: ++nextIdRef.current, songUrl: tracks[p].songUrl },
+                    ...old.slice(p)
+                ];
+                instancesRef.current = next;
+                return next;
+            }
+        }
+        // Fallback: regenerate (no animation continuity for this change).
+        const next = tracks.map((t) => ({ id: ++nextIdRef.current, songUrl: t.songUrl }));
+        instancesRef.current = next;
+        return next;
+    }, [tracks]);
+
     // The cursor is purely the bot's position index (unique per row, so repeated
     // tracks don't all light up) — and only while something is actually loaded.
     // A stopped player (no track) marks nothing.
@@ -91,20 +145,25 @@ export default function QueueList({ dense = false }) {
         if (lastScrolledSongRef.current === playingSongUrl) return;
         const isFirst = lastScrolledSongRef.current === null;
         lastScrolledSongRef.current = playingSongUrl;
+        let controls = null;
         const id = requestAnimationFrame(() => {
             const header = nowPlayingRef.current;
             const scroller = header && findScroller(header);
             if (!header || !scroller) return;
             const target = Math.max(0, header.offsetTop - scroller.offsetTop - SCROLL_OFFSET);
             if (isFirst) { scroller.scrollTop = target; return; }
-            const controls = animate(scroller.scrollTop, target, {
+            controls = animate(scroller.scrollTop, target, {
                 duration: SLIDE_DUR,
                 ease: EASE,
                 onUpdate: (v) => { scroller.scrollTop = v; }
             });
-            return () => controls.stop?.();
         });
-        return () => cancelAnimationFrame(id);
+        // Cancel both the pending rAF and any in-flight scroll animation, so a
+        // rapid sequence of song changes can't leave two scrolls racing.
+        return () => {
+            cancelAnimationFrame(id);
+            controls?.stop?.();
+        };
     }, [dense, playingSongUrl, layoutSettled]);
 
     if (!selected) {
@@ -140,11 +199,6 @@ export default function QueueList({ dense = false }) {
     // fade out via AnimatePresence (mode="popLayout" lets other rows slide
     // into the gap while the removed one finishes its fade).
     const hasCurrent = currentIndex >= 0 && currentIndex < tracks.length;
-    // Keys are by songUrl (with a per-song occurrence counter so duplicates
-    // don't collide). Critically NOT by track_id, which is just the index and
-    // shifts for every track behind a removal — that would churn keys and
-    // unmount everything below the removed row.
-    const occurrences = new Map();
 
     const rows = [];
     tracks.forEach((track, i) => {
@@ -163,14 +217,13 @@ export default function QueueList({ dense = false }) {
             rows.push(<SectionHeader key="hdr-next" id="hdr-next">Next from: Queue</SectionHeader>);
         }
 
-        const n = occurrences.get(track.songUrl) || 0;
-        occurrences.set(track.songUrl, n + 1);
         rows.push(
             <motion.div
-                key={`t-${track.songUrl}-${n}`}
+                key={`t-${instances[i].id}`}
                 layout="position"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                // Only animate on exit (fade out on removal). No initial/animate
+                // so per-second player ticks don't re-trigger a fade-in on the
+                // existing rows — that's what was causing the flicker.
                 exit={{ opacity: 0 }}
                 transition={{ duration: SLIDE_DUR, ease: EASE }}
             >
