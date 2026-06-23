@@ -292,7 +292,10 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     const jump = useCallback((trackId) => control("jump", { trackId }), [control]);
     const playNextTrack = useCallback((trackId) => control("playNext", { trackId }), [control]);
     const moveToTop = useCallback((trackId) => control("moveToTop", { trackId }), [control]);
+    const moveToLast = useCallback((trackId) => control("moveToLast", { trackId }), [control]);
     const removeTrack = useCallback((trackId) => control("remove", { trackId }), [control]);
+    // Drag-to-reorder: move the track at index `from` to index `to`.
+    const moveTrack = useCallback((from, to) => control("move", { from, to }), [control]);
 
     // The actual fetch. `initiatedRef` guards against running the same query
     // twice when both a click and the URL-sync effect fire.
@@ -361,6 +364,8 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         jump,
         playNextTrack,
         moveToTop,
+        moveToLast,
+        moveTrack,
         removeTrack,
         logout
     };
