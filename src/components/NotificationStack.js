@@ -5,7 +5,7 @@ import { AnimatePresence, motion, EASE } from "./motion/index.js";
 
 // Roughly how much vertical space one toast occupies (box + gap), used to work
 // out how many fit in the top-half budget.
-const SLOT = 60;
+const SLOT = 52;
 
 // Toasts stacked directly above the player, centred. The newest sits closest to
 // the player; as more arrive they push older ones up, and once a toast climbs
@@ -24,7 +24,7 @@ export default function NotificationStack() {
     const budget = vh ? (vh * 0.5) / SLOT : 99; // toasts that fit before fading
 
     return (
-        <div className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-6 flex -translate-x-1/2 flex-col items-center gap-6">
+        <div className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-6 flex -translate-x-1/2 flex-col items-center gap-4">
             <AnimatePresence initial>
                 {notifications.map((n, i) => {
                     const fromBottom = notifications.length - 1 - i;

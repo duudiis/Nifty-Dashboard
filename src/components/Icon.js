@@ -347,6 +347,9 @@ const ICONS = {
             </>
         )
     },
+    check: {
+        body: <polyline points="20 6 9 17 4 12" />
+    },
     "move-top": {
         body: (
             <>
