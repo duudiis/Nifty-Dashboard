@@ -27,30 +27,29 @@ function EmptyState({ icon, title, hint }) {
     );
 }
 
+// Spotify-style section label: white, normal case.
+function SectionHeader({ children }) {
+    return <div className="px-2 pb-1 pt-3 text-[13px] font-bold text-maintext">{children}</div>;
+}
+
 export default function QueueList({ dense = false }) {
     const { queue, player, selected } = useNifty();
     const tracks = queue.tracks || [];
+    const position = queue.position ?? 0;
 
-    // The actually-playing track is the single source of truth, so exactly one
-    // row is ever marked current. queue.position is only a fallback for when the
-    // player track isn't in the list (it can briefly disagree after a jump).
-    const current = player?.track;
-    const matchesPlayer = (track) =>
-        current && ((current.songUrl && current.songUrl === track.songUrl) || current.track_id === track.track_id);
-    const hasPlayerMatch = current && tracks.some(matchesPlayer);
-    const isCurrent = (track) => (hasPlayerMatch ? matchesPlayer(track) : track.track_id === queue.position);
+    // The cursor is purely the bot's position index (unique per row, so repeated
+    // tracks don't all light up) — and only while something is actually loaded.
+    // A stopped player (no track) marks nothing.
+    const currentIndex = player?.track ? position : -1;
+    const isCurrent = (track) => currentIndex >= 0 && track.track_id === currentIndex;
 
-    const currentTrack = tracks.find(isCurrent);
-    const currentId = currentTrack ? `${currentTrack.track_id}-${currentTrack.songUrl}` : null;
-
-    // In the dense sidebar, keep the currently-playing track pinned to the top
-    // (older tracks remain above — scroll up to see them).
+    // dense sidebar: keep the now-playing section pinned near the top
     const currentRef = useRef(null);
     useEffect(() => {
         if (dense && currentRef.current) {
             currentRef.current.scrollIntoView({ block: "start", behavior: "smooth" });
         }
-    }, [dense, currentId]);
+    }, [dense, currentIndex]);
 
     if (!selected) {
         return <EmptyState icon="connect" title="No server selected" hint="Pick a server to see its queue." />;
@@ -60,24 +59,52 @@ export default function QueueList({ dense = false }) {
         return <EmptyState icon="queue" title="The queue is empty" hint="Search above to add a track and get the party started." />;
     }
 
+    const item = (track) => (
+        <QueueItem
+            key={`${track.track_id}-${track.songUrl}`}
+            track={track}
+            index={track.track_id}
+            isCurrent={isCurrent(track)}
+            dense={dense}
+        />
+    );
+
+    // Main queue page: flat table.
+    if (!dense) {
+        return (
+            <div className="flex flex-col gap-1">
+                <ColumnHeader />
+                {tracks.map(item)}
+            </div>
+        );
+    }
+
+    // Dense sidebar: previous tracks above, then "Now playing", then the rest.
+    const hasCurrent = currentIndex >= 0 && currentIndex < tracks.length;
+    const previous = hasCurrent ? tracks.slice(0, currentIndex) : [];
+    const current = hasCurrent ? tracks[currentIndex] : null;
+    const upcoming = hasCurrent ? tracks.slice(currentIndex + 1) : tracks;
+
     return (
-        <div className={`flex flex-col ${dense ? "gap-0.5" : "gap-1"}`}>
-            {!dense && <ColumnHeader />}
-            {tracks.map((track) => {
-                const cur = isCurrent(track);
-                return (
-                    <QueueItem
-                        key={`${track.track_id}-${track.songUrl}`}
-                        innerRef={cur ? currentRef : undefined}
-                        track={track}
-                        index={track.track_id}
-                        isCurrent={cur}
-                        dense={dense}
-                    />
-                );
-            })}
+        <div className="flex flex-col gap-0.5">
+            {previous.map(item)}
+
+            {current && (
+                <div ref={currentRef} className="flex scroll-mt-20 flex-col gap-0.5">
+                    <SectionHeader>Now playing</SectionHeader>
+                    {item(current)}
+                </div>
+            )}
+
+            {upcoming.length > 0 && (
+                <>
+                    <SectionHeader>Next from: Queue</SectionHeader>
+                    {upcoming.map(item)}
+                </>
+            )}
+
             {/* room below so even the last track can sit at the very top */}
-            {dense && <div className="h-[80vh] shrink-0" aria-hidden />}
+            <div className="h-[80vh] shrink-0" aria-hidden />
         </div>
     );
 }

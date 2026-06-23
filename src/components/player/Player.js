@@ -280,7 +280,7 @@ export default function Player() {
 
     const contextual = mode === "invite" || mode === "summon" || mode === "recommend";
 
-    const queued = track && tracks.find((t) => t.track_id === queue.position || t.songUrl === track.songUrl);
+    const queued = track ? tracks.find((t) => t.track_id === queue.position) : null;
     const songTrack = track ? { ...queued, ...track } : mode === "ended" ? tracks[0] : null;
     const ended = mode === "ended";
     const onPlayPause = ended

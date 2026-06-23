@@ -7,8 +7,8 @@ import AlbumCell from "./AlbumCell.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
 
-export default function QueueItem({ track, index, isCurrent, dense, innerRef }) {
-    const { control, player } = useNifty();
+export default function QueueItem({ track, index, isCurrent, dense }) {
+    const { control, player, removeTrack } = useNifty();
     const trackMenu = useTrackMenu();
     const { onContextMenu, active } = useContextMenu(() => trackMenu(track, { source: "queue" }));
 
@@ -20,12 +20,16 @@ export default function QueueItem({ track, index, isCurrent, dense, innerRef }) 
 
     const playPauseTitle = playing ? "Pause" : isCurrent ? "Resume" : "Play";
 
+    const remove = (e) => {
+        e.stopPropagation();
+        removeTrack(track.track_id);
+    };
+
     return (
         <div
-            ref={innerRef}
             onDoubleClick={activate}
             onContextMenu={onContextMenu}
-            className={`group flex w-full items-center gap-3 rounded-md px-2 py-1.5 transition hover:bg-elevated ${dense ? "scroll-mt-20" : ""} ${active ? "bg-elevated" : ""}`}
+            className={`group flex w-full items-center gap-3 rounded-md px-2 py-1.5 transition hover:bg-elevated ${active ? "bg-elevated" : ""}`}
         >
             {/* main list keeps a number / play-pause column; the dense sidebar
                 drops it and puts the control over the cover instead */}
@@ -40,7 +44,8 @@ export default function QueueItem({ track, index, isCurrent, dense, innerRef }) 
                 </div>
             )}
 
-            {/* artwork (with an overlaid play/pause control in the dense sidebar) */}
+            {/* artwork (with an overlaid play/pause control, and a now-playing
+                equalizer in the dense sidebar) */}
             <div className={`relative shrink-0 ${dense ? "h-9 w-9" : "h-10 w-10"}`}>
                 <img
                     src={artworkOrFallback(track.artwork)}
@@ -48,6 +53,11 @@ export default function QueueItem({ track, index, isCurrent, dense, innerRef }) 
                     className="h-full w-full rounded object-cover"
                     alt=""
                 />
+                {dense && isCurrent && (
+                    <span className="absolute inset-0 flex items-center justify-center rounded bg-black/40 text-accent transition group-hover:opacity-0">
+                        <Equalizer playing={playing} className="h-4 w-4" />
+                    </span>
+                )}
                 {dense && (
                     <button
                         onClick={activate}
@@ -70,13 +80,24 @@ export default function QueueItem({ track, index, isCurrent, dense, innerRef }) 
                 <AlbumCell track={track} className="hidden w-64 shrink-0 truncate text-[11px] text-subtext xl:block" />
             )}
 
-            {/* added by (avatar + name) */}
+            {/* added by — name + avatar on the main page, avatar only in the
+                dense sidebar (sits just left of the duration) */}
             {!dense && (
                 <AddedBy track={track} size={18} className="hidden w-28 shrink-0 text-[11px] text-subtext lg:flex" />
             )}
+            {dense && <AddedBy track={track} size={16} showName={false} className="shrink-0" />}
 
-            {/* duration */}
-            <span className="w-12 shrink-0 text-center text-[11px] text-subtext">{msToClock(track.duration)}</span>
+            {/* duration, swapping to a remove (trash) button on hover */}
+            <div className="flex w-12 shrink-0 items-center justify-center">
+                <span className="text-[11px] text-subtext group-hover:hidden">{msToClock(track.duration)}</span>
+                <button
+                    onClick={remove}
+                    title="Remove from queue"
+                    className="hidden text-subtext transition hover:text-red-400 group-hover:block"
+                >
+                    <Icon name="trash" className="h-4 w-4" />
+                </button>
+            </div>
         </div>
     );
 }
