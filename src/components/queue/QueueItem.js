@@ -35,7 +35,7 @@ export default function QueueItem({ track, index, isCurrent, dense }) {
                 drops it and puts the control over the cover instead */}
             {!dense && (
                 <div className="flex w-6 shrink-0 items-center justify-center">
-                    <span className={`flex items-center justify-center text-xs ${isCurrent ? "text-accent" : "text-subtext"} group-hover:hidden`}>
+                    <span className={`flex items-center justify-center text-xs transition-colors duration-300 ${isCurrent ? "text-accent" : "text-subtext"} group-hover:hidden`}>
                         {isCurrent ? <Equalizer playing={playing} className="h-3.5 w-3.5" /> : index + 1}
                     </span>
                     <button onClick={activate} className="hidden text-maintext group-hover:block" title={playPauseTitle}>
@@ -66,7 +66,7 @@ export default function QueueItem({ track, index, isCurrent, dense }) {
 
             {/* title / artist */}
             <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                <span className={`truncate text-[13px] ${isCurrent ? "text-accent" : "text-maintext"}`}>{track.title}</span>
+                <span className={`truncate text-[13px] transition-colors duration-300 ${isCurrent ? "text-accent" : "text-maintext"}`}>{track.title}</span>
                 <span className="truncate text-[11px] text-subtext">{track.artist}</span>
             </div>
 

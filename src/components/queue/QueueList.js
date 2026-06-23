@@ -3,24 +3,11 @@ import { useEffect, useMemo, useRef } from "react";
 import QueueItem from "./QueueItem.js";
 import { useNifty } from "../../context/NiftyContext.js";
 import Icon from "../Icon.js";
-import { AnimatePresence, animate, motion, EASE } from "../motion/index.js";
+import { AnimatePresence, motion, EASE } from "../motion/index.js";
 
-// Row slide duration (kept in sync with the scroll animation below).
+// Row slide duration. The browser controls the smooth-scroll duration, so we
+// just keep this in the same ballpark.
 const SLIDE_DUR = 0.32;
-// Pixels above the "Now playing" header reserved when auto-scrolling, so the
-// previous track sits comfortably tucked away under the sticky panel header.
-const SCROLL_OFFSET = 8;
-
-// Walk up to the nearest scrollable ancestor of `node`.
-function findScroller(node) {
-    let p = node?.parentElement;
-    while (p) {
-        const oy = getComputedStyle(p).overflowY;
-        if (oy === "auto" || oy === "scroll") return p;
-        p = p.parentElement;
-    }
-    return null;
-}
 
 function ColumnHeader() {
     return (
@@ -46,7 +33,9 @@ function EmptyState({ icon, title, hint }) {
 }
 
 // Spotify-style section label: white, normal case.
-// Animated section header (fades in/out and slides into position).
+// Animated section header (fades in/out and slides into position). scroll-mt
+// reserves a small gap above when scrollIntoView lands here, so the previous
+// track tucks behind the sticky panel header.
 const SectionHeader = ({ children, innerRef, padTop = "pt-5", id }) => (
     <motion.div
         layout="position"
@@ -56,7 +45,7 @@ const SectionHeader = ({ children, innerRef, padTop = "pt-5", id }) => (
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.22, ease: EASE }}
-        className={`px-2 pb-2 ${padTop} text-[13px] font-bold text-maintext`}
+        className={`scroll-mt-2 px-2 pb-2 ${padTop} text-[13px] font-bold text-maintext`}
     >
         {children}
     </motion.div>
@@ -145,25 +134,16 @@ export default function QueueList({ dense = false }) {
         if (lastScrolledSongRef.current === playingSongUrl) return;
         const isFirst = lastScrolledSongRef.current === null;
         lastScrolledSongRef.current = playingSongUrl;
-        let controls = null;
         const id = requestAnimationFrame(() => {
-            const header = nowPlayingRef.current;
-            const scroller = header && findScroller(header);
-            if (!header || !scroller) return;
-            const target = Math.max(0, header.offsetTop - scroller.offsetTop - SCROLL_OFFSET);
-            if (isFirst) { scroller.scrollTop = target; return; }
-            controls = animate(scroller.scrollTop, target, {
-                duration: SLIDE_DUR,
-                ease: EASE,
-                onUpdate: (v) => { scroller.scrollTop = v; }
+            // Hand the scroll off to the browser. Both paths (first mount and
+            // song change) use scrollIntoView with scroll-mt-2 on the header,
+            // so they land at exactly the same position.
+            nowPlayingRef.current?.scrollIntoView({
+                block: "start",
+                behavior: isFirst ? "auto" : "smooth"
             });
         });
-        // Cancel both the pending rAF and any in-flight scroll animation, so a
-        // rapid sequence of song changes can't leave two scrolls racing.
-        return () => {
-            cancelAnimationFrame(id);
-            controls?.stop?.();
-        };
+        return () => cancelAnimationFrame(id);
     }, [dense, playingSongUrl, layoutSettled]);
 
     if (!selected) {
