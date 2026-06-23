@@ -240,10 +240,8 @@ export default function QueueList({ dense = false }) {
             <motion.div
                 key={`t-${instances[i].id}`}
                 layout="position"
-                // Only animate on exit (fade out on removal). No initial/animate
-                // so per-second player ticks don't re-trigger a fade-in on the
-                // existing rows. The opacity transition is pinned to the short
-                // exit duration so removal is a clean fade with no slide.
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{
                     layout: { duration: SLIDE_DUR, ease: EASE },
