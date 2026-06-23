@@ -3,7 +3,24 @@ import { useEffect, useRef } from "react";
 import QueueItem from "./QueueItem.js";
 import { useNifty } from "../../context/NiftyContext.js";
 import Icon from "../Icon.js";
-import { AnimatePresence, motion, EASE } from "../motion/index.js";
+import { AnimatePresence, animate, motion, EASE } from "../motion/index.js";
+
+// Row slide duration (kept in sync with the scroll animation below).
+const SLIDE_DUR = 0.32;
+// Pixels above the "Now playing" header reserved when auto-scrolling, so the
+// previous track sits comfortably tucked away under the sticky panel header.
+const SCROLL_OFFSET = 8;
+
+// Walk up to the nearest scrollable ancestor of `node`.
+function findScroller(node) {
+    let p = node?.parentElement;
+    while (p) {
+        const oy = getComputedStyle(p).overflowY;
+        if (oy === "auto" || oy === "scroll") return p;
+        p = p.parentElement;
+    }
+    return null;
+}
 
 function ColumnHeader() {
     return (
@@ -39,7 +56,7 @@ const SectionHeader = ({ children, innerRef, padTop = "pt-5", id }) => (
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.22, ease: EASE }}
-        className={`scroll-mt-16 px-2 pb-2 ${padTop} text-[13px] font-bold text-maintext`}
+        className={`px-2 pb-2 ${padTop} text-[13px] font-bold text-maintext`}
     >
         {children}
     </motion.div>
@@ -56,20 +73,35 @@ export default function QueueList({ dense = false }) {
     const currentIndex = player?.track ? position : -1;
     const isCurrent = (track) => currentIndex >= 0 && track.track_id === currentIndex;
 
-    // dense sidebar: smoothly bring the "Now playing" header to the top. Only
-    // fires on a real cursor move and is deferred a frame so the section
-    // reshape has laid out before the smooth scroll starts.
+    // dense sidebar: bring "Now playing" to the top of the panel, but only when
+    // the actual playing song changes (not when reindexing happens — e.g. a
+    // track is removed before the cursor — which would otherwise trigger a big
+    // unrelated jump). The scroll is animated alongside the row layout slide
+    // with the same duration/easing so they move together.
     const nowPlayingRef = useRef(null);
-    const lastScrolledIndex = useRef(-1);
+    const lastScrolledSongRef = useRef(null);
+    const playingSongUrl = player?.track?.songUrl || null;
     useEffect(() => {
-        if (!dense || currentIndex < 0) return;
-        if (lastScrolledIndex.current === currentIndex) return;
-        lastScrolledIndex.current = currentIndex;
+        if (!dense) return;
+        if (!playingSongUrl) { lastScrolledSongRef.current = null; return; }
+        if (lastScrolledSongRef.current === playingSongUrl) return;
+        const isFirst = lastScrolledSongRef.current === null;
+        lastScrolledSongRef.current = playingSongUrl;
         const id = requestAnimationFrame(() => {
-            nowPlayingRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+            const header = nowPlayingRef.current;
+            const scroller = header && findScroller(header);
+            if (!header || !scroller) return;
+            const target = Math.max(0, header.offsetTop - scroller.offsetTop - SCROLL_OFFSET);
+            if (isFirst) { scroller.scrollTop = target; return; }
+            const controls = animate(scroller.scrollTop, target, {
+                duration: SLIDE_DUR,
+                ease: EASE,
+                onUpdate: (v) => { scroller.scrollTop = v; }
+            });
+            return () => controls.stop?.();
         });
         return () => cancelAnimationFrame(id);
-    }, [dense, currentIndex]);
+    }, [dense, playingSongUrl]);
 
     if (!selected) {
         return <EmptyState icon="connect" title="No server selected" hint="Pick a server to see its queue." />;
@@ -107,7 +139,7 @@ export default function QueueList({ dense = false }) {
         <motion.div
             key={`t-${track.track_id}-${track.songUrl}`}
             layout="position"
-            transition={{ duration: 0.32, ease: EASE }}
+            transition={{ duration: SLIDE_DUR, ease: EASE }}
         >
             <QueueItem track={track} index={track.track_id} isCurrent={isCurrent(track)} dense />
         </motion.div>
