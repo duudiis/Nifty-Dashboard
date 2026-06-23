@@ -11,7 +11,7 @@ const EXIT_DUR = 0.15;
 
 // Hide a bit more of the previous track behind the sticky bar's opaque area
 // (its gradient otherwise lets a sliver bleed through).
-const PREV_HIDE = 50;
+const PREV_HIDE = 40;
 
 // useLayoutEffect on the client (so scroll runs synchronously before paint —
 // no visible "starts at top then jumps" on panel open) and useEffect on the
