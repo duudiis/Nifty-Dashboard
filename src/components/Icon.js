@@ -359,6 +359,27 @@ const ICONS = {
             </>
         )
     },
+    "move-bottom": {
+        body: (
+            <>
+                <line x1="5" y1="20.5" x2="19" y2="20.5" />
+                <path d="m6 11 6 6 6-6" />
+                <line x1="12" y1="3" x2="12" y2="17" />
+            </>
+        )
+    },
+    "drag-handle": {
+        body: (
+            <>
+                <circle cx="9" cy="6" r="1.4" />
+                <circle cx="9" cy="12" r="1.4" />
+                <circle cx="9" cy="18" r="1.4" />
+                <circle cx="15" cy="6" r="1.4" />
+                <circle cx="15" cy="12" r="1.4" />
+                <circle cx="15" cy="18" r="1.4" />
+            </>
+        )
+    },
     trash: {
         body: (
             <>

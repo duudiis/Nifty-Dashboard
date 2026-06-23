@@ -292,6 +292,9 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     const jump = useCallback((trackId) => control("jump", { trackId }), [control]);
     const playNextTrack = useCallback((trackId) => control("playNext", { trackId }), [control]);
     const moveToTop = useCallback((trackId) => control("moveToTop", { trackId }), [control]);
+    const moveToLast = useCallback((trackId) => control("moveToLast", { trackId }), [control]);
+    // Drag-reorder: move the entry currently at `trackId` to absolute index `toIndex`.
+    const moveTrack = useCallback((trackId, toIndex) => control("move", { trackId, toIndex }), [control]);
     const removeTrack = useCallback((trackId) => control("remove", { trackId }), [control]);
 
     // The actual fetch. `initiatedRef` guards against running the same query
@@ -361,6 +364,8 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         jump,
         playNextTrack,
         moveToTop,
+        moveToLast,
+        moveTrack,
         removeTrack,
         logout
     };
