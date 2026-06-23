@@ -76,6 +76,20 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         }, duration);
     }, []);
 
+    // When toasts stack past ~half the screen, drop the oldest quickly so they
+    // fade out faster instead of piling up.
+    useEffect(() => {
+        if (typeof window === "undefined" || notifications.length < 3) return;
+        const perToast = 48; // box height + gap, roughly
+        const max = Math.max(3, Math.floor((window.innerHeight * 0.5) / perToast));
+        if (notifications.length <= max) return;
+        const stale = new Set(notifications.slice(0, notifications.length - max).map((n) => n.id));
+        const t = setTimeout(() => {
+            setNotifications((prev) => prev.filter((n) => !stale.has(n.id)));
+        }, 250);
+        return () => clearTimeout(t);
+    }, [notifications]);
+
     /* ---- settings: load + persist + apply theme ---- */
 
     useEffect(() => { setSettings(loadSettings()); }, []);
