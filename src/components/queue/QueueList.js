@@ -28,9 +28,10 @@ function EmptyState({ icon, title, hint }) {
 }
 
 // Spotify-style section label: white, normal case.
-function SectionHeader({ children }) {
-    return <div className="px-2 pb-2 pt-8 text-[13px] font-bold text-maintext">{children}</div>;
-}
+// Forwards the ref so we can scroll the "Now playing" header into view.
+const SectionHeader = ({ children, innerRef }) => (
+    <div ref={innerRef} className="scroll-mt-16 px-2 pb-2 pt-5 text-[13px] font-bold text-maintext">{children}</div>
+);
 
 export default function QueueList({ dense = false }) {
     const { queue, player, selected } = useNifty();
@@ -43,17 +44,17 @@ export default function QueueList({ dense = false }) {
     const currentIndex = player?.track ? position : -1;
     const isCurrent = (track) => currentIndex >= 0 && track.track_id === currentIndex;
 
-    // dense sidebar: smoothly bring the now-playing row into view, but only on
-    // a real cursor move and after layout has settled (the section reshape on
-    // track change otherwise cancels the smooth scroll and snaps to the top).
-    const currentRef = useRef(null);
+    // dense sidebar: smoothly bring the "Now playing" header to the top. Only
+    // fires on a real cursor move and is deferred a frame so the section
+    // reshape has laid out before the smooth scroll starts.
+    const nowPlayingRef = useRef(null);
     const lastScrolledIndex = useRef(-1);
     useEffect(() => {
         if (!dense || currentIndex < 0) return;
         if (lastScrolledIndex.current === currentIndex) return;
         lastScrolledIndex.current = currentIndex;
         const id = requestAnimationFrame(() => {
-            currentRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+            nowPlayingRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
         });
         return () => cancelAnimationFrame(id);
     }, [dense, currentIndex]);
@@ -86,30 +87,22 @@ export default function QueueList({ dense = false }) {
         );
     }
 
-    // Dense sidebar: previous tracks above, then "Now playing", then the rest.
+    // Dense sidebar: one flat sibling list so tracks keep their identity when
+    // the cursor moves (headers shift between them, items don't change parent).
     const hasCurrent = currentIndex >= 0 && currentIndex < tracks.length;
-    const previous = hasCurrent ? tracks.slice(0, currentIndex) : [];
-    const current = hasCurrent ? tracks[currentIndex] : null;
-    const upcoming = hasCurrent ? tracks.slice(currentIndex + 1) : tracks;
+    const rows = [];
+    tracks.forEach((track, i) => {
+        if (hasCurrent && i === currentIndex) {
+            rows.push(<SectionHeader key="hdr-now" innerRef={nowPlayingRef}>Now playing</SectionHeader>);
+        } else if (hasCurrent && i === currentIndex + 1) {
+            rows.push(<SectionHeader key="hdr-next">Next from: Queue</SectionHeader>);
+        }
+        rows.push(item(track));
+    });
 
     return (
         <div className="flex flex-col gap-0.5">
-            {previous.map(item)}
-
-            {current && (
-                <div ref={currentRef} className="flex scroll-mt-20 flex-col gap-0.5">
-                    <SectionHeader>Now playing</SectionHeader>
-                    {item(current)}
-                </div>
-            )}
-
-            {upcoming.length > 0 && (
-                <>
-                    <SectionHeader>Next from: Queue</SectionHeader>
-                    {upcoming.map(item)}
-                </>
-            )}
-
+            {rows}
             {/* room below so even the last track can sit at the very top */}
             <div className="h-[80vh] shrink-0" aria-hidden />
         </div>
