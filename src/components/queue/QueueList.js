@@ -11,7 +11,7 @@ const EXIT_DUR = 0.15;
 
 // Hide a bit more of the previous track behind the sticky bar's opaque area
 // (its gradient otherwise lets a sliver bleed through).
-const PREV_HIDE = 2;
+const PREV_HIDE = 25;
 
 // useLayoutEffect on the client (so scroll runs synchronously before paint —
 // no visible "starts at top then jumps" on panel open) and useEffect on the
@@ -33,7 +33,7 @@ function findScroller(node) {
 // measure it at runtime so the scroll target tracks any padding tweaks.
 function getStickyPad(scroller) {
     const bar = scroller?.querySelector(":scope > .sticky, :scope > * > .sticky");
-    return bar?.offsetHeight || 128;
+    return bar?.offsetHeight || 64;
 }
 
 function ColumnHeader() {
