@@ -73,17 +73,21 @@ export default function QueueList({ dense = false }) {
     const currentIndex = player?.track ? position : -1;
     const isCurrent = (track) => currentIndex >= 0 && track.track_id === currentIndex;
 
-    // dense sidebar: bring "Now playing" to the top of the panel, but only when
-    // the actual playing song changes (not when reindexing happens — e.g. a
-    // track is removed before the cursor — which would otherwise trigger a big
-    // unrelated jump). The scroll is animated alongside the row layout slide
-    // with the same duration/easing so they move together.
+    // dense sidebar: bring "Now playing" to the top of the panel. Only fires
+    // when the actually-playing song changes (not when reindexing happens —
+    // e.g. a track is removed before the cursor — which would cause a big
+    // unrelated jump). And we wait until the queue's `position` has caught up
+    // with the player's song before measuring, so we don't animate to the OLD
+    // header position (player + queue WS arrive in two separate updates).
     const nowPlayingRef = useRef(null);
     const lastScrolledSongRef = useRef(null);
     const playingSongUrl = player?.track?.songUrl || null;
+    const layoutSong = tracks[currentIndex]?.songUrl || null;
+    const layoutSettled = !!playingSongUrl && playingSongUrl === layoutSong;
     useEffect(() => {
         if (!dense) return;
         if (!playingSongUrl) { lastScrolledSongRef.current = null; return; }
+        if (!layoutSettled) return;
         if (lastScrolledSongRef.current === playingSongUrl) return;
         const isFirst = lastScrolledSongRef.current === null;
         lastScrolledSongRef.current = playingSongUrl;
@@ -101,7 +105,7 @@ export default function QueueList({ dense = false }) {
             return () => controls.stop?.();
         });
         return () => cancelAnimationFrame(id);
-    }, [dense, playingSongUrl]);
+    }, [dense, playingSongUrl, layoutSettled]);
 
     if (!selected) {
         return <EmptyState icon="connect" title="No server selected" hint="Pick a server to see its queue." />;
@@ -132,23 +136,19 @@ export default function QueueList({ dense = false }) {
     }
 
     // Dense sidebar: one flat sibling list. Each row is a motion.div with
-    // `layout` so tracks slide smoothly when the cursor moves (and headers
-    // appear/disappear between them).
+    // `layout` so tracks slide smoothly when the cursor moves; removed tracks
+    // fade out via AnimatePresence (mode="popLayout" lets other rows slide
+    // into the gap while the removed one finishes its fade).
     const hasCurrent = currentIndex >= 0 && currentIndex < tracks.length;
-    const motionItem = (track) => (
-        <motion.div
-            key={`t-${track.track_id}-${track.songUrl}`}
-            layout="position"
-            transition={{ duration: SLIDE_DUR, ease: EASE }}
-        >
-            <QueueItem track={track} index={track.track_id} isCurrent={isCurrent(track)} dense />
-        </motion.div>
-    );
+    // Keys are by songUrl (with a per-song occurrence counter so duplicates
+    // don't collide). Critically NOT by track_id, which is just the index and
+    // shifts for every track behind a removal — that would churn keys and
+    // unmount everything below the removed row.
+    const occurrences = new Map();
 
     const rows = [];
     tracks.forEach((track, i) => {
         if (hasCurrent && i === currentIndex) {
-            // tighter top padding when "Now playing" is the very first row
             rows.push(
                 <SectionHeader
                     key="hdr-now"
@@ -160,16 +160,28 @@ export default function QueueList({ dense = false }) {
                 </SectionHeader>
             );
         } else if (hasCurrent && i === currentIndex + 1) {
-            rows.push(
-                <SectionHeader key="hdr-next" id="hdr-next">Next from: Queue</SectionHeader>
-            );
+            rows.push(<SectionHeader key="hdr-next" id="hdr-next">Next from: Queue</SectionHeader>);
         }
-        rows.push(motionItem(track));
+
+        const n = occurrences.get(track.songUrl) || 0;
+        occurrences.set(track.songUrl, n + 1);
+        rows.push(
+            <motion.div
+                key={`t-${track.songUrl}-${n}`}
+                layout="position"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: SLIDE_DUR, ease: EASE }}
+            >
+                <QueueItem track={track} index={track.track_id} isCurrent={isCurrent(track)} dense />
+            </motion.div>
+        );
     });
 
     return (
         <div className="flex flex-col gap-0.5">
-            <AnimatePresence initial={false}>
+            <AnimatePresence mode="popLayout" initial={false}>
                 {rows}
             </AnimatePresence>
             {/* room below so even the last track can sit at the very top */}
