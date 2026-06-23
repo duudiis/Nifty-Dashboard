@@ -258,7 +258,7 @@ export default function QueueList({ dense = false }) {
 
     return (
         <div className="flex flex-col gap-0.5">
-            <AnimatePresence initial={false}>
+            <AnimatePresence initial={false} mode="popLayout">
                 {rows}
             </AnimatePresence>
             {/* room below so even the last track can sit at the very top */}
