@@ -53,11 +53,6 @@ export default function QueueItem({ track, index, isCurrent, dense }) {
                     className="h-full w-full rounded object-cover"
                     alt=""
                 />
-                {dense && isCurrent && (
-                    <span className="absolute inset-0 flex items-center justify-center rounded bg-black/40 text-accent transition group-hover:opacity-0">
-                        <Equalizer playing={playing} className="h-4 w-4" />
-                    </span>
-                )}
                 {dense && (
                     <button
                         onClick={activate}
