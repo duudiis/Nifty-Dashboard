@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, forwardRef } from "react";
 
 import QueueItem from "./QueueItem.js";
 import { useNifty } from "../../context/NiftyContext.js";
@@ -63,20 +63,32 @@ function EmptyState({ icon, title, hint }) {
 // Animated section header (fades in/out and slides into position). scroll-mt
 // reserves a small gap above when scrollIntoView lands here, so the previous
 // track tucks behind the sticky panel header.
-const SectionHeader = ({ children, innerRef, padTop = "pt-5", id }) => (
+// Spotify-style section label: white, normal case.
+const SectionHeader = forwardRef(({ children, innerRef, padTop = "pt-5", id, ...props }, ref) => (
     <motion.div
         layout="position"
-        ref={innerRef}
+        // Merge Framer Motion's popLayout ref with your scroll target innerRef
+        ref={(node) => {
+            if (typeof ref === "function") ref(node);
+            else if (ref) ref.current = node;
+
+            if (typeof innerRef === "function") innerRef(node);
+            else if (innerRef) innerRef.current = node;
+        }}
         key={id}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.22, ease: EASE }}
         className={`px-2 pb-2 ${padTop} text-[13px] font-bold text-maintext`}
+        // CRITICAL: Let Framer Motion inject its position: absolute styles
+        {...props}
     >
         {children}
     </motion.div>
-);
+));
+
+// (You will also need to update your component definition to use this forwardRef version)
 
 export default function QueueList({ dense = false }) {
     const { queue, player, selected } = useNifty();
