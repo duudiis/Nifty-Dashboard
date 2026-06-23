@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 
 import QueueItem from "./QueueItem.js";
 import { useNifty } from "../../context/NiftyContext.js";
@@ -7,16 +7,15 @@ import { AnimatePresence, motion, EASE } from "../motion/index.js";
 
 // Row slide duration (cursor change). Removal uses just the fade — no slide.
 const SLIDE_DUR = 0.32;
-const EXIT_DUR = 0.22;
+const EXIT_DUR = 0.15;
 
 // Hide a bit more of the previous track behind the sticky bar's opaque area
 // (its gradient otherwise lets a sliver bleed through).
 const PREV_HIDE = 25;
-// Defer the first-mount scroll until framer-motion finishes laying out the
-// rows above the cursor (a sync scroll measures short by ~1 row). 60ms is
-// long enough to settle but the panel is still ~80% transparent there, so
-// the snap is subtle.
-const FIRST_MOUNT_DEFER_MS = 60;
+// useLayoutEffect on the client (so scroll runs synchronously before paint —
+// no visible "starts at top then jumps" on panel open) and useEffect on the
+// server (avoids the SSR warning).
+const useIsoEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 // Nearest scrollable ancestor of `node`.
 function findScroller(node) {
@@ -33,7 +32,7 @@ function findScroller(node) {
 // measure it at runtime so the scroll target tracks any padding tweaks.
 function getStickyPad(scroller) {
     const bar = scroller?.querySelector(":scope > .sticky, :scope > * > .sticky");
-    return bar?.offsetHeight || 72;
+    return bar?.offsetHeight || 78;
 }
 
 function ColumnHeader() {
