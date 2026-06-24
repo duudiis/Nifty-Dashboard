@@ -129,11 +129,13 @@ export default function QueueList({ dense = false }) {
     // page and the sidebar (we just scroll whichever container holds the list).
     const listRef = useRef(null);
     const scrollerRef = useRef(null);
-    const pointerYRef = useRef(0);
-    const lastPointerRef = useRef(null);
+    const pointerYRef = useRef(0);       // real pointer Y (where the cursor sits)
+    const lastPointerRef = useRef(null); // last *real* pointer event
+    const accScrollRef = useRef(0);      // total auto-scroll since this drag began
     const rafRef = useRef(0);
 
     const onPointerMove = useCallback((e) => {
+        if (e.__auto) return;            // skip our own compensation events
         lastPointerRef.current = e;
         pointerYRef.current = e.clientY;
     }, []);
@@ -141,6 +143,7 @@ export default function QueueList({ dense = false }) {
     const startAutoscroll = useCallback(() => {
         const scroller = findScroller(listRef.current);
         scrollerRef.current = scroller;
+        accScrollRef.current = 0;
         if (!scroller) return;
         const rect = scroller.getBoundingClientRect();
         pointerYRef.current = (rect.top + rect.bottom) / 2; // neutral until a move
@@ -156,22 +159,29 @@ export default function QueueList({ dense = false }) {
             if (y < r.top + EDGE) dy = -MAX * Math.min(1, (r.top + EDGE - y) / EDGE);
             else if (y > r.bottom - EDGE) dy = MAX * Math.min(1, (y - (r.bottom - EDGE)) / EDGE);
             if (dy) {
+                const before = sc.scrollTop;
                 sc.scrollTop += dy;
-                // The pointer is parked at the edge, so framer gets no move event
-                // to recompute against the now-scrolled layout. Replay the last
-                // pointer position (combined with layoutScroll on the container)
-                // so the held track follows the scroll instead of lagging behind.
+                const applied = sc.scrollTop - before; // real movement (0 at the ends)
                 const le = lastPointerRef.current;
-                if (le) {
-                    window.dispatchEvent(new PointerEvent("pointermove", {
+                if (applied && le) {
+                    // Feed framer a pointer shifted by everything we've scrolled.
+                    // Its drag offset is pointer-minus-origin, and the scroll moved
+                    // the origin out from under the row; adding the accumulated
+                    // scroll back into the reported pointer keeps the held row
+                    // pinned to the cursor instead of lagging behind.
+                    accScrollRef.current += applied;
+                    const ev = new PointerEvent("pointermove", {
                         clientX: le.clientX,
-                        clientY: le.clientY,
+                        clientY: le.clientY + accScrollRef.current,
                         pointerId: le.pointerId,
                         pointerType: le.pointerType || "mouse",
                         isPrimary: true,
                         bubbles: true,
-                        cancelable: true
-                    }));
+                        cancelable: true,
+                        view: window
+                    });
+                    ev.__auto = true;
+                    window.dispatchEvent(ev);
                 }
             }
             rafRef.current = requestAnimationFrame(tick);
