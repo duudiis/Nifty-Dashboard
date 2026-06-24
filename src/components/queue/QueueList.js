@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, forwardRef } fro
 import QueueItem from "./QueueItem.js";
 import { useNifty } from "../../context/NiftyContext.js";
 import Icon from "../Icon.js";
-import { AnimatePresence, Reorder, motion, EASE } from "../motion/index.js";
+import { Reorder, motion, EASE } from "../motion/index.js";
 
 // Row slide duration (cursor change). Removal uses just the fade — no slide.
 const SLIDE_DUR = 0.32;
@@ -52,7 +52,6 @@ function buildKeys(list) {
 function ColumnHeader() {
     return (
         <div className="flex w-full items-center gap-3 border-b border-border/60 px-2 pb-2 text-[10px] font-bold uppercase tracking-wide text-subtext">
-            <span className="w-3.5 shrink-0" />
             <span className="w-6 shrink-0 text-center">#</span>
             <span className="w-10 shrink-0" />
             <span className="min-w-0 flex-1">Title</span>
@@ -216,7 +215,7 @@ export default function QueueList({ dense = false }) {
         return (
             <div className="flex flex-col gap-1">
                 <ColumnHeader />
-                <Reorder.Group as="div" axis="y" values={order} onReorder={setOrder} className="flex flex-col gap-1">
+                <Reorder.Group as="div" axis="y" values={order} onReorder={setOrder} className="flex flex-col">
                     {order.map(item)}
                 </Reorder.Group>
             </div>
@@ -245,9 +244,7 @@ export default function QueueList({ dense = false }) {
 
     return (
         <Reorder.Group as="div" axis="y" values={order} onReorder={setOrder} className="flex flex-col">
-            <AnimatePresence initial={false} mode="popLayout">
-                {rows}
-            </AnimatePresence>
+            {rows}
             {/* room below so even the last track can sit at the very top */}
             <div className="h-[80vh] shrink-0" aria-hidden />
         </Reorder.Group>
