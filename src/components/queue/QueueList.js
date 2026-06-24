@@ -1,9 +1,9 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, forwardRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, forwardRef } from "react";
 
 import QueueItem from "./QueueItem.js";
 import { useNifty } from "../../context/NiftyContext.js";
 import Icon from "../Icon.js";
-import { AnimatePresence, motion, EASE } from "../motion/index.js";
+import { AnimatePresence, Reorder, motion, EASE } from "../motion/index.js";
 
 // Row slide duration (cursor change). Removal uses just the fade — no slide.
 const SLIDE_DUR = 0.32;
@@ -36,9 +36,23 @@ function getStickyPad(scroller) {
     return bar?.offsetHeight || 72;
 }
 
+// Stable per-track keys: songUrl + how many identical songUrls precede it. They
+// stay constant across a reorder (a pure permutation keeps each occurrence's
+// rank), so rows don't remount when the bot echoes a drag back — and duplicate
+// songs in the queue still get distinct keys.
+function buildKeys(list) {
+    const seen = new Map();
+    return list.map((t) => {
+        const n = seen.get(t.songUrl) || 0;
+        seen.set(t.songUrl, n + 1);
+        return `${t.songUrl}#${n}`;
+    });
+}
+
 function ColumnHeader() {
     return (
         <div className="flex w-full items-center gap-3 border-b border-border/60 px-2 pb-2 text-[10px] font-bold uppercase tracking-wide text-subtext">
+            <span className="w-3.5 shrink-0" />
             <span className="w-6 shrink-0 text-center">#</span>
             <span className="w-10 shrink-0" />
             <span className="min-w-0 flex-1">Title</span>
@@ -59,15 +73,13 @@ function EmptyState({ icon, title, hint }) {
     );
 }
 
-// Spotify-style section label: white, normal case.
-// Animated section header (fades in/out and slides into position). scroll-mt
-// reserves a small gap above when scrollIntoView lands here, so the previous
-// track tucks behind the sticky panel header.
-// Spotify-style section label: white, normal case.
+// Spotify-style section label: white, normal case. Animated (fades in/out and
+// slides into position). scroll-mt reserves a small gap above when
+// scrollIntoView lands here, so the previous track tucks behind the sticky
+// panel header.
 const SectionHeader = forwardRef(({ children, innerRef, padTop = "pt-5", id, ...props }, ref) => (
     <motion.div
         layout="position"
-        // Merge Framer Motion's popLayout ref with your scroll target innerRef
         ref={(node) => {
             if (typeof ref === "function") ref(node);
             else if (ref) ref.current = node;
@@ -83,99 +95,75 @@ const SectionHeader = forwardRef(({ children, innerRef, padTop = "pt-5", id, ...
             layout: { duration: SLIDE_DUR, ease: EASE },
             opacity: { duration: EXIT_DUR, ease: EASE }
         }}
-        // FIX: Added w-full to maintain layout bounds during absolute exit
         className={`w-full px-2 pb-2 mb-0.5 ${padTop} text-[13px] font-bold text-maintext`}
-        // CRITICAL: Let Framer Motion inject its position: absolute styles
         {...props}
     >
         {children}
     </motion.div>
 ));
 
-// (You will also need to update your component definition to use this forwardRef version)
-
 export default function QueueList({ dense = false }) {
-    const { queue, player, selected } = useNifty();
+    const { queue, player, selected, moveTrack } = useNifty();
     const tracks = queue.tracks || [];
     const position = queue.position ?? 0;
 
-    // Stable per-row instance IDs that survive a single removal/insertion —
-    // including with duplicate songs in the queue (where a songUrl-based key
-    // would otherwise fade the wrong copy). Falls back to fresh IDs for any
-    // shape change we can't trivially diff.
-    const instancesRef = useRef([]);
-    const nextIdRef = useRef(0);
-    const instances = useMemo(() => {
-        const old = instancesRef.current;
-        const sameShape =
-            old.length === tracks.length &&
-            old.every((inst, i) => inst.songUrl === tracks[i].songUrl);
-        if (sameShape) return old;
-        // Single removal: find the diverging slot and drop just that instance.
-        if (old.length === tracks.length + 1) {
-            let p = old.length - 1;
-            for (let i = 0; i < tracks.length; i++) {
-                if (old[i].songUrl !== tracks[i].songUrl) { p = i; break; }
-            }
-            let ok = true;
-            for (let i = p; i < tracks.length; i++) {
-                if (old[i + 1]?.songUrl !== tracks[i].songUrl) { ok = false; break; }
-            }
-            if (ok) {
-                const next = [...old.slice(0, p), ...old.slice(p + 1)];
-                instancesRef.current = next;
-                return next;
-            }
-        }
-        // Single insertion: splice in a fresh instance at the diverging slot.
-        if (old.length === tracks.length - 1) {
-            let p = old.length;
-            for (let i = 0; i < old.length; i++) {
-                if (old[i].songUrl !== tracks[i].songUrl) { p = i; break; }
-            }
-            let ok = true;
-            for (let i = p; i < old.length; i++) {
-                if (old[i].songUrl !== tracks[i + 1].songUrl) { ok = false; break; }
-            }
-            if (ok) {
-                const next = [
-                    ...old.slice(0, p),
-                    { id: ++nextIdRef.current, songUrl: tracks[p].songUrl },
-                    ...old.slice(p)
-                ];
-                instancesRef.current = next;
-                return next;
-            }
-        }
-        // Fallback: regenerate (no animation continuity for this change).
-        const next = tracks.map((t) => ({ id: ++nextIdRef.current, songUrl: t.songUrl }));
-        instancesRef.current = next;
-        return next;
+    // Local, drag-reorderable copy of the queue. The bot stays the source of
+    // truth: we mirror its queue here, except while the user is mid-drag (so a
+    // queue push can't yank rows out from under the pointer). On drop we send the
+    // move and keep the optimistic order; the bot's echo then reconciles it.
+    const [order, setOrder] = useState(tracks);
+    const orderRef = useRef(order);
+    orderRef.current = order;
+    const draggingRef = useRef(false);
+    const draggedRef = useRef(null);
+    const fromRef = useRef(-1);
+
+    useEffect(() => {
+        if (!draggingRef.current) setOrder(tracks);
     }, [tracks]);
 
-    // The cursor is purely the bot's position index (unique per row, so repeated
-    // tracks don't all light up) — and only while something is actually loaded.
-    // A stopped player (no track) marks nothing.
-    const currentIndex = player?.track ? position : -1;
-    const isCurrent = (track) => currentIndex >= 0 && track.track_id === currentIndex;
+    const keys = useMemo(() => buildKeys(order), [order]);
 
-    // dense sidebar: bring "Now playing" to the top of the panel. Only fires
-    // when the actually-playing song changes (not when reindexing happens —
-    // e.g. a track is removed before the cursor — which would cause a big
-    // unrelated jump). And we wait until the queue's `position` has caught up
-    // with the player's song before measuring, so we don't animate to the OLD
-    // header position (player + queue WS arrive in two separate updates).
+    const handleDragStart = (track) => {
+        draggingRef.current = true;
+        draggedRef.current = track;
+        // `order` mirrors what the bot already has (our prior moves were sent), so
+        // the start index here is the entry's real index in the bot's queue.
+        fromRef.current = orderRef.current.findIndex((t) => t === track);
+    };
+
+    const handleDragEnd = () => {
+        const track = draggedRef.current;
+        draggingRef.current = false;
+        draggedRef.current = null;
+        if (!track) return;
+        const from = fromRef.current;
+        const to = orderRef.current.findIndex((t) => t === track); // new index
+        if (from >= 0 && to >= 0 && to !== from) moveTrack(from, to);
+        // The bot echoes the move; the sync effect then reconciles `order`.
+    };
+
+    // The cursor is purely the bot's position index. We locate the current row by
+    // matching that index against each track's track_id (which is its index in
+    // the bot's queue) — this still points at the right row during an optimistic
+    // reorder, since track_id and `position` only update together on a bot push.
+    const currentIndex = player?.track ? order.findIndex((t) => t.track_id === position) : -1;
+    const isCurrent = (track) => currentIndex >= 0 && track.track_id === position;
+
+    // dense sidebar: bring "Now playing" to the top of the panel. Only fires when
+    // the actually-playing song changes (not on reindexing), and waits until the
+    // queue's `position` has caught up with the player's song before measuring.
     const nowPlayingRef = useRef(null);
     const lastScrolledSongRef = useRef(null);
     const playingSongUrl = player?.track?.songUrl || null;
-    const layoutSong = tracks[currentIndex]?.songUrl || null;
+    const layoutSong = order[currentIndex]?.songUrl || null;
     const layoutSettled = !!playingSongUrl && playingSongUrl === layoutSong;
     useIsoEffect(() => {
         if (!dense) return;
         if (!playingSongUrl) { lastScrolledSongRef.current = null; return; }
         if (!layoutSettled) return;
         if (lastScrolledSongRef.current === playingSongUrl) return;
-        
+
         const isFirst = lastScrolledSongRef.current === null;
         lastScrolledSongRef.current = playingSongUrl;
 
@@ -184,23 +172,22 @@ export default function QueueList({ dense = false }) {
         if (!header || !scroller) return;
 
         if (isFirst) {
-            // Sync calculation for initial mount (no exiting ghost elements exist yet)
-            // so we can prevent the visual "starts at top then jumps" flash.
+            // Sync calculation for initial mount (no exiting ghost elements exist
+            // yet) so we avoid the visual "starts at top then jumps" flash.
             const pad = getStickyPad(scroller);
             const target = Math.max(0, header.offsetTop - scroller.offsetTop - pad + PREV_HIDE);
             scroller.scrollTop = target;
             return;
         }
-        
-        // Song change: defer the calculation to rAF!
-        // This gives Framer Motion's internal effects time to apply 'position: absolute'
-        // to exiting elements via popLayout *before* we measure the final resting layout.
+
+        // Song change: defer the calculation to rAF so Framer Motion's popLayout
+        // can apply `position: absolute` to exiting rows before we measure.
         const id = requestAnimationFrame(() => {
             const pad = getStickyPad(scroller);
             const target = Math.max(0, header.offsetTop - scroller.offsetTop - pad + PREV_HIDE);
             scroller.scrollTo({ top: target, behavior: "smooth" });
         });
-        
+
         return () => cancelAnimationFrame(id);
     }, [dense, playingSongUrl, layoutSettled]);
 
@@ -208,81 +195,61 @@ export default function QueueList({ dense = false }) {
         return <EmptyState icon="connect" title="No server selected" hint="Pick a server to see its queue." />;
     }
 
-    if (tracks.length === 0) {
+    if (order.length === 0) {
         return <EmptyState icon="queue" title="The queue is empty" hint="Search above to add a track and get the party started." />;
     }
 
-    const plainItem = (track) => (
+    const item = (track, i) => (
         <QueueItem
-            key={`${track.track_id}-${track.songUrl}`}
+            key={keys[i]}
             track={track}
-            index={track.track_id}
+            index={i}
             isCurrent={isCurrent(track)}
             dense={dense}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
         />
     );
 
-    // Main queue page: flat table, no motion.
+    // Main queue page: flat, drag-reorderable table.
     if (!dense) {
         return (
             <div className="flex flex-col gap-1">
                 <ColumnHeader />
-                {tracks.map(plainItem)}
+                <Reorder.Group as="div" axis="y" values={order} onReorder={setOrder} className="flex flex-col gap-1">
+                    {order.map(item)}
+                </Reorder.Group>
             </div>
         );
     }
 
-    // Dense sidebar: one flat sibling list. Each row is a motion.div with
-    // `layout` so tracks slide smoothly when the cursor moves; removed tracks
-    // fade out via AnimatePresence (mode="popLayout" lets other rows slide
-    // into the gap while the removed one finishes its fade).
-    const hasCurrent = currentIndex >= 0 && currentIndex < tracks.length;
+    // Dense sidebar: one drag-reorderable list with interleaved section headers.
+    // Headers aren't reorderable items — they're positioned from the current
+    // cursor each render, so they follow the now-playing track.
+    const hasCurrent = currentIndex >= 0 && currentIndex < order.length;
 
     const rows = [];
-    tracks.forEach((track, i) => {
+    order.forEach((track, i) => {
         if (hasCurrent && i === currentIndex) {
             rows.push(
-                <SectionHeader
-                    // FIX: Anchor the key to the specific track instance
-                    key={`hdr-now-${instances[i].id}`}
-                    id="hdr-now"
-                    innerRef={nowPlayingRef}
-                    padTop="pt-5"
-                >
+                <SectionHeader key="hdr-now" id="hdr-now" innerRef={nowPlayingRef} padTop="pt-5">
                     Now playing
                 </SectionHeader>
             );
         } else if (hasCurrent && i === currentIndex + 1) {
-            // FIX: Anchor the key here as well
-            rows.push(<SectionHeader key={`hdr-next-${instances[i].id}`} id="hdr-next">Next from: Queue</SectionHeader>);
+            rows.push(<SectionHeader key="hdr-next" id="hdr-next">Next from: Queue</SectionHeader>);
         }
 
-        rows.push(
-            <motion.div
-                key={`t-${instances[i].id}`}
-                layout="position"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{
-                    layout: { duration: SLIDE_DUR, ease: EASE },
-                    opacity: { duration: EXIT_DUR, ease: EASE }
-                }}
-                // FIX: Added w-full here as well
-                className="w-full mb-0.5"
-            >
-                <QueueItem track={track} index={track.track_id} isCurrent={isCurrent(track)} dense />
-            </motion.div>
-        );
+        rows.push(item(track, i));
     });
 
     return (
-        <div className="flex flex-col">
+        <Reorder.Group as="div" axis="y" values={order} onReorder={setOrder} className="flex flex-col">
             <AnimatePresence initial={false} mode="popLayout">
                 {rows}
             </AnimatePresence>
             {/* room below so even the last track can sit at the very top */}
             <div className="h-[80vh] shrink-0" aria-hidden />
-        </div>
+        </Reorder.Group>
     );
 }

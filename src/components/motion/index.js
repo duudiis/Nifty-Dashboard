@@ -11,7 +11,7 @@
 //
 // Prefer these over hand-rolling `motion.div` so timing/easing live in one file.
 
-import { AnimatePresence, animate, motion } from "framer-motion";
+import { AnimatePresence, Reorder, animate, motion, useDragControls } from "framer-motion";
 
 // Shared easing + durations. Tweak here to retune the whole app.
 export const EASE = [0.4, 0, 0.2, 1];
@@ -116,4 +116,4 @@ export function Pressable({ children, className, onClick, title, ...rest }) {
     );
 }
 
-export { AnimatePresence, animate, motion };
+export { AnimatePresence, Reorder, animate, motion, useDragControls };

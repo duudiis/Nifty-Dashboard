@@ -4,13 +4,18 @@ import Icon from "../Icon.js";
 import AddedBy from "../AddedBy.js";
 import Equalizer from "../Equalizer.js";
 import AlbumCell from "./AlbumCell.js";
+import { Reorder, useDragControls, EASE } from "../motion/index.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
 
-export default function QueueItem({ track, index, isCurrent, dense }) {
+export default function QueueItem({ track, index, isCurrent, dense, onDragStart, onDragEnd }) {
     const { control, player, removeTrack } = useNifty();
     const trackMenu = useTrackMenu();
     const { onContextMenu, active } = useContextMenu(() => trackMenu(track, { source: "queue" }));
+
+    // Drag is initiated only from the grip handle (dragListener is off on the
+    // item), so clicking anywhere else on the row still plays/pauses.
+    const dragControls = useDragControls();
 
     const playing = isCurrent && player?.playing;
 
@@ -31,11 +36,34 @@ export default function QueueItem({ track, index, isCurrent, dense }) {
     };
 
     return (
-        <div
+        <Reorder.Item
+            as="div"
+            value={track}
+            dragListener={false}
+            dragControls={dragControls}
+            onDragStart={() => onDragStart?.(track)}
+            onDragEnd={() => onDragEnd?.(track)}
+            layout="position"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            whileDrag={{ scale: 1.02, boxShadow: "0 12px 28px rgb(0 0 0 / 0.45)" }}
+            transition={{ layout: { duration: 0.25, ease: EASE }, opacity: { duration: 0.15, ease: EASE } }}
             onClick={activate}
             onContextMenu={onContextMenu}
-            className={`group flex w-full cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 transition hover:bg-elevated ${active ? "bg-elevated" : ""}`}
+            className={`group relative flex w-full cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 transition hover:bg-elevated ${active ? "bg-elevated" : ""}`}
         >
+            {/* drag handle — appears on hover; the only part that starts a drag */}
+            <button
+                onPointerDown={(e) => { e.stopPropagation(); dragControls.start(e); }}
+                onClick={(e) => e.stopPropagation()}
+                title="Drag to reorder"
+                aria-label="Drag to reorder"
+                className="flex w-3.5 shrink-0 cursor-grab touch-none items-center justify-center text-subtext/40 opacity-0 transition hover:text-maintext group-hover:opacity-100 active:cursor-grabbing"
+            >
+                <Icon name="grip" className="h-4 w-4" />
+            </button>
+
             {/* main list keeps a number / play-pause column; the dense sidebar
                 drops it and puts the control over the cover instead */}
             {!dense && (
@@ -98,6 +126,6 @@ export default function QueueItem({ track, index, isCurrent, dense }) {
                     <Icon name="trash" className="h-4 w-4" />
                 </button>
             </div>
-        </div>
+        </Reorder.Item>
     );
 }
