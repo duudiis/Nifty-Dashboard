@@ -1,6 +1,6 @@
 import { useNifty } from "../../context/NiftyContext.js";
 import { totalDuration, artworkOrFallback } from "../../lib/format.js";
-import { PageTransition } from "../motion/index.js";
+import { PageTransition, motion } from "../motion/index.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
 
@@ -79,7 +79,7 @@ export default function CenterContent() {
     const isLyrics = view === "lyrics";
 
     return (
-        <main className={`min-h-0 flex-1 rounded-lg bg-surface ${isLyrics ? "overflow-hidden" : "overflow-auto pb-4"}`}>
+        <motion.main layoutScroll className={`min-h-0 flex-1 rounded-lg bg-surface ${isLyrics ? "overflow-hidden" : "overflow-auto pb-4"}`}>
             <PageTransition viewKey={`${view}:${entityId || ""}`} className={isLyrics ? "h-full" : undefined}>
                 {isLyrics ? (
                     <LyricsView />
@@ -102,6 +102,6 @@ export default function CenterContent() {
                     <Home />
                 )}
             </PageTransition>
-        </main>
+        </motion.main>
     );
 }

@@ -130,9 +130,13 @@ export default function QueueList({ dense = false }) {
     const listRef = useRef(null);
     const scrollerRef = useRef(null);
     const pointerYRef = useRef(0);
+    const lastPointerRef = useRef(null);
     const rafRef = useRef(0);
 
-    const onPointerMove = useCallback((e) => { pointerYRef.current = e.clientY; }, []);
+    const onPointerMove = useCallback((e) => {
+        lastPointerRef.current = e;
+        pointerYRef.current = e.clientY;
+    }, []);
 
     const startAutoscroll = useCallback(() => {
         const scroller = findScroller(listRef.current);
@@ -142,7 +146,7 @@ export default function QueueList({ dense = false }) {
         pointerYRef.current = (rect.top + rect.bottom) / 2; // neutral until a move
         window.addEventListener("pointermove", onPointerMove);
         const EDGE = 80;  // px from an edge where scrolling kicks in
-        const MAX = 22;   // px per frame at the very edge
+        const MAX = 7;    // px per frame at the very edge (gentle)
         const tick = () => {
             const sc = scrollerRef.current;
             if (!sc) return;
@@ -151,7 +155,25 @@ export default function QueueList({ dense = false }) {
             let dy = 0;
             if (y < r.top + EDGE) dy = -MAX * Math.min(1, (r.top + EDGE - y) / EDGE);
             else if (y > r.bottom - EDGE) dy = MAX * Math.min(1, (y - (r.bottom - EDGE)) / EDGE);
-            if (dy) sc.scrollTop += dy;
+            if (dy) {
+                sc.scrollTop += dy;
+                // The pointer is parked at the edge, so framer gets no move event
+                // to recompute against the now-scrolled layout. Replay the last
+                // pointer position (combined with layoutScroll on the container)
+                // so the held track follows the scroll instead of lagging behind.
+                const le = lastPointerRef.current;
+                if (le) {
+                    window.dispatchEvent(new PointerEvent("pointermove", {
+                        clientX: le.clientX,
+                        clientY: le.clientY,
+                        pointerId: le.pointerId,
+                        pointerType: le.pointerType || "mouse",
+                        isPrimary: true,
+                        bubbles: true,
+                        cancelable: true
+                    }));
+                }
+            }
             rafRef.current = requestAnimationFrame(tick);
         };
         rafRef.current = requestAnimationFrame(tick);

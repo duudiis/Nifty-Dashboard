@@ -55,6 +55,10 @@ export default function RightSidebar() {
             <AnimatePresence mode="popLayout" initial={false}>
                 <motion.section
                     key={panel}
+                    // layoutScroll: this element scrolls, so framer must account
+                    // for its scroll offset when measuring during a drag — without
+                    // it, a dragged track is left behind when the list auto-scrolls.
+                    layoutScroll
                     // overflow-anchor:none disables Chrome's scroll anchoring,
                     // which would otherwise fight the framer-motion layout
                     // slide (auto-shifting scrollTop and causing flicker).
