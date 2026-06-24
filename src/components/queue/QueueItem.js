@@ -1,3 +1,5 @@
+import { useRef, useState } from "react";
+
 import { useNifty } from "../../context/NiftyContext.js";
 import { msToClock, artworkOrFallback } from "../../lib/format.js";
 import Icon from "../Icon.js";
@@ -15,11 +17,31 @@ export default function QueueItem({ track, index, isCurrent, dense, onDragStart,
 
     const playing = isCurrent && player?.playing;
 
-    // Quick click anywhere plays/pauses; press and drag reorders (framer
-    // suppresses the click when a real drag happened). stopPropagation on the
-    // dedicated controls avoids a double-toggle.
+    // While held, keep a solid background (driven by state, not :hover, which
+    // flickers as rows swap underneath the cursor mid-drag).
+    const [dragging, setDragging] = useState(false);
+    // A drag fires a trailing click on release; this flag makes activate() ignore
+    // it so reordering never plays/jumps to the track.
+    const draggedRef = useRef(false);
+
+    const handleDragStart = () => {
+        draggedRef.current = true;
+        setDragging(true);
+        onDragStart?.(track);
+    };
+
+    const handleDragEnd = () => {
+        setDragging(false);
+        onDragEnd?.(track);
+        // Clear after the synthetic click that follows pointerup has fired.
+        setTimeout(() => { draggedRef.current = false; }, 0);
+    };
+
+    // Quick click anywhere plays/pauses; a drag never does (guarded above).
+    // stopPropagation on the dedicated controls avoids a double-toggle.
     const activate = (e) => {
         e?.stopPropagation?.();
+        if (draggedRef.current) return;
         if (isCurrent) control("togglePause");
         else control("jump", { trackId: track.track_id });
     };
@@ -35,8 +57,8 @@ export default function QueueItem({ track, index, isCurrent, dense, onDragStart,
         <Reorder.Item
             as="div"
             value={track}
-            onDragStart={() => onDragStart?.(track)}
-            onDragEnd={() => onDragEnd?.(track)}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             whileDrag={{ boxShadow: "0 12px 28px rgb(0 0 0 / 0.45)", cursor: "grabbing" }}
@@ -45,7 +67,7 @@ export default function QueueItem({ track, index, isCurrent, dense, onDragStart,
             // transition-colors only — never `transition` (all), which would
             // animate the transform framer uses to track the cursor and make
             // dragging drift/stutter.
-            className={`group relative flex w-full cursor-pointer select-none items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-elevated ${active ? "bg-elevated" : ""}`}
+            className={`group relative flex w-full cursor-pointer select-none items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-elevated ${active || dragging ? "bg-elevated" : ""}`}
         >
             {/* main list keeps a number / play-pause column; the dense sidebar
                 drops it and puts the control over the cover instead */}
