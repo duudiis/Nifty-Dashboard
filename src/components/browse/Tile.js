@@ -13,9 +13,6 @@ export default function Tile({ item }) {
     const { play, selected, openEntity } = useNifty();
     const trackMenu = useTrackMenu();
     const playable = item.kind === "song" || item.kind === "video";
-    const { onContextMenu, active } = useContextMenu(() =>
-        playable ? trackMenu(item, { source: "search" }) : []
-    );
     const [done, setDone] = useState(false);
 
     const round = item.kind === "artist";
@@ -27,6 +24,11 @@ export default function Tile({ item }) {
         setDone(true);
         setTimeout(() => setDone(false), 1000);
     };
+
+    // "Add to queue" in the menu runs the same animated add as a plain click.
+    const { onContextMenu, active } = useContextMenu(() =>
+        playable ? trackMenu(item, { source: "search", onAdd: queue }) : []
+    );
     const onClick = () => (playable ? queue() : openEntity(item.kind, item.browseId));
 
     return (

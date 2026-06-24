@@ -14,9 +14,14 @@ export default function QueueItem({ track, index, isCurrent, dense }) {
 
     const playing = isCurrent && player?.playing;
 
-    // The current track toggles pause/resume in place; others jump to play.
-    const activate = () =>
-        isCurrent ? control("togglePause") : control("jump", { trackId: track.track_id });
+    // Click anywhere on the row to play/pause (like adding a search result with a
+    // single click): the current track toggles pause/resume in place; others jump
+    // to play. stopPropagation on the dedicated controls avoids a double-toggle.
+    const activate = (e) => {
+        e?.stopPropagation?.();
+        if (isCurrent) control("togglePause");
+        else control("jump", { trackId: track.track_id });
+    };
 
     const playPauseTitle = playing ? "Pause" : isCurrent ? "Resume" : "Play";
 
@@ -27,9 +32,9 @@ export default function QueueItem({ track, index, isCurrent, dense }) {
 
     return (
         <div
-            onDoubleClick={activate}
+            onClick={activate}
             onContextMenu={onContextMenu}
-            className={`group flex w-full items-center gap-3 rounded-md px-2 py-1.5 transition hover:bg-elevated ${active ? "bg-elevated" : ""}`}
+            className={`group flex w-full cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 transition hover:bg-elevated ${active ? "bg-elevated" : ""}`}
         >
             {/* main list keeps a number / play-pause column; the dense sidebar
                 drops it and puts the control over the cover instead */}
@@ -87,7 +92,7 @@ export default function QueueItem({ track, index, isCurrent, dense }) {
                 <span className="text-[11px] text-subtext group-hover:hidden">{msToClock(track.duration)}</span>
                 <button
                     onClick={remove}
-                    title="Remove from queue"
+                    title="Remove"
                     className="hidden text-subtext transition hover:text-red-400 group-hover:block"
                 >
                     <Icon name="trash" className="h-4 w-4" />

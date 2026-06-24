@@ -290,8 +290,12 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
 
     // Existing-track operations (queue items are addressed by track_id).
     const jump = useCallback((trackId) => control("jump", { trackId }), [control]);
+    // Play now: bot moves the entry to right after the current track, then jumps.
+    const playNow = useCallback((trackId) => control("playNow", { trackId }), [control]);
+    // Play next: bot moves the entry to right after the current track.
     const playNextTrack = useCallback((trackId) => control("playNext", { trackId }), [control]);
-    const moveToTop = useCallback((trackId) => control("moveToTop", { trackId }), [control]);
+    // Move to last: bot moves the entry to the end of the queue.
+    const moveToLast = useCallback((trackId) => control("moveToLast", { trackId }), [control]);
     const removeTrack = useCallback((trackId) => control("remove", { trackId }), [control]);
 
     // The actual fetch. `initiatedRef` guards against running the same query
@@ -359,8 +363,9 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         notifications,
         notify,
         jump,
+        playNow,
         playNextTrack,
-        moveToTop,
+        moveToLast,
         removeTrack,
         logout
     };

@@ -51,13 +51,20 @@ function Controls({ playing, onPlayPause, sideDisabled, playDisabled }) {
     const { player, control } = useNifty();
     const loopActive = player?.loop && player.loop !== "disabled";
 
+    // First press restarts the current track; press again near the start to go to
+    // the previous track (Spotify-style ~3s threshold).
+    const onBack = () => {
+        if ((player?.progress || 0) > 3000) control("seek", { position: 0 });
+        else control("back");
+    };
+
     return (
         <div className="flex items-center justify-center gap-4">
             <IconButton onClick={() => control("shuffle")} active={player?.shuffle} disabled={sideDisabled} title="Shuffle" className="mr-2">
                 <Icon name="shuffle" className="h-[17px] w-[17px]" />
             </IconButton>
 
-            <IconButton onClick={() => control("back")} disabled={sideDisabled} title="Previous">
+            <IconButton onClick={onBack} disabled={sideDisabled} title="Previous">
                 <Icon name="prev" className="h-[18px] w-[18px]" />
             </IconButton>
 

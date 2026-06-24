@@ -12,7 +12,6 @@ import QueueGlyph from "./QueueGlyph.js";
 export default function TrackRow({ track, index }) {
     const { play, selected } = useNifty();
     const trackMenu = useTrackMenu();
-    const { onContextMenu, active } = useContextMenu(() => trackMenu(track, { source: "search" }));
     const [done, setDone] = useState(false);
 
     const queue = () => {
@@ -21,6 +20,9 @@ export default function TrackRow({ track, index }) {
         setDone(true);
         setTimeout(() => setDone(false), 1000);
     };
+
+    // "Add to queue" in the menu runs the same animated add as a plain click.
+    const { onContextMenu, active } = useContextMenu(() => trackMenu(track, { source: "search", onAdd: queue }));
 
     return (
         <div
