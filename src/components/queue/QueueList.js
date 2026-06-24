@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, forwardRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, forwardRef } from "react";
 
 import QueueItem from "./QueueItem.js";
 import { useNifty } from "../../context/NiftyContext.js";
@@ -123,15 +123,59 @@ export default function QueueList({ dense = false }) {
 
     const keys = useMemo(() => buildKeys(order), [order]);
 
+    /* ---- edge auto-scroll while dragging ---- */
+    // Hold a track near the top/bottom of the scroll area and it scrolls that
+    // way, so you can drag a track anywhere in a long queue. Works in both the
+    // page and the sidebar (we just scroll whichever container holds the list).
+    const listRef = useRef(null);
+    const scrollerRef = useRef(null);
+    const pointerYRef = useRef(0);
+    const rafRef = useRef(0);
+
+    const onPointerMove = useCallback((e) => { pointerYRef.current = e.clientY; }, []);
+
+    const startAutoscroll = useCallback(() => {
+        const scroller = findScroller(listRef.current);
+        scrollerRef.current = scroller;
+        if (!scroller) return;
+        const rect = scroller.getBoundingClientRect();
+        pointerYRef.current = (rect.top + rect.bottom) / 2; // neutral until a move
+        window.addEventListener("pointermove", onPointerMove);
+        const EDGE = 80;  // px from an edge where scrolling kicks in
+        const MAX = 22;   // px per frame at the very edge
+        const tick = () => {
+            const sc = scrollerRef.current;
+            if (!sc) return;
+            const r = sc.getBoundingClientRect();
+            const y = pointerYRef.current;
+            let dy = 0;
+            if (y < r.top + EDGE) dy = -MAX * Math.min(1, (r.top + EDGE - y) / EDGE);
+            else if (y > r.bottom - EDGE) dy = MAX * Math.min(1, (y - (r.bottom - EDGE)) / EDGE);
+            if (dy) sc.scrollTop += dy;
+            rafRef.current = requestAnimationFrame(tick);
+        };
+        rafRef.current = requestAnimationFrame(tick);
+    }, [onPointerMove]);
+
+    const stopAutoscroll = useCallback(() => {
+        window.removeEventListener("pointermove", onPointerMove);
+        cancelAnimationFrame(rafRef.current);
+        scrollerRef.current = null;
+    }, [onPointerMove]);
+
+    useEffect(() => stopAutoscroll, [stopAutoscroll]); // clean up if unmounted mid-drag
+
     const handleDragStart = (track) => {
         draggingRef.current = true;
         draggedRef.current = track;
         // `order` mirrors what the bot already has (our prior moves were sent), so
         // the start index here is the entry's real index in the bot's queue.
         fromRef.current = orderRef.current.findIndex((t) => t === track);
+        startAutoscroll();
     };
 
     const handleDragEnd = () => {
+        stopAutoscroll();
         const track = draggedRef.current;
         draggingRef.current = false;
         draggedRef.current = null;
@@ -215,7 +259,7 @@ export default function QueueList({ dense = false }) {
         return (
             <div className="flex flex-col gap-1">
                 <ColumnHeader />
-                <Reorder.Group as="div" axis="y" values={order} onReorder={setOrder} className="flex flex-col">
+                <Reorder.Group ref={listRef} as="div" axis="y" values={order} onReorder={setOrder} className="flex flex-col">
                     {order.map(item)}
                 </Reorder.Group>
             </div>
@@ -243,7 +287,7 @@ export default function QueueList({ dense = false }) {
     });
 
     return (
-        <Reorder.Group as="div" axis="y" values={order} onReorder={setOrder} className="flex flex-col">
+        <Reorder.Group ref={listRef} as="div" axis="y" values={order} onReorder={setOrder} className="flex flex-col">
             {rows}
             {/* room below so even the last track can sit at the very top */}
             <div className="h-[80vh] shrink-0" aria-hidden />

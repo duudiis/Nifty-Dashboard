@@ -48,7 +48,11 @@ export default function RightSidebar() {
 
     return (
         <aside className="hidden w-[340px] shrink-0 flex-col overflow-hidden rounded-lg bg-surface lg:flex">
-            <AnimatePresence mode="wait" initial={false}>
+            {/* popLayout (not "wait"): the incoming panel mounts immediately while
+                the outgoing one is popped out of flow. "wait" deadlocks here —
+                the Queue panel's Reorder/layout subtree can fail to fire
+                onExitComplete, which would leave the next panel permanently blank. */}
+            <AnimatePresence mode="popLayout" initial={false}>
                 <motion.section
                     key={panel}
                     // overflow-anchor:none disables Chrome's scroll anchoring,
