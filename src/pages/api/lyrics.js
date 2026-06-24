@@ -78,14 +78,37 @@ function parseLRC(lrc) {
     return out.sort((a, b) => a.time - b.time);
 }
 
+// A synced string carries word-by-word timing if it has Enhanced LRC <..> tags.
+function hasWordTiming(synced) {
+    return typeof synced === "string" && /<\d{1,2}:\d{2}(?:[.:]\d{1,3})?>/.test(synced);
+}
+
+// Rank how good a record is, so we can prefer the richest lyrics available:
+//   3 = word-by-word synced, 2 = line synced, 1 = plain/instrumental, 0 = none.
+function rank(rec) {
+    if (!rec) return 0;
+    if (hasWordTiming(rec.syncedLyrics)) return 3;
+    if (rec.syncedLyrics) return 2;
+    if (rec.plainLyrics || rec.instrumental) return 1;
+    return 0;
+}
+
+// Keep the better of two records; ties keep `a` (the earlier/more authoritative).
+function preferred(a, b) {
+    return rank(b) > rank(a) ? b : a;
+}
+
 async function lrclibGet(base, params) {
     return fetchJson(`${base}/api/get?${params}`);
 }
 
+// /api/search returns several candidates; pick the highest-ranked (word-synced
+// first), keeping search relevance order to break ties.
 async function lrclibSearch(base, title, artist) {
     const qs = new URLSearchParams({ track_name: title, artist_name: artist });
     const arr = await fetchJson(`${base}/api/search?${qs}`);
-    return Array.isArray(arr) ? arr[0] : null;
+    if (!Array.isArray(arr) || !arr.length) return null;
+    return arr.reduce((best, cur) => preferred(best, cur));
 }
 
 export default async function handler(req, res) {
@@ -114,11 +137,21 @@ export default async function handler(req, res) {
         if (album) params.set("album_name", album);
         if (durationSec) params.set("duration", String(durationSec));
 
-        // Try each backend in turn (ours, then lrclib.net); first hit wins.
+        // Try each backend in turn (ours first, then lrclib.net). Within a
+        // backend, prefer word-by-word lyrics: an exact /api/get can tie-break
+        // onto a line-synced take when a word-synced one also matches, so unless
+        // /api/get already gave us word timing we also check /api/search and
+        // keep whichever ranks higher. The first backend with anything usable
+        // wins, so lrclib.net stays a pure fallback (no extra calls when ours
+        // already has the song).
         let record = null;
         for (const base of BASES) {
-            record = await lrclibGet(base, params);
-            if (!record) record = await lrclibSearch(base, title, artist);
+            const direct = await lrclibGet(base, params);
+            if (rank(direct) === 3) {
+                record = direct; // word-synced: best possible, no need to search
+                break;
+            }
+            record = preferred(direct, await lrclibSearch(base, title, artist));
             if (record) break;
         }
 
