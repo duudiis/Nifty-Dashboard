@@ -214,6 +214,18 @@
         animation: word-glow 0.55s cubic-bezier(0.4, 0, 0.2, 1) both;
     }
 
+    /* Word-timed (Enhanced LRC) active line: words stay dim until the clock
+       reaches each word's timestamp, when JS toggles .lyric-word-sung. No
+       auto-stagger — the highlight tracks the actual sung word. */
+    .lyric-line-timed .lyric-word {
+        opacity: 0.4;
+        transition: opacity 0.15s ease, text-shadow 0.25s ease;
+    }
+    .lyric-line-timed .lyric-word-sung {
+        opacity: 1;
+        text-shadow: 0 0 18px rgb(var(--c-accent) / 0.55), 0 0 7px rgb(255 255 255 / 0.5);
+    }
+
     /* Range sliders (progress + volume) */
     .player-slider {
         -webkit-appearance: none;

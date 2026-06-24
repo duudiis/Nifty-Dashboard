@@ -46,28 +46,51 @@ function LyricsSkeleton() {
     );
 }
 
-function Line({ line, state, onClick, nodeRef }) {
+// Words light up ~120ms before their timestamp so the highlight lands with,
+// rather than behind, the sung word (the bot clock is interpolated, not exact).
+const WORD_LEAD = 120;
+
+function Line({ line, state, ms, onClick, nodeRef }) {
     // state: "active" | "past" | "future". Words are always rendered as spans so
     // a line changing state only toggles a class — it never replaces DOM nodes
     // (which would drop the user's text selection / open menus).
-    const words = useMemo(() => line.text.split(/(\s+)/), [line.text]);
+    //
+    // Word-timed lines (Enhanced LRC) carry `line.words` with per-word times; we
+    // render those tokens directly and drive each word's highlight from the
+    // clock. Plain lines split on whitespace and keep the fixed-stagger sweep.
+    const tokens = useMemo(
+        () =>
+            line.words?.length
+                ? line.words
+                : line.text.split(/(\s+)/).map((text) => ({ text })),
+        [line.words, line.text]
+    );
+    const timed = state === "active" && !!line.words?.length;
+
     return (
         <button
             ref={nodeRef}
             onClick={onClick}
             className={`block w-full text-balance text-left text-3xl font-extrabold leading-tight transition-all duration-500 sm:text-4xl ${
                 state === "active"
-                    ? "lyric-line-active scale-[1.02] text-white"
+                    ? `${timed ? "lyric-line-timed" : "lyric-line-active"} scale-[1.02] text-white`
                     : state === "past"
                     ? "text-white/25 hover:text-white/40"
                     : "text-white/30 hover:text-white/45"
             }`}
         >
-            {words.map((w, i) => (
-                <span key={i} className="lyric-word" style={{ animationDelay: `${i * 0.045}s` }}>
-                    {w}
-                </span>
-            ))}
+            {tokens.map((tk, i) => {
+                const sung = timed && tk.time != null && ms + WORD_LEAD >= tk.time;
+                return (
+                    <span
+                        key={i}
+                        className={`lyric-word${sung ? " lyric-word-sung" : ""}`}
+                        style={!timed && state === "active" ? { animationDelay: `${i * 0.045}s` } : undefined}
+                    >
+                        {tk.text}
+                    </span>
+                );
+            })}
         </button>
     );
 }
@@ -214,6 +237,7 @@ export default function LyricsView() {
                             key={`${line.time}-${i}`}
                             line={line}
                             state={i === activeIndex ? "active" : i < activeIndex ? "past" : "future"}
+                            ms={ms}
                             onClick={() => control("seek", { position: line.time })}
                             nodeRef={(el) => (lineRefs.current[i] = el)}
                         />

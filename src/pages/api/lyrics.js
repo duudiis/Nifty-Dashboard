@@ -31,20 +31,48 @@ async function fetchJson(url) {
     }
 }
 
-// Parses an LRC string into sorted { time(ms), text } lines. A single line may
-// carry several timestamps ([..][..] text); we expand each into its own entry.
+// mm:ss(.xx) -> milliseconds. `frac` is the optional sub-second group.
+function tsToMs(min, sec, frac) {
+    const f = frac ? Number(frac.padEnd(3, "0")) : 0;
+    return Number(min) * 60000 + Number(sec) * 1000 + f;
+}
+
+// Extracts per-word timing from an Enhanced LRC ("A2") line body — the text
+// left after the line-level [..] stamps are removed, e.g.
+//   "<00:12.00>Never <00:12.40>gonna <00:12.90>give"
+// Each word's text runs from its <..> tag up to the next tag (trailing space
+// included, so spacing survives rendering). Returns null for plain LRC lines.
+function parseWords(body) {
+    const matches = [...body.matchAll(/<(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?>/g)];
+    if (!matches.length) return null;
+    const words = [];
+    for (let i = 0; i < matches.length; i++) {
+        const m = matches[i];
+        const start = m.index + m[0].length;
+        const end = i + 1 < matches.length ? matches[i + 1].index : body.length;
+        const text = body.slice(start, end);
+        if (text) words.push({ time: tsToMs(m[1], m[2], m[3]), text });
+    }
+    return words.length ? words : null;
+}
+
+// Parses an LRC string into sorted { time(ms), text, words? } lines. A single
+// line may carry several timestamps ([..][..] text); we expand each into its
+// own entry. Lines using the Enhanced LRC <..> word tags also get a `words`
+// array; plain lines simply omit it (so the viewer falls back to line-level).
 function parseLRC(lrc) {
     if (!lrc) return [];
     const out = [];
     for (const raw of lrc.split("\n")) {
         const stamps = [...raw.matchAll(/\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]/g)];
         if (!stamps.length) continue;
-        const text = raw.replace(/\[[^\]]*\]/g, "").trim();
+        const body = raw.replace(/\[[^\]]*\]/g, ""); // drop line stamps, keep <..>
+        const words = parseWords(body);
+        const text = body.replace(/<[^>]*>/g, "").trim();
         for (const s of stamps) {
-            const min = Number(s[1]);
-            const sec = Number(s[2]);
-            const frac = s[3] ? Number(s[3].padEnd(3, "0")) : 0;
-            out.push({ time: min * 60000 + sec * 1000 + frac, text });
+            const entry = { time: tsToMs(s[1], s[2], s[3]), text };
+            if (words) entry.words = words;
+            out.push(entry);
         }
     }
     return out.sort((a, b) => a.time - b.time);
