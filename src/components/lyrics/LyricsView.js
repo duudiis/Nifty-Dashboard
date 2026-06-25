@@ -180,6 +180,11 @@ export default function LyricsView() {
         setAutoSync(true);
         scrollToActive();
     };
+    // Clicking a line to seek also re-attaches sync, so it follows along again.
+    const seekTo = (timeMs) => {
+        control("seek", { position: timeMs });
+        setAutoSync(true);
+    };
 
     const Background = (
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -238,7 +243,7 @@ export default function LyricsView() {
                             line={line}
                             state={i === activeIndex ? "active" : i < activeIndex ? "past" : "future"}
                             ms={ms}
-                            onClick={() => control("seek", { position: line.time })}
+                            onClick={() => seekTo(line.time)}
                             nodeRef={(el) => (lineRefs.current[i] = el)}
                         />
                     ))}
@@ -248,9 +253,9 @@ export default function LyricsView() {
                     {!autoSync && (
                         <motion.button
                             onClick={resync}
-                            initial={{ opacity: 0, y: 10, scale: 0.9 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: 10, scale: 0.9 }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
                             transition={{ duration: 0.16, ease: EASE }}
                             className="absolute bottom-4 right-4 flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-bold text-white shadow-lg backdrop-blur-md transition hover:bg-white/25"
                         >
