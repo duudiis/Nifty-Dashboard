@@ -26,7 +26,15 @@ function useSmoothProgress(player) {
         return () => clearInterval(id);
     }, []);
 
-    return ms;
+    // Optimistically jump the clock on a click-to-seek so the active line updates
+    // immediately — otherwise sync re-attaches and scrolls to the *old* line for
+    // a beat before the bot's seek lands.
+    const seek = useCallback((target) => {
+        base.current = { p: target, t: performance.now(), playing: base.current.playing };
+        setMs(target);
+    }, []);
+
+    return [ms, seek];
 }
 
 // Placeholder lines that mirror the real lyric layout exactly (same wrapper
@@ -98,7 +106,7 @@ function Line({ line, state, ms, onClick, nodeRef }) {
 export default function LyricsView() {
     const { player, selected, control } = useNifty();
     const track = player?.track || null;
-    const ms = useSmoothProgress(player);
+    const [ms, seekMs] = useSmoothProgress(player);
 
     const [data, setData] = useState(null); // { synced, plain, instrumental, source }
     const [loading, setLoading] = useState(false);
@@ -181,8 +189,11 @@ export default function LyricsView() {
         scrollToActive();
     };
     // Clicking a line to seek also re-attaches sync, so it follows along again.
+    // Jump the local clock too so the active line is the clicked one right away
+    // (no scroll to the previous line first).
     const seekTo = (timeMs) => {
         control("seek", { position: timeMs });
+        seekMs(timeMs);
         setAutoSync(true);
     };
 

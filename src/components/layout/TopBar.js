@@ -78,7 +78,7 @@ export default function TopBar() {
                         title="A new version is available — click to update"
                         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-accent transition hover:bg-white/15"
                     >
-                        <Icon name="download" className="h-[18px] w-[18px]" />
+                        <Icon name="download" className="h-5 w-5" />
                     </motion.button>
                 )}
                 <Account />

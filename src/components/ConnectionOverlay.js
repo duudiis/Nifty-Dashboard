@@ -91,29 +91,34 @@ export default function ConnectionOverlay() {
                     transition={{ duration: 0.35, ease: EASE }}
                     className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-canvas px-6 text-center"
                 >
-                    <motion.div
-                        initial={animateContent ? { opacity: 0 } : false}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 0.45, ease: EASE }}
-                        className="flex flex-col items-center"
-                    >
-                        <Logo draw className="h-32 w-32 text-white" />
-                        <div className="mt-20 flex flex-col items-center gap-2">
-                            <p className="text-shimmer text-xs font-extrabold uppercase tracking-[0.1em]">{status}</p>
-                            <AnimatePresence mode="wait">
-                                <motion.p
-                                    key={tip}
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ duration: 0.3, ease: EASE }}
-                                    className="max-w-sm text-sm text-subtext"
-                                >
-                                    {TIPS[tip]}
-                                </motion.p>
-                            </AnimatePresence>
-                        </div>
-                    </motion.div>
+                    {/* While reloading we show only the plain canvas — the logo +
+                        text belong to the fresh page's load screen, so rendering
+                        them here too would flash them twice across the refresh. */}
+                    {!reloading && (
+                        <motion.div
+                            initial={animateContent ? { opacity: 0 } : false}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.45, ease: EASE }}
+                            className="flex flex-col items-center"
+                        >
+                            <Logo draw className="h-32 w-32 text-white" />
+                            <div className="mt-20 flex flex-col items-center gap-2">
+                                <p className="text-shimmer text-xs font-extrabold uppercase tracking-[0.1em]">{status}</p>
+                                <AnimatePresence mode="wait">
+                                    <motion.p
+                                        key={tip}
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 0.3, ease: EASE }}
+                                        className="max-w-sm text-sm text-subtext"
+                                    >
+                                        {TIPS[tip]}
+                                    </motion.p>
+                                </AnimatePresence>
+                            </div>
+                        </motion.div>
+                    )}
                 </motion.div>
             )}
         </AnimatePresence>
