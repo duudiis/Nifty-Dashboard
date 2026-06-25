@@ -134,11 +134,40 @@ export default function QueueList({ dense = false }) {
     const accScrollRef = useRef(0);      // total auto-scroll since this drag began
     const rafRef = useRef(0);
 
-    const onPointerMove = useCallback((e) => {
-        if (e.__auto) return;            // skip our own compensation events
+    // Re-emit the last real pointer position shifted by everything we've
+    // auto-scrolled. framer's drag offset is pointer-minus-origin, and scrolling
+    // moves the origin out from under the held row; adding the accumulated scroll
+    // back into the reported pointer keeps the row pinned to the cursor.
+    const emitCompensated = useCallback(() => {
+        const le = lastPointerRef.current;
+        if (!le) return;
+        const ev = new PointerEvent("pointermove", {
+            clientX: le.clientX,
+            clientY: le.clientY + accScrollRef.current,
+            pointerId: le.pointerId,
+            pointerType: le.pointerType || "mouse",
+            isPrimary: true,
+            bubbles: true,
+            cancelable: true,
+            view: window
+        });
+        ev.__auto = true;
+        document.dispatchEvent(ev);
+    }, []);
+
+    // Capture-phase so we run before framer's own (bubble-phase) window listener.
+    // Once the list has scrolled, every real move must be compensated for the rest
+    // of the drag — not just while at the edge — or the row snaps back the moment
+    // the cursor leaves the edge. We swallow the raw move and re-emit a shifted one.
+    const onPointerCapture = useCallback((e) => {
+        if (e.__auto) return; // our compensated event → let it reach framer
         lastPointerRef.current = e;
         pointerYRef.current = e.clientY;
-    }, []);
+        if (accScrollRef.current !== 0) {
+            e.stopImmediatePropagation();
+            emitCompensated();
+        }
+    }, [emitCompensated]);
 
     const startAutoscroll = useCallback(() => {
         const scroller = findScroller(listRef.current);
@@ -147,7 +176,7 @@ export default function QueueList({ dense = false }) {
         if (!scroller) return;
         const rect = scroller.getBoundingClientRect();
         pointerYRef.current = (rect.top + rect.bottom) / 2; // neutral until a move
-        window.addEventListener("pointermove", onPointerMove);
+        window.addEventListener("pointermove", onPointerCapture, true);
         const EDGE = 80;  // px from an edge where scrolling kicks in
         const MAX = 7;    // px per frame at the very edge (gentle)
         const tick = () => {
@@ -162,38 +191,22 @@ export default function QueueList({ dense = false }) {
                 const before = sc.scrollTop;
                 sc.scrollTop += dy;
                 const applied = sc.scrollTop - before; // real movement (0 at the ends)
-                const le = lastPointerRef.current;
-                if (applied && le) {
-                    // Feed framer a pointer shifted by everything we've scrolled.
-                    // Its drag offset is pointer-minus-origin, and the scroll moved
-                    // the origin out from under the row; adding the accumulated
-                    // scroll back into the reported pointer keeps the held row
-                    // pinned to the cursor instead of lagging behind.
+                if (applied) {
                     accScrollRef.current += applied;
-                    const ev = new PointerEvent("pointermove", {
-                        clientX: le.clientX,
-                        clientY: le.clientY + accScrollRef.current,
-                        pointerId: le.pointerId,
-                        pointerType: le.pointerType || "mouse",
-                        isPrimary: true,
-                        bubbles: true,
-                        cancelable: true,
-                        view: window
-                    });
-                    ev.__auto = true;
-                    window.dispatchEvent(ev);
+                    emitCompensated(); // keep the row pinned while the cursor is parked
                 }
             }
             rafRef.current = requestAnimationFrame(tick);
         };
         rafRef.current = requestAnimationFrame(tick);
-    }, [onPointerMove]);
+    }, [onPointerCapture, emitCompensated]);
 
     const stopAutoscroll = useCallback(() => {
-        window.removeEventListener("pointermove", onPointerMove);
+        window.removeEventListener("pointermove", onPointerCapture, true);
         cancelAnimationFrame(rafRef.current);
         scrollerRef.current = null;
-    }, [onPointerMove]);
+        accScrollRef.current = 0;
+    }, [onPointerCapture]);
 
     useEffect(() => stopAutoscroll, [stopAutoscroll]); // clean up if unmounted mid-drag
 
