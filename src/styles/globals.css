@@ -214,16 +214,17 @@
         animation: word-glow 0.55s cubic-bezier(0.4, 0, 0.2, 1) both;
     }
 
-    /* Word-timed (Enhanced LRC) active line: words stay dim until the clock
-       reaches each word's timestamp, when JS toggles .lyric-word-sung. No
-       auto-stagger — the highlight tracks the actual sung word. */
+    /* Word-timed (Enhanced LRC) active line: each word stays dim and slightly
+       lowered until the clock reaches its timestamp (JS adds .lyric-word-sung),
+       then it raises + lights up with the very same pop as the plain sweep —
+       only driven word by word by the actual sung time instead of a fixed
+       stagger, so the line rises smoothly as it's sung. */
     .lyric-line-timed .lyric-word {
-        opacity: 0.4;
-        transition: opacity 0.15s ease, text-shadow 0.25s ease;
+        opacity: 0.3;
+        transform: translateY(0.08em);
     }
     .lyric-line-timed .lyric-word-sung {
-        opacity: 1;
-        text-shadow: 0 0 18px rgb(var(--c-accent) / 0.55), 0 0 7px rgb(255 255 255 / 0.5);
+        animation: word-glow 0.55s cubic-bezier(0.4, 0, 0.2, 1) both;
     }
 
     /* Range sliders (progress + volume) */

@@ -138,14 +138,14 @@ function Toggle({ icon, on, onClick, title }) {
 }
 
 function PanelToggles() {
-    const { view, setView, settings, updateSettings } = useNifty();
+    const { view, setView, closeLyrics, settings, updateSettings } = useNifty();
     const rightPanel = settings.rightPanel;
     // Toggling a panel that's already open returns to the default (now playing).
     const togglePanel = (p) => updateSettings({ rightPanel: rightPanel === p ? "nowplaying" : p });
 
     return (
         <div className="flex items-center gap-4">
-            <Toggle icon="lyrics" title="Lyrics" on={view === "lyrics"} onClick={() => setView(view === "lyrics" ? "home" : "lyrics")} />
+            <Toggle icon="lyrics" title="Lyrics" on={view === "lyrics"} onClick={() => (view === "lyrics" ? closeLyrics() : setView("lyrics"))} />
             <Toggle icon="queue" title="Queue" on={rightPanel === "queue"} onClick={() => togglePanel("queue")} />
             <Toggle icon="connect" title="Connect to a server" on={rightPanel === "connect"} onClick={() => togglePanel("connect")} />
         </div>

@@ -270,18 +270,11 @@ export default function LyricsView() {
             </div>
         );
     } else if (mode === "instrumental") {
-        body = <Centered><p className="text-2xl font-extrabold text-white/80">♪ Instrumental</p></Centered>;
+        body = <Centered><p className="text-2xl font-extrabold text-white/80">Instrumental</p></Centered>;
     } else if (mode === "notrack") {
         body = <Centered><p className="text-lg font-bold text-white/70">No track playing</p></Centered>;
     } else {
-        body = (
-            <Centered>
-                <div className="flex flex-col items-center gap-2">
-                    <p className="text-lg font-bold text-white/70">No lyrics found</p>
-                    <p className="text-sm text-white/40">LRCLIB doesn&apos;t have this one yet.</p>
-                </div>
-            </Centered>
-        );
+        body = <Centered><p className="text-lg font-bold text-white/70">Lyrics not found</p></Centered>;
     }
 
     return (

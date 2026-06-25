@@ -54,6 +54,17 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         [router]
     );
 
+    // Remember the last non-lyrics location so closing the lyrics view returns
+    // there (album page, search results, queue, …) instead of always going home.
+    const prevPathRef = useRef("/dashboard");
+    useEffect(() => {
+        if (view !== "lyrics") prevPathRef.current = router.asPath;
+    }, [view, router.asPath]);
+    const closeLyrics = useCallback(
+        () => { router.push(prevPathRef.current || "/dashboard", undefined, { shallow: true }); },
+        [router]
+    );
+
     const [search, setSearch] = useState({ query: "", sections: [], loading: false });
 
     const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -355,7 +366,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
             setReloading(true);
             setTimeout(() => window.location.reload(), 450);
         },
-        view, setView,
+        view, setView, closeLyrics,
         entityId, openEntity,
         search, runSearch,
         settings, updateSettings,
