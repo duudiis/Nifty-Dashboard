@@ -1,5 +1,5 @@
 import { useNifty } from "../../context/NiftyContext.js";
-import { AnimatePresence, motion, EASE } from "../motion/index.js";
+import { motion, EASE } from "../motion/index.js";
 
 import QueueList from "../queue/QueueList.js";
 import NowPlayingPanel from "../NowPlayingPanel.js";
@@ -48,28 +48,28 @@ export default function RightSidebar() {
 
     return (
         <aside className="hidden w-[340px] shrink-0 flex-col overflow-hidden rounded-lg bg-surface lg:flex">
-            {/* popLayout (not "wait"): the incoming panel mounts immediately while
-                the outgoing one is popped out of flow. "wait" deadlocks here —
-                the Queue panel's Reorder/layout subtree can fail to fire
-                onExitComplete, which would leave the next panel permanently blank. */}
-            <AnimatePresence mode="popLayout" initial={false}>
-                <motion.section
-                    key={panel}
-                    // layoutScroll: this element scrolls, so framer must account
-                    // for its scroll offset when measuring during a drag — without
-                    // it, a dragged track is left behind when the list auto-scrolls.
-                    layoutScroll
-                    // overflow-anchor:none disables Chrome's scroll anchoring,
-                    // which would otherwise fight the framer-motion layout
-                    // slide (auto-shifting scrollTop and causing flicker).
-                    className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none]"
-                    initial={{ opacity: 0, y: 24 }}
-                    animate={{ opacity: 1, y: 0, transition: { duration: 0.28, ease: EASE } }}
-                    exit={{ opacity: 0, y: 24, transition: { duration: 0.18, ease: EASE } }}
-                >
-                    <PanelBody panel={panel} onClose={close} />
-                </motion.section>
-            </AnimatePresence>
+            {/* No AnimatePresence/exit here: the Queue panel's Reorder + layout
+                subtree can fail to fire framer's onExitComplete, leaving a stuck,
+                invisible ghost panel mounted over the new one — which blanked
+                panels and swallowed right-clicks (they hit the ghost's handlers
+                behind Connect). Remounting on `panel` change drops the old panel
+                immediately and just animates the new one in. */}
+            <motion.section
+                key={panel}
+                // layoutScroll: this element scrolls, so framer accounts for its
+                // scroll offset when measuring during a drag (so a dragged track
+                // isn't left behind when the list auto-scrolls).
+                layoutScroll
+                // overflow-anchor:none disables Chrome's scroll anchoring, which
+                // would otherwise fight framer's layout slide (auto-shifting
+                // scrollTop and causing flicker).
+                className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none]"
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.28, ease: EASE }}
+            >
+                <PanelBody panel={panel} onClose={close} />
+            </motion.section>
         </aside>
     );
 }
