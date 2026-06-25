@@ -65,6 +65,20 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         [router]
     );
 
+    // Live browser-tab title: the playing track ("Title — Artist") when one is
+    // loaded, otherwise "Nifty — <view>" (just "Nifty" on home).
+    useEffect(() => {
+        if (typeof document === "undefined") return;
+        const track = player?.track;
+        const LABELS = { queue: "Queue", search: "Search", lyrics: "Lyrics", album: "Album", playlist: "Playlist", artist: "Artist" };
+        if (track?.title) {
+            document.title = track.artist ? `${track.title} — ${track.artist}` : track.title;
+        } else {
+            const label = LABELS[view];
+            document.title = label ? `Nifty — ${label}` : "Nifty";
+        }
+    }, [player?.track?.title, player?.track?.artist, view]);
+
     const [search, setSearch] = useState({ query: "", sections: [], loading: false });
 
     const [settings, setSettings] = useState(DEFAULT_SETTINGS);

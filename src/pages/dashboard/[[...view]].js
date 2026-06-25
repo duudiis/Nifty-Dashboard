@@ -51,7 +51,9 @@ export default function Dashboard({ user, inviteUrl }) {
         <NiftyProvider user={user} inviteUrl={inviteUrl}>
             <ContextMenuProvider>
                 <Head>
-                    <title>Nifty Dashboard</title>
+                    {/* Live title is driven from NiftyProvider; this is the SSR/
+                        first-paint default before that effect runs. */}
+                    <title>Nifty</title>
                     <meta name="viewport" content="initial-scale=1.0, width=device-width" />
                 </Head>
 
