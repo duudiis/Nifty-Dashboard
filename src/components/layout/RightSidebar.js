@@ -66,7 +66,7 @@ export default function RightSidebar() {
                 className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none]"
                 initial={{ opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.28, ease: EASE }}
+                transition={{ duration: 0.32, ease: EASE }}
             >
                 <PanelBody panel={panel} onClose={close} />
             </motion.section>

@@ -19,9 +19,12 @@ export const DUR = { fast: 0.18, base: 0.32, slow: 0.5 };
 
 export const variants = {
     page: {
+        // mode="wait" plays exit then enter back-to-back, so keep the exit quick
+        // and the enter medium — total lands near the sidebar's single slide
+        // instead of feeling twice as slow.
         initial: { opacity: 0, y: 12, filter: "blur(4px)" },
-        animate: { opacity: 1, y: 0, filter: "blur(0px)" },
-        exit: { opacity: 0, y: -10, filter: "blur(4px)" }
+        animate: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.24, ease: EASE } },
+        exit: { opacity: 0, y: -10, filter: "blur(4px)", transition: { duration: 0.13, ease: EASE } }
     },
     fade: {
         initial: { opacity: 0, y: 10 },
@@ -50,7 +53,6 @@ export function PageTransition({ viewKey, children, className }) {
                 initial="initial"
                 animate="animate"
                 exit="exit"
-                transition={{ duration: DUR.base, ease: EASE }}
             >
                 {children}
             </motion.div>
