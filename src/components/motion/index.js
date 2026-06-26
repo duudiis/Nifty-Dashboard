@@ -23,8 +23,8 @@ export const variants = {
         // and the enter medium — total lands near the sidebar's single slide
         // instead of feeling twice as slow.
         initial: { opacity: 0, y: 12, filter: "blur(4px)" },
-        animate: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.24, ease: EASE } },
-        exit: { opacity: 0, y: -10, filter: "blur(4px)", transition: { duration: 0.13, ease: EASE } }
+        animate: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.32, ease: EASE } },
+        exit: { opacity: 0, y: -10, filter: "blur(4px)", transition: { duration: 0.18, ease: EASE } }
     },
     fade: {
         initial: { opacity: 0, y: 10 },
