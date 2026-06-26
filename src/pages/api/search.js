@@ -1,12 +1,13 @@
 import { parse } from "cookie";
 
 import { verifySession } from "../../lib/jwt.js";
-import InnerTube from "../../innertube/index.js";
+import { getActiveSource } from "../../sources/index.js";
 
-const innerTube = new InnerTube();
+const source = getActiveSource();
 
-// Each search now fans out to 5 type-filtered requests, so cache results
-// briefly (shared across users) to avoid re-hitting YouTube for repeat queries.
+// Results are cached briefly (shared across users) to avoid re-hitting the
+// upstream source for repeat queries. Keyed by source so swapping the active
+// source never serves stale cross-source hits.
 const cache = new Map();
 const TTL = 1000 * 60 * 5; // 5 minutes
 
@@ -23,15 +24,15 @@ export default async function handler(req, res) {
         return res.status(400).json({ message: "Missing query.", code: "MISSING_QUERY" });
     }
 
-    const key = query.toLowerCase();
+    const key = `${source.id}:${query.toLowerCase()}`;
     const hit = cache.get(key);
     if (hit && Date.now() - hit.ts < TTL) {
         return res.status(200).json(hit.data);
     }
 
     try {
-        const { sections } = await innerTube.search(query);
-        const data = { sections };
+        const { sections } = await source.search(query);
+        const data = { sections, source: source.id };
         cache.set(key, { data, ts: Date.now() });
         return res.status(200).json(data);
     } catch (error) {

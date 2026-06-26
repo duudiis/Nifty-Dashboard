@@ -28,16 +28,16 @@ export default function CollectionPage({ id }) {
 
     const tracks = data?.tracks || [];
 
-    // Queue the whole collection as a single playlist so the bot loads it in
-    // order (and, for albums, as audio). Fall back to per-track only if we
-    // couldn't resolve a playlist id.
-    const playlistUrl = data?.playlistId ? `https://www.youtube.com/playlist?list=${data.playlistId}` : null;
+    // Queue the whole collection in one request so the bot loads it in order
+    // (and, for albums, as audio). The source hands back a ready play URL for
+    // the collection; fall back to per-track only if it couldn't resolve one.
+    const playUrl = data?.playUrl || null;
     const queueAll = () => {
-        playlistUrl ? play(playlistUrl, "queue") : tracks.forEach((t) => play(t.playQuery || t.url, "queue"));
+        playUrl ? play(playUrl, "queue") : tracks.forEach((t) => play(t.playQuery || t.url, "queue"));
         if (data?.title) notify(`Added “${data.title}” to the queue`);
     };
     const playAll = () => {
-        playlistUrl ? play(playlistUrl, "now") : tracks.forEach((t, i) => play(t.playQuery || t.url, i === 0 ? "now" : "queue"));
+        playUrl ? play(playUrl, "now") : tracks.forEach((t, i) => play(t.playQuery || t.url, i === 0 ? "now" : "queue"));
         if (data?.title) notify(`Now playing “${data.title}”`);
     };
 
