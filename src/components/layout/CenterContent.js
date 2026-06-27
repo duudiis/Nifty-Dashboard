@@ -79,7 +79,7 @@ export default function CenterContent() {
     const isLyrics = view === "lyrics";
 
     return (
-        <motion.main layoutScroll className={`min-h-0 flex-1 rounded-lg bg-surface ${isLyrics ? "overflow-hidden" : "overflow-auto pb-4"}`}>
+        <motion.main layoutScroll className={`min-h-0 flex-1 rounded-lg bg-surface ${isLyrics ? "overflow-hidden" : "overflow-auto"}`}>
             <SlideTransition
                 transitionKey={`${view}:${entityId || ""}`}
                 className={isLyrics ? "h-full" : undefined}
