@@ -1,12 +1,12 @@
 import { useNifty } from "../../context/NiftyContext.js";
 import { totalDuration, artworkOrFallback } from "../../lib/format.js";
-import { PageTransition, motion } from "../motion/index.js";
+import { SlideTransition, motion } from "../motion/index.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
 
 import SearchResults from "../search/SearchResults.js";
 import QueueList from "../queue/QueueList.js";
-import LyricsView from "../lyrics/LyricsView.js";
+import LyricsView, { LyricsBackdrop } from "../lyrics/LyricsView.js";
 import CollectionPage from "../browse/CollectionPage.js";
 import ArtistPage from "../browse/ArtistPage.js";
 
@@ -80,7 +80,12 @@ export default function CenterContent() {
 
     return (
         <motion.main layoutScroll className={`min-h-0 flex-1 rounded-lg bg-surface ${isLyrics ? "overflow-hidden" : "overflow-auto pb-4"}`}>
-            <PageTransition viewKey={`${view}:${entityId || ""}`} className={isLyrics ? "h-full" : undefined}>
+            <SlideTransition
+                transitionKey={`${view}:${entityId || ""}`}
+                className={isLyrics ? "h-full" : undefined}
+                contentClassName={isLyrics ? "h-full" : undefined}
+                backdrop={isLyrics ? <LyricsBackdrop /> : null}
+            >
                 {isLyrics ? (
                     <LyricsView />
                 ) : view === "album" || view === "playlist" ? (
@@ -101,7 +106,7 @@ export default function CenterContent() {
                 ) : (
                     <Home />
                 )}
-            </PageTransition>
+            </SlideTransition>
         </motion.main>
     );
 }

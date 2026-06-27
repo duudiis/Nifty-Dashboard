@@ -54,6 +54,34 @@ function LyricsSkeleton() {
     );
 }
 
+// The drifting cover-art "lights" behind the words. Rendered as the view's
+// pinned backdrop (by SlideTransition) so it fills the box and fades with the
+// view but never slides — the page transition can't expose the bare surface
+// behind it. The blobs crossfade when the track changes.
+export function LyricsBackdrop() {
+    const { player } = useNifty();
+    const art = artworkOrFallback(player?.track?.artwork);
+    return (
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <AnimatePresence initial={false}>
+                <motion.div
+                    key={art}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: DUR.slow, ease: EASE }}
+                    className="absolute inset-0"
+                >
+                    <div className="lyric-blob-a absolute inset-0 bg-cover bg-center opacity-50 blur-3xl saturate-150" style={{ backgroundImage: `url(${art})` }} />
+                    <div className="lyric-blob-b absolute inset-0 bg-cover bg-center opacity-40 blur-3xl saturate-150" style={{ backgroundImage: `url(${art})` }} />
+                    <div className="lyric-blob-c absolute inset-0 bg-cover bg-center opacity-30 blur-3xl saturate-150" style={{ backgroundImage: `url(${art})` }} />
+                </motion.div>
+            </AnimatePresence>
+            <div className="absolute inset-0 bg-black/55 backdrop-blur-2xl" />
+        </div>
+    );
+}
+
 // Words light up ~120ms before their timestamp so the highlight lands with,
 // rather than behind, the sung word (the bot clock is interpolated, not exact).
 const WORD_LEAD = 120;
@@ -114,8 +142,6 @@ export default function LyricsView() {
 
     const scroller = useRef(null);
     const lineRefs = useRef([]);
-
-    const art = artworkOrFallback(track?.artwork);
 
     // Fetch (server-cached) lyrics whenever the track changes. Clear the old
     // lyrics immediately so the view never lingers on the previous song.
@@ -197,27 +223,6 @@ export default function LyricsView() {
         setAutoSync(true);
     };
 
-    const Background = (
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            {/* the cover-art blobs crossfade when the track changes */}
-            <AnimatePresence initial={false}>
-                <motion.div
-                    key={art}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: DUR.slow, ease: EASE }}
-                    className="absolute inset-0"
-                >
-                    <div className="lyric-blob-a absolute inset-0 bg-cover bg-center opacity-50 blur-3xl saturate-150" style={{ backgroundImage: `url(${art})` }} />
-                    <div className="lyric-blob-b absolute inset-0 bg-cover bg-center opacity-40 blur-3xl saturate-150" style={{ backgroundImage: `url(${art})` }} />
-                    <div className="lyric-blob-c absolute inset-0 bg-cover bg-center opacity-30 blur-3xl saturate-150" style={{ backgroundImage: `url(${art})` }} />
-                </motion.div>
-            </AnimatePresence>
-            <div className="absolute inset-0 bg-black/55 backdrop-blur-2xl" />
-        </div>
-    );
-
     const Centered = ({ children }) => (
         <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">{children}</div>
     );
@@ -294,8 +299,9 @@ export default function LyricsView() {
     }
 
     return (
-        <div className="relative h-full overflow-hidden rounded-lg">
-            {Background}
+        <div className="relative h-full overflow-hidden">
+            {/* the cover-art backdrop is rendered by SlideTransition (pinned, so
+                it doesn't slide with the view); only the lyric states live here */}
             <AnimatePresence initial={false}>
                 <motion.div
                     key={mode}

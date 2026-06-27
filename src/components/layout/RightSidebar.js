@@ -1,8 +1,8 @@
 import { useNifty } from "../../context/NiftyContext.js";
-import { motion, EASE } from "../motion/index.js";
+import { SlideTransition } from "../motion/index.js";
 
 import QueueList from "../queue/QueueList.js";
-import NowPlayingPanel from "../NowPlayingPanel.js";
+import NowPlayingPanel, { NowPlayingBackdrop } from "../NowPlayingPanel.js";
 import ConnectPanel from "./ConnectPanel.js";
 import PanelHeader from "./PanelHeader.js";
 import Icon from "../Icon.js";
@@ -48,28 +48,26 @@ export default function RightSidebar() {
 
     return (
         <aside className="hidden w-[340px] shrink-0 flex-col overflow-hidden rounded-lg bg-surface lg:flex">
-            {/* No AnimatePresence/exit here: the Queue panel's Reorder + layout
-                subtree can fail to fire framer's onExitComplete, leaving a stuck,
-                invisible ghost panel mounted over the new one — which blanked
-                panels and swallowed right-clicks (they hit the ghost's handlers
-                behind Connect). Remounting on `panel` change drops the old panel
-                immediately and just animates the new one in. */}
-            <motion.section
-                key={panel}
-                // layoutScroll: this element scrolls, so framer accounts for its
-                // scroll offset when measuring during a drag (so a dragged track
-                // isn't left behind when the list auto-scrolls).
+            {/* Same slide primitive as the centre view, so panels enter/leave with
+                identical timing. mode="wait" (inside SlideTransition) fully drops
+                the old panel before mounting the new one, so the Queue panel's
+                Reorder subtree can't leave a ghost over the incoming panel.
+                Now playing hands its cover-art gradient to the pinned backdrop, so
+                the slide never exposes the bare surface above it.
+                The inner (sliding) layer is the scroll container:
+                  • layoutScroll — framer accounts for its scroll offset during a
+                    drag, so a dragged track isn't left behind on auto-scroll.
+                  • overflow-anchor:none — disable Chrome scroll anchoring, which
+                    would otherwise fight framer's layout slide (scrollTop flicker). */}
+            <SlideTransition
+                transitionKey={panel}
                 layoutScroll
-                // overflow-anchor:none disables Chrome's scroll anchoring, which
-                // would otherwise fight framer's layout slide (auto-shifting
-                // scrollTop and causing flicker).
-                className="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none]"
-                initial={{ opacity: 0, y: 24 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.42, ease: EASE }}
+                backdrop={panel === "nowplaying" ? <NowPlayingBackdrop /> : null}
+                className="flex min-h-0 flex-1 flex-col"
+                contentClassName="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none]"
             >
                 <PanelBody panel={panel} onClose={close} />
-            </motion.section>
+            </SlideTransition>
         </aside>
     );
 }

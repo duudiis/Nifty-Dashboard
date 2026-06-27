@@ -30,6 +30,41 @@ function useStableTrack(live) {
     return shown;
 }
 
+// Cover-art gradient behind the header + cover. Rendered as the panel's pinned
+// backdrop (by SlideTransition) so the panel slide can't expose the bare
+// surface above it. The blurred art crossfades between tracks; with nothing
+// playing there's no art, so the plain surface shows through.
+export function NowPlayingBackdrop() {
+    const { player } = useNifty();
+    const track = useStableTrack(player?.track || null);
+    const art = track ? artworkOrFallback(track.artwork) : null;
+
+    return (
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[560px] overflow-hidden">
+            <AnimatePresence initial={false}>
+                {art && (
+                    <motion.img
+                        key={art}
+                        src={art}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 0.55 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: DUR.slow, ease: EASE }}
+                        className="absolute inset-0 h-full w-full scale-[1.7] object-cover blur-3xl saturate-150"
+                        alt=""
+                    />
+                )}
+            </AnimatePresence>
+            {art && (
+                <div
+                    className="absolute inset-0"
+                    style={{ background: "linear-gradient(180deg, rgb(var(--c-surface) / 0.1) 0%, rgb(var(--c-surface) / 0.45) 62%, rgb(var(--c-surface)) 100%)" }}
+                />
+            )}
+        </div>
+    );
+}
+
 function EmptyState({ icon, title, hint }) {
     return (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
@@ -76,27 +111,8 @@ export default function NowPlayingPanel() {
                 </motion.div>
             ) : (
                 <motion.div key="track" {...panelFade} onContextMenu={onContextMenu} className="relative">
-                    {/* large gradient backdrop drawn from the cover art's own colours,
-                        tall enough to sit behind the header and the cover. The
-                        blurred image crossfades between tracks. */}
-                    <div className="pointer-events-none absolute inset-x-0 top-0 h-[560px] overflow-hidden">
-                <AnimatePresence initial={false}>
-                    <motion.img
-                        key={art}
-                        src={art}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 0.55 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: DUR.slow, ease: EASE }}
-                        className="absolute inset-0 h-full w-full scale-[1.7] object-cover blur-3xl saturate-150"
-                        alt=""
-                    />
-                </AnimatePresence>
-                <div
-                    className="absolute inset-0"
-                    style={{ background: "linear-gradient(180deg, rgb(var(--c-surface) / 0.1) 0%, rgb(var(--c-surface) / 0.45) 62%, rgb(var(--c-surface)) 100%)" }}
-                />
-            </div>
+                    {/* the cover-art gradient backdrop is rendered by SlideTransition
+                        (pinned, so it doesn't slide with the panel) */}
 
             {/* header lives inside the coloured area */}
             <div className="relative">
