@@ -14,6 +14,7 @@ const TIPS = [
     "Right-click almost anything to play, queue, or share it.",
     "Open an album or artist page to queue the whole thing at once.",
     "Tap the lyrics icon in the player for time-synced lyrics.",
+    "Playing a YouTube track? Tap the screen icon to watch it together, in sync.",
     "Use Connect to switch which server you're controlling.",
     "Search covers songs, albums, artists, playlists and videos.",
     "Nifty keeps playing even when this dashboard is closed.",

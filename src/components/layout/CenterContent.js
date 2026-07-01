@@ -6,7 +6,9 @@ import { useTrackMenu } from "../menu/trackMenu.js";
 
 import SearchResults from "../search/SearchResults.js";
 import QueueList from "../queue/QueueList.js";
-import LyricsView, { LyricsBackdrop } from "../lyrics/LyricsView.js";
+import LyricsView from "../lyrics/LyricsView.js";
+import WatchView from "../watch/WatchView.js";
+import ArtBackdrop from "../ArtBackdrop.js";
 import CollectionPage from "../browse/CollectionPage.js";
 import ArtistPage from "../browse/ArtistPage.js";
 
@@ -76,18 +78,22 @@ function Home() {
 
 export default function CenterContent() {
     const { view, entityId } = useNifty();
-    const isLyrics = view === "lyrics";
+    // Full-surface overlays (lyrics, watch): fixed height, pinned art backdrop,
+    // the view manages its own scrolling.
+    const isOverlay = view === "lyrics" || view === "watch";
 
     return (
-        <motion.main layoutScroll className={`min-h-0 flex-1 rounded-lg bg-surface ${isLyrics ? "overflow-hidden" : "overflow-auto"}`}>
+        <motion.main layoutScroll className={`min-h-0 flex-1 rounded-lg bg-surface ${isOverlay ? "overflow-hidden" : "overflow-auto"}`}>
             <SlideTransition
                 transitionKey={`${view}:${entityId || ""}`}
-                className={isLyrics ? "h-full" : undefined}
-                contentClassName={isLyrics ? "h-full" : undefined}
-                backdrop={isLyrics ? <LyricsBackdrop /> : null}
+                className={isOverlay ? "h-full" : undefined}
+                contentClassName={isOverlay ? "h-full" : undefined}
+                backdrop={isOverlay ? <ArtBackdrop /> : null}
             >
-                {isLyrics ? (
+                {view === "lyrics" ? (
                     <LyricsView />
+                ) : view === "watch" ? (
+                    <WatchView />
                 ) : view === "album" || view === "playlist" ? (
                     <CollectionPage id={entityId} />
                 ) : view === "artist" ? (

@@ -21,7 +21,10 @@ function loadSettings() {
 }
 
 // Center pages that have a real URL under /dashboard. "home" is the bare path.
-const VIEWS = ["queue", "search", "lyrics"];
+const VIEWS = ["queue", "search", "lyrics", "watch"];
+// Full-surface overlays (toggled from the player bar); closing one returns to
+// the last regular page instead of navigating somewhere new.
+const OVERLAY_VIEWS = ["lyrics", "watch"];
 // Entity pages take a second path segment: /dashboard/<kind>/<id>.
 const ENTITY_VIEWS = ["album", "playlist", "artist"];
 const pathForView = (v) => (v === "home" ? "/dashboard" : `/dashboard/${v}`);
@@ -54,13 +57,13 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         [router]
     );
 
-    // Remember the last non-lyrics location so closing the lyrics view returns
+    // Remember the last non-overlay location so closing an overlay view returns
     // there (album page, search results, queue, …) instead of always going home.
     const prevPathRef = useRef("/dashboard");
     useEffect(() => {
-        if (view !== "lyrics") prevPathRef.current = router.asPath;
+        if (!OVERLAY_VIEWS.includes(view)) prevPathRef.current = router.asPath;
     }, [view, router.asPath]);
-    const closeLyrics = useCallback(
+    const closeOverlay = useCallback(
         () => { router.push(prevPathRef.current || "/dashboard", undefined, { shallow: true }); },
         [router]
     );
@@ -70,7 +73,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     useEffect(() => {
         if (typeof document === "undefined") return;
         const track = player?.track;
-        const LABELS = { queue: "Queue", search: "Search", lyrics: "Lyrics", album: "Album", playlist: "Playlist", artist: "Artist" };
+        const LABELS = { queue: "Queue", search: "Search", lyrics: "Lyrics", watch: "Watch", album: "Album", playlist: "Playlist", artist: "Artist" };
         if (track?.title) {
             document.title = track.artist ? `${track.title} — ${track.artist}` : track.title;
         } else {
@@ -380,7 +383,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
             setReloading(true);
             setTimeout(() => window.location.reload(), 450);
         },
-        view, setView, closeLyrics,
+        view, setView, closeOverlay,
         entityId, openEntity,
         search, runSearch,
         settings, updateSettings,

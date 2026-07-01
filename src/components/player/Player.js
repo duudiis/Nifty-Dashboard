@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
+import { getYouTubeVideoId } from "../../lib/youtube.js";
 import Icon from "../Icon.js";
 import AddedBy from "../AddedBy.js";
 import Marquee from "../Marquee.js";
@@ -138,14 +139,20 @@ function Toggle({ icon, on, onClick, title }) {
 }
 
 function PanelToggles() {
-    const { view, setView, closeLyrics, settings, updateSettings } = useNifty();
+    const { view, setView, closeOverlay, settings, updateSettings, player } = useNifty();
     const rightPanel = settings.rightPanel;
     // Toggling a panel that's already open returns to the default (now playing).
     const togglePanel = (p) => updateSettings({ rightPanel: rightPanel === p ? "nowplaying" : p });
+    // Watch is only offered when the playing track is a YouTube video — but it
+    // stays while the view is open, so it can always be toggled back off.
+    const watchable = !!getYouTubeVideoId(player?.track?.songUrl) || view === "watch";
 
     return (
         <div className="flex items-center gap-4">
-            <Toggle icon="lyrics" title="Lyrics" on={view === "lyrics"} onClick={() => (view === "lyrics" ? closeLyrics() : setView("lyrics"))} />
+            <Toggle icon="lyrics" title="Lyrics" on={view === "lyrics"} onClick={() => (view === "lyrics" ? closeOverlay() : setView("lyrics"))} />
+            {watchable && (
+                <Toggle icon="video" title="Watch" on={view === "watch"} onClick={() => (view === "watch" ? closeOverlay() : setView("watch"))} />
+            )}
             <Toggle icon="queue" title="Queue" on={rightPanel === "queue"} onClick={() => togglePanel("queue")} />
             <Toggle icon="connect" title="Connect to a server" on={rightPanel === "connect"} onClick={() => togglePanel("connect")} />
         </div>
