@@ -88,7 +88,11 @@ export default function CenterContent() {
                 transitionKey={`${view}:${entityId || ""}`}
                 className={isOverlay ? "h-full" : undefined}
                 contentClassName={isOverlay ? "h-full" : undefined}
-                backdrop={isOverlay ? <ArtBackdrop /> : null}
+                backdrop={
+                    // lyrics get the drifting cover-art lights; watch gets plain
+                    // black so the video's letterboxing blends into the page
+                    view === "lyrics" ? <ArtBackdrop /> : isOverlay ? <div className="absolute inset-0 bg-black" /> : null
+                }
             >
                 {view === "lyrics" ? (
                     <LyricsView />
