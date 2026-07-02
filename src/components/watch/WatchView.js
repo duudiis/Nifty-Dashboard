@@ -39,6 +39,11 @@ export default function WatchView() {
     const readyRef = useRef(false);
     const [failed, setFailed] = useState(false); // embedding disabled / bad id
     const rateRef = useRef(1); // playback rate currently applied to the embed
+    // The embed flashes plenty while it boots (white iframe, player chrome,
+    // thumbnail, black buffering). An opaque cover hides all of it and fades
+    // out once — when the video actually plays, or the cued poster is the
+    // steady state.
+    const [revealed, setRevealed] = useState(false);
 
     // Latest playback state for the async player callbacks.
     const liveRef = useRef({ videoId, playing, progress });
@@ -133,8 +138,10 @@ export default function WatchView() {
                             e.target.playVideo();
                         } else {
                             // Re-cue at the bot position — seeking a cued video
-                            // would start it playing.
+                            // would start it playing. The poster is the steady
+                            // state while paused, so show it.
                             e.target.cueVideoById({ videoId: live.videoId, startSeconds: expected / 1000 });
+                            setRevealed(true);
                         }
                         readyRef.current = true;
                         setReady(true);
@@ -143,6 +150,7 @@ export default function WatchView() {
                     onStateChange: (e) => {
                         const live = liveRef.current;
                         if (e.data === YT_PLAYING) {
+                            setRevealed(true);
                             // Either buffering just ended (correct whatever the
                             // load time cost us) or someone pressed play on the
                             // embed while the bot is paused (undo it).
@@ -202,6 +210,15 @@ export default function WatchView() {
         if (!failed) syncNow();
     }, [progress, ready, failed, syncNow]);
 
+    // If nothing confirms playback shortly after the player is ready (autoplay
+    // hiccup, very slow buffer), drop the cover anyway rather than shimmering
+    // forever over a working player.
+    useEffect(() => {
+        if (!ready || revealed) return;
+        const t = setTimeout(() => setRevealed(true), 4000);
+        return () => clearTimeout(t);
+    }, [ready, revealed]);
+
     // Decide what to show, then crossfade between states below.
     let mode;
     if (!selected || !track) mode = "notrack";
@@ -215,7 +232,11 @@ export default function WatchView() {
                 sync position) survives brief track transitions. */}
             <div className={`absolute inset-0 transition-opacity duration-300 ${mode === "video" ? "opacity-100" : "pointer-events-none opacity-0"}`}>
                 <div ref={hostRef} className="absolute inset-0 [&>iframe]:h-full [&>iframe]:w-full" />
-                {!ready && <div className="skeleton-shimmer absolute inset-0" />}
+                {/* Opaque loading cover: hides every boot-up flash of the embed
+                    underneath, then fades away in one clean pass. */}
+                <div className={`pointer-events-none absolute inset-0 z-10 bg-black transition-opacity duration-500 ${revealed ? "opacity-0" : "opacity-100"}`}>
+                    <div className="skeleton-shimmer absolute inset-0" />
+                </div>
             </div>
 
             <AnimatePresence initial={false}>
