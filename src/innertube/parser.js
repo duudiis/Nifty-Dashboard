@@ -302,15 +302,20 @@ export default class InnerTubeParser {
     }
 
     parseArtist(runs, typeToken) {
-        const artistRuns = (runs || []).filter(
-            (r) =>
+        // Artists proper and video channels both serve as the "artist" line.
+        const artistRuns = (runs || []).filter((r) => {
+            const pageType =
                 r?.navigationEndpoint?.browseEndpoint?.browseEndpointContextSupportedConfigs
-                    ?.browseEndpointContextMusicConfig?.pageType === "MUSIC_PAGE_TYPE_ARTIST"
-        );
+                    ?.browseEndpointContextMusicConfig?.pageType;
+            return pageType === "MUSIC_PAGE_TYPE_ARTIST" || pageType === "MUSIC_PAGE_TYPE_USER_CHANNEL";
+        });
         if (artistRuns.length) return artistRuns.map((r) => r.text).join(", ");
 
+        // Skip the leading run only when it's a real type word — type-filtered
+        // video results lead with the channel name instead of "Video".
+        const isTypeWord = /^(?:video|song|album|single|ep|artist|playlist|episode)s?$/i.test(typeToken);
         const meaningful = (runs || []).filter(
-            (r) => !SEPARATORS.has(r.text) && r.text !== typeToken && !isDuration(r.text) && !/\d/.test(r.text)
+            (r) => !SEPARATORS.has(r.text) && (!isTypeWord || r.text !== typeToken) && !isDuration(r.text) && !/\d/.test(r.text)
         );
         return meaningful[0]?.text || "Unknown artist";
     }

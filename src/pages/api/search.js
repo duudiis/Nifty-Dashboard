@@ -3,11 +3,9 @@ import { parse } from "cookie";
 import { verifySession } from "../../lib/jwt.js";
 import { getActiveSource } from "../../sources/index.js";
 
-const source = getActiveSource();
-
 // Results are cached briefly (shared across users) to avoid re-hitting the
-// upstream source for repeat queries. Keyed by source so swapping the active
-// source never serves stale cross-source hits.
+// upstream source for repeat queries. Keyed by source so swapping the search
+// mode never serves stale cross-source hits.
 const cache = new Map();
 const TTL = 1000 * 60 * 5; // 5 minutes
 
@@ -23,6 +21,9 @@ export default async function handler(req, res) {
     if (!query) {
         return res.status(400).json({ message: "Missing query.", code: "MISSING_QUERY" });
     }
+
+    // The search bar sends its mode; unknown values fall back to the default.
+    const source = getActiveSource((req.query.source || "").trim());
 
     const key = `${source.id}:${query.toLowerCase()}`;
     const hit = cache.get(key);

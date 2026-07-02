@@ -13,6 +13,7 @@
 
 import deezer from "./deezer/index.js";
 import youtube from "./youtube/index.js";
+import auto from "./auto/index.js";
 import { SEARCH_SOURCE } from "./config.js";
 import { parseEntityId } from "./ids.js";
 
@@ -20,12 +21,14 @@ export { buildEntityId, parseEntityId } from "./ids.js";
 
 const SOURCES = {
     [deezer.id]: deezer,
-    [youtube.id]: youtube
+    [youtube.id]: youtube,
+    [auto.id]: auto
 };
 
-// The source used for new searches (and the browse fallback for legacy ids).
-export function getActiveSource() {
-    return SOURCES[SEARCH_SOURCE] || deezer;
+// The source used for new searches: the requested mode when it's valid (the
+// search bar passes the user's pick per-request), else the configured default.
+export function getActiveSource(requested) {
+    return SOURCES[requested] || SOURCES[SEARCH_SOURCE] || deezer;
 }
 
 // Resolve a namespaced browseId to the source that should handle it.

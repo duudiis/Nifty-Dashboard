@@ -7,8 +7,16 @@ import Account from "./Account.js";
 import { motion, EASE } from "../motion/index.js";
 import { useNifty } from "../../context/NiftyContext.js";
 
+// Search modes, cycled by the chip inside the search pill. "auto" blends
+// Deezer music with YouTube videos/playlists; the others use one source only.
+const SEARCH_MODES = [
+    { id: "auto", label: "Auto", hint: "Deezer music + YouTube videos" },
+    { id: "deezer", label: "Deezer", hint: "Deezer only" },
+    { id: "youtube", label: "YouTube", hint: "YouTube Music only" }
+];
+
 export default function TopBar() {
-    const { runSearch, setView, updateAvailable, reloadApp } = useNifty();
+    const { runSearch, setView, updateAvailable, reloadApp, settings, updateSettings } = useNifty();
     const router = useRouter();
     const [query, setQuery] = useState(() => (router.query.q ? String(router.query.q) : ""));
     const inputRef = useRef(null);
@@ -38,6 +46,12 @@ export default function TopBar() {
         if (query.trim()) runSearch(query.trim());
     };
 
+    const mode = SEARCH_MODES.find((m) => m.id === settings.searchSource) || SEARCH_MODES[0];
+    const cycleMode = () => {
+        const next = SEARCH_MODES[(SEARCH_MODES.indexOf(mode) + 1) % SEARCH_MODES.length];
+        updateSettings({ searchSource: next.id });
+    };
+
     return (
         <header className="flex h-16 shrink-0 items-center gap-4 bg-topbar px-4">
 
@@ -64,6 +78,14 @@ export default function TopBar() {
                         placeholder="What do you want to play?"
                         className="w-full bg-transparent text-sm text-white placeholder-white/50 outline-none"
                     />
+                    <button
+                        type="button"
+                        onClick={cycleMode}
+                        title={`Search mode: ${mode.label} — ${mode.hint}. Click to switch.`}
+                        className="shrink-0 rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-bold text-white/60 transition hover:bg-white/20 hover:text-white"
+                    >
+                        {mode.label}
+                    </button>
                 </div>
             </form>
 
