@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/router";
 
+import { buildEntityId, parseEntityId } from "../sources/ids.js";
+
 const NiftyContext = createContext(null);
 
 export const THEMES = ["nifty", "spotify", "amethyst", "crimson", "light"];
@@ -46,14 +48,25 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     const segs = Array.isArray(router.query.view) ? router.query.view : [];
     const viewSeg = segs[0] || null;
     const view = VIEWS.includes(viewSeg) || ENTITY_VIEWS.includes(viewSeg) ? viewSeg : "home";
-    const entityId = ENTITY_VIEWS.includes(viewSeg) ? segs[1] || null : null;
+    // Entity URLs are /dashboard/<kind>/<source>/<id>; the browse layer speaks
+    // namespaced ids, so rebuild one from the path (legacy 2-segment URLs
+    // already carry it whole).
+    const entityId = ENTITY_VIEWS.includes(viewSeg)
+        ? (segs.length >= 3 ? buildEntityId(segs[1], viewSeg, segs.slice(2).join("/")) : segs[1] || null)
+        : null;
     const setView = useCallback(
         (v) => { router.push(pathForView(v), undefined, { shallow: true }); },
         [router]
     );
-    // Open an album/playlist/artist page.
+    // Open an album/playlist/artist page — pretty URLs: /dashboard/<kind>/<source>/<id>.
     const openEntity = useCallback(
-        (kind, id) => { router.push(`/dashboard/${kind}/${encodeURIComponent(id)}`, undefined, { shallow: true }); },
+        (kind, id) => {
+            const parsed = parseEntityId(id);
+            const path = parsed
+                ? `/dashboard/${kind}/${parsed.source}/${encodeURIComponent(parsed.id)}`
+                : `/dashboard/${kind}/${encodeURIComponent(id)}`;
+            router.push(path, undefined, { shallow: true });
+        },
         [router]
     );
 

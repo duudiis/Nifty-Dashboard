@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
+import { parseLink } from "../../sources/links.js";
 import { closeness } from "../../lib/fuzzy.js";
 import { artworkOrFallback } from "../../lib/format.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
@@ -8,10 +9,13 @@ import { useTrackMenu } from "../menu/trackMenu.js";
 import { useEntityMenu } from "../menu/entityMenu.js";
 import { AnimatePresence, motion, EASE } from "../motion/index.js";
 
-// The typeahead dropdown under the search bar: the closest matches to what's
-// being typed, regardless of kind, ranked by fuzzy closeness (ties keep the
-// section order, so Deezer songs still edge out everything else). It shares
-// /api/search — and its server-side cache — with the full results page.
+// The typeahead dropdown under the search bar. Three modes:
+//   search — the closest matches to what's being typed, ranked by fuzzy
+//            closeness (shares /api/search and its cache with the results page)
+//   link   — a platform URL was pasted: the dropdown shows exactly that one
+//            resolved item; Enter (or click) opens its page / queues the track
+//   recent — the box is focused but empty: the user's recently queued tracks
+//            and collections, straight from the database
 //
 // Debouncing lives here: every keystroke swaps the list for a fresh skeleton
 // immediately (stale results never linger), and the fetch fires once typing
@@ -149,6 +153,8 @@ function Row({ item, onPick }) {
 
 export default function SearchSuggest({ query, open, onClose, onPick }) {
     const q = query.trim();
+    const link = parseLink(q);
+    const mode = link ? "link" : q ? "search" : "recent";
     const [state, setState] = useState({ items: [], loading: false });
     const seqRef = useRef(0);
     const debounceRef = useRef(null);
@@ -159,28 +165,52 @@ export default function SearchSuggest({ query, open, onClose, onPick }) {
 
     useEffect(() => {
         clearTimeout(debounceRef.current);
+        const seq = ++seqRef.current;
+        const apply = (items) => seqRef.current === seq && setState({ items, loading: false });
+        const fail = () => seqRef.current === seq && setState({ items: [], loading: false });
+
+        // A pasted platform link resolves to exactly one item — no ranking.
+        if (link) {
+            setState({ items: [], loading: true });
+            fetch(`/api/resolve?url=${encodeURIComponent(q)}`)
+                .then((r) => r.json())
+                .then((json) => apply(json.item ? [json.item] : []))
+                .catch(fail);
+            return;
+        }
+
+        // Empty but focused: the user's recently queued items.
+        if (!q) {
+            if (!open) {
+                setState({ items: [], loading: false });
+                return;
+            }
+            setState({ items: [], loading: true });
+            fetch("/api/recent")
+                .then((r) => r.json())
+                .then((json) => apply((json.items || []).slice(0, MAX_ROWS)))
+                .catch(fail);
+            return;
+        }
+
         if (q.length < 2) {
             setState({ items: [], loading: false });
             return;
         }
         // Fresh skeleton right away — never linger on the previous results.
         setState({ items: [], loading: true });
-        const seq = ++seqRef.current;
         debounceRef.current = setTimeout(() => {
             fetch(`/api/search?query=${encodeURIComponent(q)}`)
                 .then((r) => r.json())
-                .then((json) => {
-                    if (seqRef.current !== seq) return;
-                    setState({ items: rank(q, json.sections || []), loading: false });
-                })
-                .catch(() => {
-                    if (seqRef.current === seq) setState({ items: [], loading: false });
-                });
+                .then((json) => apply(rank(q, json.sections || [])))
+                .catch(fail);
         }, DEBOUNCE_MS);
         return () => clearTimeout(debounceRef.current);
-    }, [q]);
+    }, [q, open, link ? link.url : null]);
 
-    const visible = open && q.length >= 2 && (state.items.length > 0 || state.loading);
+    const visible = open
+        && (state.items.length > 0 || state.loading)
+        && (mode !== "search" || q.length >= 2);
 
     // Track the content's real height while the panel is up (skeleton and
     // results have different sizes); reset when hidden so a re-open starts
@@ -238,7 +268,9 @@ export default function SearchSuggest({ query, open, onClose, onPick }) {
                                             </motion.div>
                                         ))}
                                         <div className="px-3 pb-1 pt-1.5 text-[10px] text-subtext/70">
-                                            Press Enter for all results
+                                            {mode === "link" ? "Press Enter to open"
+                                                : mode === "recent" ? "Recently queued"
+                                                : "Press Enter for all results"}
                                         </div>
                                     </>
                                 )}

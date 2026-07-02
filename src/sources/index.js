@@ -13,6 +13,7 @@
 
 import deezer from "./deezer/index.js";
 import youtube from "./youtube/index.js";
+import spotify from "./spotify/index.js";
 import auto from "./auto/index.js";
 import { SEARCH_SOURCE } from "./config.js";
 import { parseEntityId } from "./ids.js";
@@ -22,6 +23,7 @@ export { buildEntityId, parseEntityId } from "./ids.js";
 const SOURCES = {
     [deezer.id]: deezer,
     [youtube.id]: youtube,
+    [spotify.id]: spotify,
     [auto.id]: auto
 };
 

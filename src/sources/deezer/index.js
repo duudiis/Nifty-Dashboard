@@ -134,6 +134,8 @@ async function browseCollection(kind, id) {
             ? data.artist?.name || ""
             : data.creator?.name || data.user?.name || "",
         artwork: art(data, isAlbum ? "cover" : "playlist"),
+        releaseDate: isAlbum ? data.release_date || null : null,
+        url: link(kind, id, data.link),
         tracks: (data.tracks?.data || []).map(track),
         // Queue the whole collection in one go: the bot loads the Deezer URL and
         // expands it server-side, so the entire (possibly long) list plays in order.
@@ -154,10 +156,12 @@ async function browseArtist(id) {
         title: artist.name,
         subtitle: artist.nb_fan ? `${compact(artist.nb_fan)} fans` : "",
         artwork: art(artist, "artist"),
+        url: link("artist", id, artist.link),
         topSongs: (top.data || []).map(track),
         albums: (albums.data || []).map((a) => ({
             title: a.title,
             subtitle: a.release_date ? a.release_date.slice(0, 4) : a.record_type || "",
+            releaseDate: a.release_date || null,
             artwork: art(a, "cover"),
             browseId: buildEntityId(ID, "album", a.id)
         }))

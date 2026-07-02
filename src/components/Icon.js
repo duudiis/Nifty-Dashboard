@@ -11,6 +11,9 @@
 import { forwardRef } from "react";
 
 const ICONS = {
+    // --- library ---
+    heart: { body: <path d="M12 20.5 4.7 13a5 5 0 0 1 0-7 4.8 4.8 0 0 1 6.9 0l.4.4.4-.4a4.8 4.8 0 0 1 6.9 0 5 5 0 0 1 0 7L12 20.5z" /> },
+    "heart-filled": { fill: true, body: <path d="M12 20.5 4.7 13a5 5 0 0 1 0-7 4.8 4.8 0 0 1 6.9 0l.4.4.4-.4a4.8 4.8 0 0 1 6.9 0 5 5 0 0 1 0 7L12 20.5z" /> },
     // --- transport ---
     play: { fill: true, body: <polygon points="6 4 20 12 6 20 6 4" /> },
     pause: {

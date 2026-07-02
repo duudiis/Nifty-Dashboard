@@ -1,61 +1,55 @@
 // Builds the right-click menu for an album / artist / playlist, wherever it
 // appears (search rows, tiles, the search-suggestion dropdown).
 //
-// Play now / Play next / Add to queue resolve the entity through /api/browse
-// (server-cached) to the same whole-collection play URL the collection pages
-// use, then hand it to the bot with the chosen mode. Artists have no single
-// URL, so their top songs are queued individually — reversed for "next", since
-// each insert lands right after the current track.
+// Queueing goes through the shared entity actions (server-cached browse ->
+// whole-collection play URL that the bot expands; artists queue their top
+// songs), which also record the collection in the user's recents.
 
 import { useCallback } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
+import { useEntityActions, entityExternalUrl } from "../browse/useEntityActions.js";
 
 export function useEntityMenu() {
-    const { selected, play, notify, openEntity } = useNifty();
+    const { selected, notify, openEntity } = useNifty();
+    const { playEntity, saveEntity } = useEntityActions();
 
     return useCallback(
         (item) => {
             if (!item?.browseId || !item?.kind) return [];
-            const label = item.title ? `“${item.title}”` : `this ${item.kind}`;
 
-            const resolveAndPlay = async (mode) => {
-                notify(`Loading ${label}…`);
+            const externalLink = entityExternalUrl(item);
+
+            const copyLink = async () => {
+                if (!externalLink) return;
                 try {
-                    const res = await fetch(`/api/browse?id=${encodeURIComponent(item.browseId)}`);
-                    if (!res.ok) throw new Error(`browse ${res.status}`);
-                    const data = await res.json();
-                    const tracks = data.tracks?.length ? data.tracks : data.topSongs || [];
-
-                    if (data.playUrl) {
-                        // One request; the bot expands the collection in order.
-                        play(data.playUrl, mode);
-                    } else if (!tracks.length) {
-                        return notify(`Couldn't load ${label}`);
-                    } else if (mode === "next") {
-                        [...tracks].reverse().forEach((t) => play(t.playQuery || t.url, "next"));
-                    } else {
-                        tracks.forEach((t, i) => play(t.playQuery || t.url, mode === "now" && i === 0 ? "now" : "queue"));
-                    }
-
-                    notify(
-                        mode === "now" ? `Now playing ${label}`
-                        : mode === "next" ? `Playing ${label} next`
-                        : `Added ${label} to the queue`
-                    );
+                    await navigator.clipboard.writeText(externalLink);
+                    notify("Copied link to clipboard");
                 } catch {
-                    notify(`Couldn't load ${label}`);
+                    notify("Couldn't copy the link");
                 }
             };
 
             return [
-                { label: "Play now", icon: "play-now", onClick: () => resolveAndPlay("now"), disabled: !selected },
-                { label: "Play next", icon: "play-next", onClick: () => resolveAndPlay("next"), disabled: !selected },
-                { label: "Add to queue", icon: "enqueue", onClick: () => resolveAndPlay("queue"), disabled: !selected },
+                { label: "Play now", icon: "play-now", onClick: () => playEntity(item, "now"), disabled: !selected },
+                { label: "Play next", icon: "play-next", onClick: () => playEntity(item, "next"), disabled: !selected },
+                { label: "Add to queue", icon: "enqueue", onClick: () => playEntity(item, "queue"), disabled: !selected },
                 { separator: true },
-                { label: `Go to ${item.kind}`, icon: "open", onClick: () => openEntity(item.kind, item.browseId) }
+                { label: "Save to library", icon: "heart", onClick: () => saveEntity(item, true) },
+                { label: `Go to ${item.kind}`, icon: "open", onClick: () => openEntity(item.kind, item.browseId) },
+                ...(externalLink
+                    ? [
+                        { separator: true },
+                        {
+                            label: "Open in browser",
+                            icon: "open",
+                            onClick: () => window.open(externalLink, "_blank", "noopener,noreferrer")
+                        },
+                        { label: "Copy link", icon: "link", onClick: copyLink }
+                    ]
+                    : [])
             ];
         },
-        [selected, play, notify, openEntity]
+        [selected, notify, openEntity, playEntity, saveEntity]
     );
 }

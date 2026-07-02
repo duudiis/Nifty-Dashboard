@@ -7,9 +7,10 @@ import Account from "./Account.js";
 import SearchSuggest from "../search/SearchSuggest.js";
 import { motion, EASE } from "../motion/index.js";
 import { useNifty } from "../../context/NiftyContext.js";
+import { parseLink } from "../../sources/links.js";
 
 export default function TopBar() {
-    const { runSearch, setView, updateAvailable, reloadApp } = useNifty();
+    const { runSearch, setView, updateAvailable, reloadApp, openEntity, play, notify } = useNifty();
     const router = useRouter();
     const [query, setQuery] = useState(() => (router.query.q ? String(router.query.q) : ""));
     const [suggestOpen, setSuggestOpen] = useState(false);
@@ -25,11 +26,11 @@ export default function TopBar() {
     }, [router.query.view, router.query.q]);
 
     // Typing feeds the suggestion dropdown (it debounces internally). The full
-    // search page only opens on Enter.
+    // search page only opens on Enter. An empty box keeps the dropdown open in
+    // its "recently queued" mode.
     const onChange = (e) => {
-        const value = e.target.value;
-        setQuery(value);
-        setSuggestOpen(!!value.trim());
+        setQuery(e.target.value);
+        setSuggestOpen(true);
     };
 
     const closeSuggest = () => setSuggestOpen(false);
@@ -40,10 +41,32 @@ export default function TopBar() {
         setQuery("");
     };
 
-    const submit = (e) => {
+    // Enter: pasted platform links skip the results page entirely — entities
+    // open their page, tracks queue. Anything else runs a normal search.
+    const submit = async (e) => {
         e.preventDefault();
+        const q = query.trim();
+        if (!q) return;
         closeSuggest();
-        if (query.trim()) runSearch(query.trim());
+
+        if (parseLink(q)) {
+            try {
+                const res = await fetch(`/api/resolve?url=${encodeURIComponent(q)}`);
+                const { item } = await res.json();
+                if (!item) return notify("Couldn't recognise that link");
+                if (item.browseId) {
+                    openEntity(item.kind, item.browseId);
+                } else {
+                    play(item.playQuery || item.url, "queue", item.title);
+                }
+                setQuery("");
+            } catch {
+                notify("Couldn't resolve that link");
+            }
+            return;
+        }
+
+        runSearch(q);
     };
 
     // A click anywhere outside the search box dismisses the dropdown — except
@@ -82,7 +105,7 @@ export default function TopBar() {
                         ref={inputRef}
                         value={query}
                         onChange={onChange}
-                        onFocus={() => query.trim().length >= 2 && setSuggestOpen(true)}
+                        onFocus={() => setSuggestOpen(true)}
                         onKeyDown={(e) => e.key === "Escape" && closeSuggest()}
                         placeholder="What do you want to play?"
                         className="w-full bg-transparent text-sm text-white placeholder-white/50 outline-none"

@@ -5,22 +5,32 @@ import { artworkOrFallback } from "../../lib/format.js";
 import Icon from "../Icon.js";
 import TrackRow from "./TrackRow.js";
 import Tile from "./Tile.js";
+import Backdrop from "./Backdrop.js";
+import { useEntityActions, entityExternalUrl, recordCollectionQueued } from "./useEntityActions.js";
 
-// Spotify-style artist page: big header, top songs, then a discography grid.
+// Spotify-style artist page: artwork-tinted header, top songs, then the
+// discography newest-first.
 export default function ArtistPage({ id }) {
     const { play, selected, notify } = useNifty();
+    const { saveEntity } = useEntityActions();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [saved, setSaved] = useState(false);
 
     useEffect(() => {
         let stale = false;
         setLoading(true);
         setData(null);
+        setSaved(false);
         fetch(`/api/browse?id=${encodeURIComponent(id)}`)
             .then((r) => r.json())
             .then((j) => !stale && setData(j))
             .catch(() => !stale && setData(null))
             .finally(() => !stale && setLoading(false));
+        fetch(`/api/library?refs=${encodeURIComponent(id)}`)
+            .then((r) => r.json())
+            .then((j) => !stale && setSaved((j.saved || []).includes(id)))
+            .catch(() => {});
         return () => {
             stale = true;
         };
@@ -39,42 +49,98 @@ export default function ArtistPage({ id }) {
         return <div className="p-8 text-center text-sm text-subtext">Couldn&apos;t load this artist.</div>;
     }
 
+    const item = { browseId: id, kind: "artist", title: data.title, subtitle: data.subtitle, artwork: data.artwork };
+    const externalLink = entityExternalUrl(item, data);
+
     const topSongs = data.topSongs || [];
-    const albums = (data.albums || []).map((a) => ({ ...a, kind: "album" }));
+    // Discography newest-first; entries without a release date sink to the end
+    // in their original order.
+    const albums = (data.albums || [])
+        .map((a, i) => ({ ...a, kind: "album", _order: i }))
+        .sort((a, b) => {
+            if (a.releaseDate && b.releaseDate) return b.releaseDate.localeCompare(a.releaseDate);
+            if (a.releaseDate) return -1;
+            if (b.releaseDate) return 1;
+            return a._order - b._order;
+        });
+
     const playTop = () => {
         topSongs.forEach((t, i) => play(t.playQuery || t.url, i === 0 ? "now" : "queue"));
+        recordCollectionQueued(item, data);
         if (data?.title) notify(`Playing ${data.title}`);
+    };
+
+    const toggleSave = async () => {
+        setSaved(await saveEntity(item, !saved, data));
+    };
+
+    const copyLink = async () => {
+        if (!externalLink) return;
+        try {
+            await navigator.clipboard.writeText(externalLink);
+            notify("Copied link to clipboard");
+        } catch {
+            notify("Couldn't copy the link");
+        }
     };
 
     return (
         <div className="flex flex-col">
-            {/* header */}
-            <div
-                className="relative flex items-end gap-6 px-6 pb-6 pt-16"
-                style={{ background: "linear-gradient(180deg, rgb(var(--c-accent) / 0.4) -20%, transparent 100%)" }}
-            >
-                <img
-                    src={artworkOrFallback(data.artwork)}
-                    onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
-                    className="h-40 w-40 shrink-0 rounded-full object-cover shadow-2xl"
-                    alt=""
-                />
-                <div className="flex min-w-0 flex-col gap-2">
-                    <span className="text-xs font-bold uppercase tracking-wide text-subtext">Artist</span>
-                    <h1 className="text-4xl font-bold leading-tight sm:text-6xl">{data.title}</h1>
-                    {data.subtitle && <span className="text-sm text-subtext">{data.subtitle}</span>}
+            {/* header — tinted by the artist portrait */}
+            <div className="relative">
+                <Backdrop artwork={data.artwork} />
+                <div className="relative flex items-end gap-6 px-6 pb-6 pt-20">
+                    <img
+                        src={artworkOrFallback(data.artwork)}
+                        onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
+                        className="h-44 w-44 shrink-0 rounded-full object-cover shadow-2xl ring-1 ring-white/10"
+                        alt=""
+                    />
+                    <div className="flex min-w-0 flex-col gap-2 drop-shadow-sm">
+                        <span className="text-xs font-bold uppercase tracking-wide text-maintext/80">Artist</span>
+                        <h1 className="text-4xl font-extrabold leading-tight sm:text-6xl">{data.title}</h1>
+                        {data.subtitle && <span className="text-sm font-semibold text-maintext/80">{data.subtitle}</span>}
+                    </div>
                 </div>
             </div>
 
-            {topSongs.length > 0 && (
+            {/* actions */}
+            <div className="flex items-center gap-3 px-6 py-4">
+                {topSongs.length > 0 && (
+                    <button
+                        onClick={playTop}
+                        disabled={!selected}
+                        className="flex items-center gap-2 rounded-full bg-accent px-5 py-2 text-sm font-bold text-canvas transition hover:scale-[1.03] hover:brightness-110 disabled:opacity-40"
+                    >
+                        <Icon name="play" className="h-4 w-4" /> Play
+                    </button>
+                )}
                 <button
-                    onClick={playTop}
-                    disabled={!selected}
-                    className="mx-6 mt-4 flex w-fit items-center gap-2 rounded-full bg-accent px-5 py-2 text-sm font-bold text-canvas transition hover:brightness-110 disabled:opacity-40"
+                    onClick={toggleSave}
+                    title={saved ? "Remove from your library" : "Save to your library"}
+                    className={`flex h-10 w-10 items-center justify-center rounded-full transition hover:scale-105 ${saved ? "text-accent" : "text-subtext hover:text-maintext"}`}
                 >
-                    <Icon name="play" className="h-4 w-4" /> Play
+                    <Icon name={saved ? "heart-filled" : "heart"} className="h-6 w-6" />
                 </button>
-            )}
+                {externalLink && (
+                    <>
+                        <button
+                            onClick={() => window.open(externalLink, "_blank", "noopener,noreferrer")}
+                            title="Open in browser"
+                            className="flex h-10 w-10 items-center justify-center rounded-full text-subtext transition hover:scale-105 hover:text-maintext"
+                        >
+                            <Icon name="open" className="h-6 w-6" />
+                        </button>
+                        <button
+                            onClick={copyLink}
+                            title="Copy link"
+                            className="flex h-10 w-10 items-center justify-center rounded-full text-subtext transition hover:scale-105 hover:text-maintext"
+                        >
+                            <Icon name="link" className="h-6 w-6" />
+                        </button>
+                    </>
+                )}
+            </div>
 
             {/* top songs */}
             {topSongs.length > 0 && (

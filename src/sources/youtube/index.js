@@ -31,20 +31,22 @@ export default {
     // The registry strips the namespace, so `id` is the raw YouTube browse id
     // the InnerTube parser self-dispatches on by prefix.
     async browse(kind, id) {
-        const data = await inner.browse(id);
+        // Pasted playlist links carry the raw list id (PL…/OLAK5uy_…); the
+        // InnerTube playlist page wants it VL-prefixed.
+        const browseId = kind === "playlist" && !/^(VL|MPREb)/.test(id) ? `VL${id}` : id;
+        const data = await inner.browse(browseId);
 
         if (data.type === "artist") {
             data.albums = (data.albums || []).map((a) => ({
                 ...a,
                 browseId: a.browseId ? buildEntityId(ID, "album", a.browseId) : a.browseId
             }));
+            data.url = id.startsWith("UC") ? `https://www.youtube.com/channel/${id}` : data.url || null;
             return data;
         }
 
         // album / playlist: expose the source-agnostic whole-collection play URL.
-        return {
-            ...data,
-            playUrl: data.playlistId ? `https://www.youtube.com/playlist?list=${data.playlistId}` : null
-        };
+        const playUrl = data.playlistId ? `https://www.youtube.com/playlist?list=${data.playlistId}` : null;
+        return { ...data, playUrl, url: playUrl };
     }
 };

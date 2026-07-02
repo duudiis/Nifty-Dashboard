@@ -57,8 +57,27 @@ export function useTrackMenu() {
             const title = track.title;
             const label = title ? `“${title}”` : "track";
 
+            const saveTrack = async () => {
+                try {
+                    const res = await fetch("/api/library", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            action: "like",
+                            track: { title, artist: track.artist, artwork: track.artwork, duration: track.duration, url }
+                        })
+                    });
+                    const json = await res.json();
+                    if (!res.ok) throw new Error(json.message);
+                    notify(json.already ? `${label} is already in your Liked songs` : `Saved ${label} to your Liked songs`);
+                } catch {
+                    notify("Couldn't save this track");
+                }
+            };
+
             const linkItems = [
                 { separator: true },
+                { label: "Save to Liked songs", icon: "heart", onClick: saveTrack, disabled: !url },
                 { label: "Open in browser", icon: "open", onClick: () => openLink(url), disabled: !url },
                 {
                     label: "Copy link",

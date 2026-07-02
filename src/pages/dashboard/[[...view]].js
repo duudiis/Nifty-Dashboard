@@ -27,12 +27,26 @@ export async function getServerSideProps({ req, params }) {
     }
 
     // Keep the URL space tidy: anything that isn't a known page bounces home.
+    // Entity pages read /dashboard/<kind>/<source>/<id>; old encoded links
+    // (/dashboard/<kind>/<source>:<kind>:<id>) redirect to the pretty form.
     const segs = params?.view;
     if (segs) {
-        const [seg, id] = segs;
+        const [seg, sourceOrId, id] = segs;
         const okSimple = segs.length === 1 && VIEWS.includes(seg);
-        const okEntity = segs.length === 2 && ENTITY_VIEWS.includes(seg) && !!id;
+        const okEntity = segs.length === 3 && ENTITY_VIEWS.includes(seg) && !!sourceOrId && !!id;
+
         if (!okSimple && !okEntity) {
+            if (segs.length === 2 && ENTITY_VIEWS.includes(seg) && sourceOrId?.includes(":")) {
+                const [source, , nativeId] = sourceOrId.split(":");
+                if (source && nativeId) {
+                    return {
+                        redirect: {
+                            destination: `/dashboard/${seg}/${source}/${encodeURIComponent(nativeId)}`,
+                            permanent: false
+                        }
+                    };
+                }
+            }
             return { redirect: { destination: "/dashboard", permanent: false } };
         }
     }
