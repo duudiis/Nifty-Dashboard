@@ -28,7 +28,7 @@ export default function EntityRow({ item }) {
                 <span className="truncate text-[13px] text-maintext">{item.title}</span>
                 <span className="truncate text-[11px] capitalize text-subtext">{item.subtitle || item.kind}</span>
             </div>
-            <Icon name="chevron-down" className="h-4 w-4 -rotate-90 text-subtext opacity-0 transition group-hover:opacity-100" />
+            <Icon name="chevron-down" className="mr-2 h-4 w-4 -rotate-90 text-subtext opacity-0 transition group-hover:opacity-100" />
         </button>
     );
 }

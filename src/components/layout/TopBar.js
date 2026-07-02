@@ -12,12 +12,9 @@ export default function TopBar() {
     const { runSearch, setView, updateAvailable, reloadApp } = useNifty();
     const router = useRouter();
     const [query, setQuery] = useState(() => (router.query.q ? String(router.query.q) : ""));
-    // What the dropdown is searching for (debounced behind the input value).
-    const [suggestQuery, setSuggestQuery] = useState("");
     const [suggestOpen, setSuggestOpen] = useState(false);
     const inputRef = useRef(null);
     const boxRef = useRef(null);
-    const debounceRef = useRef(null);
 
     // Keep the box in sync with the URL on navigation (back/forward, leaving the
     // search page), but never overwrite what the user is actively typing.
@@ -27,29 +24,18 @@ export default function TopBar() {
         setQuery(onSearch && router.query.q ? String(router.query.q) : "");
     }, [router.query.view, router.query.q]);
 
-    useEffect(() => () => clearTimeout(debounceRef.current), []);
-
-    // Typing feeds the suggestion dropdown (debounced). The full search page
-    // only opens on Enter.
+    // Typing feeds the suggestion dropdown (it debounces internally). The full
+    // search page only opens on Enter.
     const onChange = (e) => {
         const value = e.target.value;
         setQuery(value);
-        clearTimeout(debounceRef.current);
-        const q = value.trim();
-        if (!q) {
-            setSuggestOpen(false);
-            setSuggestQuery("");
-            return;
-        }
-        setSuggestOpen(true);
-        debounceRef.current = setTimeout(() => setSuggestQuery(q), 300);
+        setSuggestOpen(!!value.trim());
     };
 
     const closeSuggest = () => setSuggestOpen(false);
 
     const submit = (e) => {
         e.preventDefault();
-        clearTimeout(debounceRef.current);
         closeSuggest();
         if (query.trim()) runSearch(query.trim());
     };
@@ -93,7 +79,7 @@ export default function TopBar() {
                         className="w-full bg-transparent text-sm text-white placeholder-white/50 outline-none"
                     />
                 </div>
-                <SearchSuggest query={suggestQuery} open={suggestOpen} onClose={closeSuggest} />
+                <SearchSuggest query={query} open={suggestOpen} onClose={closeSuggest} />
             </form>
 
             {/* Update prompt + account (right third) */}
