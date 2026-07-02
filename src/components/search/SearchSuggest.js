@@ -110,6 +110,10 @@ export default function SearchSuggest({ query, open, onClose }) {
     const [state, setState] = useState({ items: [], loading: false });
     const seqRef = useRef(0);
     const debounceRef = useRef(null);
+    // Measured height of the panel's content, so the box can grow/shrink
+    // smoothly when the skeleton swaps for results (or the row count changes).
+    const innerRef = useRef(null);
+    const [panelH, setPanelH] = useState(null);
 
     useEffect(() => {
         clearTimeout(debounceRef.current);
@@ -136,32 +140,69 @@ export default function SearchSuggest({ query, open, onClose }) {
 
     const visible = open && q.length >= 2 && (state.items.length > 0 || state.loading);
 
+    // Track the content's real height while the panel is up (skeleton and
+    // results have different sizes); reset when hidden so a re-open starts
+    // from the unfold again.
+    useEffect(() => {
+        if (!visible) {
+            setPanelH(null);
+            return;
+        }
+        const el = innerRef.current;
+        if (!el) return;
+        const ro = new ResizeObserver(() => setPanelH(el.offsetHeight));
+        ro.observe(el);
+        setPanelH(el.offsetHeight);
+        return () => ro.disconnect();
+    }, [visible]);
+
     return (
         <AnimatePresence>
             {visible && (
                 <motion.div
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.15, ease: EASE }}
-                    className="absolute left-0 right-0 top-full z-[60] mt-2 overflow-hidden rounded-xl border border-border bg-surface/95 p-1.5 shadow-2xl backdrop-blur-md"
+                    // Unfolds open, collapses closed; between content states the
+                    // height eases to the measured size ("auto" only until the
+                    // first measurement lands).
+                    initial={{ opacity: 0, y: -6, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: panelH ?? "auto" }}
+                    exit={{ opacity: 0, y: -6, height: 0 }}
+                    transition={{ duration: 0.25, ease: EASE }}
+                    className="absolute left-0 right-0 top-full z-[60] mt-2 overflow-hidden rounded-xl border border-border bg-surface/95 shadow-2xl backdrop-blur-md"
                 >
-                    {state.loading ? (
-                        <SkeletonRows />
-                    ) : (
-                        <>
-                            {state.items.map((item) => (
-                                <Row
-                                    key={`${item.kind}:${item.videoId || item.browseId || item.url || item.title}`}
-                                    item={item}
-                                    onClose={onClose}
-                                />
-                            ))}
-                            <div className="px-3 pb-1 pt-1.5 text-[10px] text-subtext/70">
-                                Press Enter for all results
-                            </div>
-                        </>
-                    )}
+                    <div ref={innerRef} className="p-1.5">
+                        {/* popLayout lifts the outgoing block out of the flow, so
+                            the measured height is the incoming content's alone
+                            and the box resizes while the two crossfade. */}
+                        <AnimatePresence mode="popLayout" initial={false}>
+                            <motion.div
+                                key={state.loading ? "skeleton" : "results"}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.15, ease: EASE }}
+                            >
+                                {state.loading ? (
+                                    <SkeletonRows />
+                                ) : (
+                                    <>
+                                        {state.items.map((item, i) => (
+                                            <motion.div
+                                                key={`${item.kind}:${item.videoId || item.browseId || item.url || item.title}`}
+                                                initial={{ opacity: 0, y: 6 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                transition={{ duration: 0.18, ease: EASE, delay: i * 0.03 }}
+                                            >
+                                                <Row item={item} onClose={onClose} />
+                                            </motion.div>
+                                        ))}
+                                        <div className="px-3 pb-1 pt-1.5 text-[10px] text-subtext/70">
+                                            Press Enter for all results
+                                        </div>
+                                    </>
+                                )}
+                            </motion.div>
+                        </AnimatePresence>
+                    </div>
                 </motion.div>
             )}
         </AnimatePresence>
