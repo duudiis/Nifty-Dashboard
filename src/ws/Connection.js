@@ -87,10 +87,11 @@ export default class Connection {
     async identify(data) {
         const token = data.token;
 
-        // Bot identification: shared secret.
+        // Bot identification: shared secret. The botId (the bot's Discord user
+        // id) scopes routing and matches its rows in the shared database.
         const botToken = process.env.DASHBOARD_TOKEN;
         if (botToken && token === botToken) {
-            this.role = new BotSocket(this.socket, data.botName);
+            this.role = new BotSocket(this.socket, data.botName, data.botId);
             this.socket.send(JSON.stringify({ operation: "identify_success" }));
             return;
         }

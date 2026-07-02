@@ -1,0 +1,25 @@
+services:
+  nifty-dashboard:
+    build: .
+    image: nifty-dashboard:local
+    container_name: nifty-dashboard
+    restart: unless-stopped
+    env_file: .env
+    expose:
+      - "3000"
+    networks:
+      - traefik
+      - postgres
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
+      - "traefik.http.routers.nifty.rule=Host(`nifty.dudis.space`)"
+      - "traefik.http.routers.nifty.entrypoints=websecure"
+      - "traefik.http.routers.nifty.tls.certresolver=letsencrypt"
+      - "traefik.http.services.nifty.loadbalancer.server.port=3000"
+
+networks:
+  traefik:
+    external: true
+  postgres:
+    external: true

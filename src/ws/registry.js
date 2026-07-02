@@ -1,15 +1,35 @@
 // Central in-memory registry + routing for the WebSocket hub.
 //
-// The dashboard owns no database. It is a stateless relay between two kinds of
-// peers: bot sockets (one per Nifty instance) and user sockets (browsers).
-// Several bots may be connected at once, so every guild is routed to whichever
-// bot reported it last.
+// The hub is a control-plane relay between bot sockets (one per Nifty
+// instance) and user sockets (browsers). Player and queue STATE never flows
+// through here anymore — the bots write it to the shared database and the
+// dashboard reads it back via /api/player and /api/queue. The hub carries:
+//   bots -> users : change nudges (player_updated / queue_updated), sessions
+//   users -> bots : control actions, session requests
+//
+// Several bots may be connected at once; routing is by botId (the bot's
+// Discord user id), with guild-owner tracking as a legacy fallback for
+// clients that don't send one.
 
-export const bots = new Set();   // BotSocket
-export const users = new Set();  // UserSocket
+export const bots = new Set();               // BotSocket
+export const users = new Set();              // UserSocket
+export const botsById = new Map();           // botId (string) -> BotSocket
 
-// guildId (string) -> BotSocket that currently owns that guild's player.
+// guildId (string) -> BotSocket that last reported that guild (fallback routing).
 export const guildOwners = new Map();
+
+export function registerBot(bot) {
+    bots.add(bot);
+    if (bot.botId) botsById.set(String(bot.botId), bot);
+}
+
+export function unregisterBot(bot) {
+    bots.delete(bot);
+    if (bot.botId && botsById.get(String(bot.botId)) === bot) {
+        botsById.delete(String(bot.botId));
+    }
+    clearGuildsForBot(bot);
+}
 
 export function setGuildOwner(guildId, bot) {
     guildOwners.set(String(guildId), bot);
@@ -21,11 +41,17 @@ export function clearGuildsForBot(bot) {
     }
 }
 
-/** Send to every browser currently viewing a given guild. */
-export function emitToGuild(guildId, operation, data) {
+/**
+ * Send to every browser currently viewing a given (bot, guild) pair. A missing
+ * botId on either side matches everything, so single-bot setups keep working.
+ */
+export function emitToGuild(botId, guildId, operation, data) {
     const gid = String(guildId);
+    const bid = botId ? String(botId) : null;
     for (const user of users) {
-        if (user.guildId === gid) user.send(operation, data);
+        if (user.guildId !== gid) continue;
+        if (bid && user.botId && user.botId !== bid) continue;
+        user.send(operation, data);
     }
 }
 
@@ -41,13 +67,21 @@ export function broadcastToBots(operation, data) {
     for (const bot of bots) bot.send(operation, data);
 }
 
-/** Route a control action to the bot that owns the guild (fallback: broadcast). */
-export function routeAction(guildId, data) {
+/**
+ * Route a control action to one bot: by botId when the client sent one,
+ * falling back to the guild's last-known owner, then to broadcast (bots that
+ * aren't addressed simply no-op).
+ */
+export function routeAction(botId, guildId, data) {
+    const byId = botId ? botsById.get(String(botId)) : null;
+    if (byId) {
+        byId.send("action", data);
+        return;
+    }
     const owner = guildOwners.get(String(guildId));
     if (owner) {
         owner.send("action", data);
     } else {
-        // Unknown owner: broadcast. Bots that don't own the guild simply no-op.
         broadcastToBots("action", data);
     }
 }
@@ -55,16 +89,6 @@ export function routeAction(guildId, data) {
 /** Ask every connected bot which sessions a user can control. */
 export function requestSessions(userId) {
     broadcastToBots("sessions_request", { userId: String(userId) });
-}
-
-/** Ask the owning bot to push fresh player + queue for a guild. */
-export function subscribeToGuild(guildId) {
-    const owner = guildOwners.get(String(guildId));
-    if (owner) {
-        owner.send("subscribe", { guildId: String(guildId) });
-    } else {
-        broadcastToBots("subscribe", { guildId: String(guildId) });
-    }
 }
 
 export function hasBots() {

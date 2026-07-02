@@ -93,6 +93,42 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     selectedRef.current = selected;
     const notifyIdRef = useRef(0);
 
+    /* ---- player/queue state: read straight from the shared database via the
+       HTTP API. The WebSocket only tells us WHEN to re-read (nudges). ---- */
+
+    const fetchState = useCallback(async (what = "both") => {
+        const sel = selectedRef.current;
+        if (!sel?.guildId || !sel?.botId) return;
+        const params = `botId=${encodeURIComponent(sel.botId)}&guildId=${encodeURIComponent(sel.guildId)}`;
+        const stillCurrent = () =>
+            selectedRef.current?.guildId === sel.guildId && selectedRef.current?.botId === sel.botId;
+
+        try {
+            if (what !== "queue") {
+                const res = await fetch(`/api/player?${params}`, { cache: "no-store" });
+                if (res.ok) {
+                    const json = await res.json();
+                    if (stillCurrent()) {
+                        setPlayer(json?.track ? json : null);
+                        // The queue cursor rides along with the player row.
+                        if (json?.track && typeof json.position === "number") {
+                            setQueue((prev) => ({ ...prev, position: json.position }));
+                        }
+                    }
+                }
+            }
+            if (what !== "player") {
+                const res = await fetch(`/api/queue?${params}`, { cache: "no-store" });
+                if (res.ok) {
+                    const json = await res.json();
+                    if (stillCurrent()) {
+                        setQueue({ tracks: json?.tracks || [], position: json?.position ?? 0 });
+                    }
+                }
+            }
+        } catch { /* transient — the next nudge retries */ }
+    }, []);
+
     /* ---- transient toast notifications (shown stacked above the player) ---- */
 
     const notify = useCallback((message, duration = 3200) => {
@@ -172,34 +208,42 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
                         ws.send(JSON.stringify({ operation: "sessions_request" }));
                         const sel = selectedRef.current;
                         if (sel?.guildId) {
-                            ws.send(JSON.stringify({ operation: "subscribe", data: { guildId: sel.guildId } }));
+                            ws.send(JSON.stringify({
+                                operation: "subscribe",
+                                data: { botId: sel.botId, guildId: sel.guildId }
+                            }));
+                            fetchState("both");
                         }
                         break;
                     }
 
                     case "sessions": {
+                        const botId = message.data?.botId || null;
                         const botName = message.data?.botName;
                         const incoming = message.data?.sessions || [];
                         // Replace this bot's entries, keep the others.
+                        const botKey = (b, n) => b || n;
                         setSessions((prev) => {
-                            const others = prev.filter((s) => s.botName !== botName);
-                            const tagged = incoming.map((s) => ({ ...s, botName: s.botName || botName }));
+                            const others = prev.filter((s) => botKey(s.botId, s.botName) !== botKey(botId, botName));
+                            const tagged = incoming.map((s) => ({
+                                ...s,
+                                botId: s.botId || botId,
+                                botName: s.botName || botName
+                            }));
                             return [...others, ...tagged];
                         });
                         break;
                     }
 
-                    case "player": {
-                        const data = message.data;
-                        setPlayer(data && data.track ? data : null);
+                    // Something changed in the database — re-read the piece
+                    // that changed (state itself never travels on the socket).
+                    case "player_updated": {
+                        fetchState("player");
                         break;
                     }
 
-                    case "queue": {
-                        setQueue({
-                            tracks: message.data?.tracks || [],
-                            position: message.data?.position ?? 0
-                        });
+                    case "queue_updated": {
+                        fetchState("queue");
                         break;
                     }
 
@@ -227,21 +271,13 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
             clearTimeout(reconnectRef.current);
             try { wsRef.current?.close(); } catch {}
         };
-    }, [user]);
+    }, [user, fetchState]);
 
-    // Everything is event-driven: the bot pushes player/queue on change, and
-    // sessions on first connect (identify_success) + voice changes. The Connect
-    // panel polls sessions while it's open (see ConnectPanel) via this helper.
+    // Everything is event-driven: the bot nudges on change and this client
+    // re-reads the database; sessions arrive on first connect
+    // (identify_success) + voice changes. The Connect panel polls sessions
+    // while it's open (see ConnectPanel) via this helper.
     const refreshSessions = useCallback(() => send("sessions_request"), [send]);
-
-    /* ---- when the playing track changes, pull a fresh queue right away so the
-       "now playing" highlight tracks playback without waiting for the poll ---- */
-
-    useEffect(() => {
-        if (!connected) return;
-        const sel = selectedRef.current;
-        if (sel?.guildId) send("subscribe", { guildId: sel.guildId });
-    }, [connected, player?.track?.songUrl, send]);
 
     /* ---- local progress ticker (smooth progress bar between pushes) ---- */
 
@@ -265,17 +301,21 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         setPlayer(null);
         setQueue({ tracks: [], position: 0 });
         if (session?.guildId) {
-            send("subscribe", { guildId: session.guildId });
+            send("subscribe", { botId: session.botId, guildId: session.guildId });
+            // selectedRef updates on re-render; point it at the new session now
+            // so the immediate fetch reads the right guild.
+            selectedRef.current = session;
+            fetchState("both");
             if (switchView) setView("queue");
         }
-    }, [send]);
+    }, [send, fetchState]);
 
     /* ---- always have a server selected: pick the first available, and
        re-pick if the current selection disappears (without yanking the view) ---- */
 
     useEffect(() => {
         if (!sessions.length) return;
-        const k = (s) => `${s.botName}:${s.guildId}`;
+        const k = (s) => `${s.botId || s.botName}:${s.guildId}`;
         const cur = selectedRef.current;
         if (!cur || !sessions.some((s) => k(s) === k(cur))) {
             // Prefer a server where the bot is already playing something.
@@ -287,7 +327,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     const control = useCallback((action, extra = {}) => {
         const sel = selectedRef.current;
         if (!sel?.guildId) return;
-        send("action", { guildId: sel.guildId, action, ...extra });
+        send("action", { botId: sel.botId, guildId: sel.guildId, action, ...extra });
     }, [send]);
 
     // Ask the bot to join the user's voice channel in the selected guild.
@@ -299,6 +339,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         const sel = selectedRef.current;
         if (!sel?.guildId || !query) return;
         send("action", {
+            botId: sel.botId,
             guildId: sel.guildId,
             action: "play",
             query,

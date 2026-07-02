@@ -1,7 +1,7 @@
 {
   "name": "nifty-dashboard",
   "version": "2.0.0",
-  "description": "Spotify-style web dashboard for the Nifty Discord music bot. Talks to the bot(s) over WebSocket only — no database.",
+  "description": "Spotify-style web dashboard for the Nifty Discord music bot. Reads state from the shared PostgreSQL database; the WebSocket carries control actions and change nudges.",
   "type": "module",
   "main": "src/server.js",
   "scripts": {
@@ -17,6 +17,7 @@
     "framer-motion": "^11.11.0",
     "jose": "^5.9.6",
     "next": "^14.2.15",
+    "pg": "^8.13.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "ws": "^8.18.0"
