@@ -11,7 +11,7 @@ import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
 
 export default function QueueItem({ track, index, isCurrent, dense, onDragStart, onDragEnd }) {
-    const { control, player, removeTrack } = useNifty();
+    const { control, player, jump, removeTrack } = useNifty();
     const trackMenu = useTrackMenu();
     const { onContextMenu, active } = useContextMenu(() => trackMenu(track, { source: "queue" }));
 
@@ -43,7 +43,7 @@ export default function QueueItem({ track, index, isCurrent, dense, onDragStart,
         e?.stopPropagation?.();
         if (draggedRef.current) return;
         if (isCurrent) control("togglePause");
-        else control("jump", { trackId: track.track_id });
+        else jump(track.track_id);
     };
 
     const playPauseTitle = playing ? "Pause" : isCurrent ? "Resume" : "Play";

@@ -109,7 +109,12 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
                 if (res.ok) {
                     const json = await res.json();
                     if (stillCurrent()) {
-                        setPlayer(json?.track ? json : null);
+                        // Anchor the server-computed progress to the local clock:
+                        // displayed progress derives from this anchor instead of
+                        // accumulating ticks, so it can never drift.
+                        setPlayer(json?.track
+                            ? { ...json, _anchor: { progress: json.progress || 0, at: Date.now() } }
+                            : null);
                         // The queue cursor rides along with the player row.
                         if (json?.track && typeof json.position === "number") {
                             setQueue((prev) => ({ ...prev, position: json.position }));
@@ -221,6 +226,12 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
                         const botId = message.data?.botId || null;
                         const botName = message.data?.botName;
                         const incoming = message.data?.sessions || [];
+                        // The hub answering with no bot at all means none are
+                        // online — drop everything, don't merge.
+                        if (!botId && !botName) {
+                            setSessions([]);
+                            break;
+                        }
                         // Replace this bot's entries, keep the others.
                         const botKey = (b, n) => b || n;
                         setSessions((prev) => {
@@ -244,6 +255,17 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
 
                     case "queue_updated": {
                         fetchState("queue");
+                        break;
+                    }
+
+                    // A bot went offline: its sessions are gone, drop them
+                    // instead of leaving ghosts in the Connect list.
+                    case "bot_disconnected": {
+                        const botId = message.data?.botId || null;
+                        const botName = message.data?.botName;
+                        const key = botId || botName;
+                        if (!key) break;
+                        setSessions((prev) => prev.filter((s) => (s.botId || s.botName) !== key));
                         break;
                     }
 
@@ -279,20 +301,25 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     // while it's open (see ConnectPanel) via this helper.
     const refreshSessions = useCallback(() => send("sessions_request"), [send]);
 
-    /* ---- local progress ticker (smooth progress bar between pushes) ---- */
+    /* ---- local progress ticker: recomputes from the fetch-time anchor (at
+       playback speed) instead of incrementing, so there is no cumulative
+       drift — every tick is exact relative to the last server read ---- */
 
     useEffect(() => {
         if (!player?.playing || !player?.track) return;
         const id = setInterval(() => {
             setPlayer((prev) => {
-                if (!prev?.playing || !prev?.track) return prev;
-                const next = (prev.progress || 0) + 1000;
-                if (next > prev.track.duration) return prev;
+                if (!prev?.playing || !prev?.track || !prev?._anchor) return prev;
+                const rate = prev.speed || 1;
+                const elapsed = (Date.now() - prev._anchor.at) * rate;
+                const duration = prev.track.duration || Infinity;
+                const next = Math.min(prev._anchor.progress + elapsed, duration);
+                if (next === prev.progress) return prev;
                 return { ...prev, progress: next };
             });
-        }, 1000);
+        }, 500);
         return () => clearInterval(id);
-    }, [player?.playing, player?.track?.songUrl]);
+    }, [player?.playing, player?.track?.songUrl, player?._anchor?.at]);
 
     /* ---- actions ---- */
 
@@ -314,7 +341,16 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
        re-pick if the current selection disappears (without yanking the view) ---- */
 
     useEffect(() => {
-        if (!sessions.length) return;
+        if (!sessions.length) {
+            // Nothing controllable anymore (e.g. the only bot went offline):
+            // clear the stale selection so the UI shows its empty state.
+            if (selectedRef.current) {
+                setSelected(null);
+                setPlayer(null);
+                setQueue({ tracks: [], position: 0 });
+            }
+            return;
+        }
         const k = (s) => `${s.botId || s.botName}:${s.guildId}`;
         const cur = selectedRef.current;
         if (!cur || !sessions.some((s) => k(s) === k(cur))) {
@@ -357,17 +393,28 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         }
     }, [send, notify]);
 
-    // Existing-track operations (queue items are addressed by track_id).
-    const jump = useCallback((trackId) => control("jump", { trackId }), [control]);
+    // Existing-track operations. Components address entries by track_id (the
+    // queue index), but the wire carries the entry's stable database id too:
+    // the bot resolves it to the entry's CURRENT position at execution time,
+    // so a stale index can never hit the wrong track mid-reorder.
+    const queueRef = useRef(queue);
+    queueRef.current = queue;
+
+    const addressEntry = useCallback((trackId) => {
+        const entry = (queueRef.current?.tracks || []).find((t) => t.track_id === trackId);
+        return entry?.entry_id ? { trackId, entryId: entry.entry_id } : { trackId };
+    }, []);
+
+    const jump = useCallback((trackId) => control("jump", addressEntry(trackId)), [control, addressEntry]);
     // Play now: bot moves the entry to right after the current track, then jumps.
-    const playNow = useCallback((trackId) => control("playNow", { trackId }), [control]);
+    const playNow = useCallback((trackId) => control("playNow", addressEntry(trackId)), [control, addressEntry]);
     // Play next: bot moves the entry to right after the current track.
-    const playNextTrack = useCallback((trackId) => control("playNext", { trackId }), [control]);
+    const playNextTrack = useCallback((trackId) => control("playNext", addressEntry(trackId)), [control, addressEntry]);
     // Move to last: bot moves the entry to the end of the queue.
-    const moveToLast = useCallback((trackId) => control("moveToLast", { trackId }), [control]);
+    const moveToLast = useCallback((trackId) => control("moveToLast", addressEntry(trackId)), [control, addressEntry]);
     // Drag-reorder: move the entry at `trackId` (its current index) to `toIndex`.
-    const moveTrack = useCallback((trackId, toIndex) => control("move", { trackId, toIndex }), [control]);
-    const removeTrack = useCallback((trackId) => control("remove", { trackId }), [control]);
+    const moveTrack = useCallback((trackId, toIndex) => control("move", { ...addressEntry(trackId), toIndex }), [control, addressEntry]);
+    const removeTrack = useCallback((trackId) => control("remove", addressEntry(trackId)), [control, addressEntry]);
 
     // The actual fetch. `initiatedRef` guards against running the same query
     // twice when both a click and the URL-sync effect fire.

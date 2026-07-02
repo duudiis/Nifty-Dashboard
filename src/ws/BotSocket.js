@@ -3,7 +3,9 @@ import {
     unregisterBot,
     setGuildOwner,
     emitToGuild,
-    emitToUser
+    emitToUser,
+    broadcastToUsers,
+    requestSessionsFromBot
 } from "./registry.js";
 
 /**
@@ -28,6 +30,9 @@ export default class BotSocket {
 
         registerBot(this);
         this.socket.on("close", () => this.onClose());
+
+        // Browsers already connected should learn about this bot right away.
+        requestSessionsFromBot(this);
     }
 
     send(operation, data = {}) {
@@ -89,5 +94,7 @@ export default class BotSocket {
 
     onClose() {
         unregisterBot(this);
+        // Its sessions are gone — tell every browser so none keep ghosts.
+        broadcastToUsers("bot_disconnected", { botId: this.botId, botName: this.botName });
     }
 }

@@ -55,7 +55,7 @@ function trackRow(row) {
 export async function getPlayerState(botId, guildId) {
 
     const { rows } = await db.query(
-        `SELECT p.playing, p.track_loaded, p.queue_position, p.loop_mode, p.shuffle, p.volume,
+        `SELECT p.playing, p.track_loaded, p.queue_position, p.loop_mode, p.shuffle, p.volume, p.speed,
                 p.position_ms,
                 (EXTRACT(EPOCH FROM (now() - p.position_at)) * 1000)::bigint AS elapsed_ms,
                 t.title, t.artist, t.artwork_url, t.url, t.duration_ms,
@@ -72,9 +72,10 @@ export async function getPlayerState(botId, guildId) {
     const row = rows[0];
     if (!row || !row.track_loaded || !row.title) return null;
 
+    const speed = Number(row.speed) || 1;
     const duration = row.duration_ms != null ? Number(row.duration_ms) : 0;
     let progress = Number(row.position_ms);
-    if (row.playing) progress += Number(row.elapsed_ms);
+    if (row.playing) progress += Number(row.elapsed_ms) * speed;
     if (duration > 0) progress = Math.min(progress, duration);
 
     return {
@@ -83,6 +84,7 @@ export async function getPlayerState(botId, guildId) {
         shuffle: row.shuffle === "enabled",
         loop: row.loop_mode,
         volume: row.volume,
+        speed,
         position: row.queue_position,
         track: trackRow(row)
     };
@@ -98,7 +100,7 @@ export async function getQueue(botId, guildId) {
 
     const [{ rows }, { rows: playerRows }] = await Promise.all([
         db.query(
-            `SELECT qt.position, qt.queued_by,
+            `SELECT qt.id, qt.position, qt.queued_by,
                     t.title, t.artist, t.artwork_url, t.url, t.duration_ms,
                     u.display_name AS added_by, u.avatar_url AS added_by_avatar
              FROM queue_tracks qt
@@ -116,7 +118,7 @@ export async function getQueue(botId, guildId) {
 
     return {
         position: playerRows[0]?.queue_position ?? 0,
-        tracks: rows.map((row) => ({ track_id: row.position, ...trackRow(row) }))
+        tracks: rows.map((row) => ({ track_id: row.position, entry_id: String(row.id), ...trackRow(row) }))
     };
 
 }

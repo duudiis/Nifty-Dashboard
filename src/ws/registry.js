@@ -67,6 +67,24 @@ export function broadcastToBots(operation, data) {
     for (const bot of bots) bot.send(operation, data);
 }
 
+export function broadcastToUsers(operation, data) {
+    for (const user of users) user.send(operation, data);
+}
+
+/**
+ * Ask one (freshly connected) bot for the sessions of every browser that is
+ * already here, so new bots appear in Connect lists without a manual refresh.
+ */
+export function requestSessionsFromBot(bot) {
+    const seen = new Set();
+    for (const user of users) {
+        const uid = user.user?.id;
+        if (!uid || seen.has(uid)) continue;
+        seen.add(uid);
+        bot.send("sessions_request", { userId: String(uid) });
+    }
+}
+
 /**
  * Route a control action to one bot: by botId when the client sent one,
  * falling back to the guild's last-known owner, then to broadcast (bots that

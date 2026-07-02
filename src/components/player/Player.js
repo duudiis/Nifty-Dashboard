@@ -282,7 +282,7 @@ function Prompt({ mode }) {
 /* ---- player bar ---- */
 
 export default function Player() {
-    const { player, queue, selected, sessions, control } = useNifty();
+    const { player, queue, selected, sessions, control, jump } = useNifty();
     const track = player?.track || null;
     const tracks = queue.tracks || [];
     const hasQueue = tracks.length > 0;
@@ -303,7 +303,7 @@ export default function Player() {
     const songTrack = track ? { ...queued, ...track } : mode === "ended" ? tracks[0] : null;
     const ended = mode === "ended";
     const onPlayPause = ended
-        ? () => control("jump", { trackId: tracks[0]?.track_id ?? 0 })
+        ? () => jump(tracks[0]?.track_id ?? 0)
         : () => control("togglePause");
 
     // Brief skeleton when the queue stops, in case the bot is still settling.
