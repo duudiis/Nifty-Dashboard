@@ -25,4 +25,22 @@ export default class InnerTubeBrowse {
 
         return res.json();
     }
+
+    // Follows a shelf continuation — playlists deliver tracks in pages of 100.
+    async continuation(token) {
+        const t = encodeURIComponent(token);
+        const res = await fetch(
+            `https://www.youtube.com/youtubei/v1/browse?key=${KEY}&ctoken=${t}&continuation=${t}&type=next`,
+            {
+                method: "POST",
+                headers: {
+                    Referer: "music.youtube.com",
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ context: CONTEXT, continuation: token })
+            }
+        );
+
+        return res.json();
+    }
 }

@@ -7,8 +7,7 @@ export const THEMES = ["nifty", "spotify", "amethyst", "crimson", "light"];
 
 const DEFAULT_SETTINGS = {
     theme: "nifty",
-    rightPanel: "queue",    // "queue" | "nowplaying"
-    searchSource: "auto"    // "auto" | "deezer" | "youtube"
+    rightPanel: "queue"     // "queue" | "nowplaying"
 };
 
 function loadSettings() {
@@ -332,26 +331,19 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     // The actual fetch. `initiatedRef` guards against running the same query
     // twice when both a click and the URL-sync effect fire.
     const initiatedRef = useRef("");
-    const searchSourceRef = useRef(DEFAULT_SETTINGS.searchSource);
-    searchSourceRef.current = settings.searchSource;
     const doSearch = useCallback(async (query) => {
         const q = query.trim();
         if (!q) return;
         initiatedRef.current = q;
         setSearch({ query: q, sections: [], loading: true });
         try {
-            const res = await fetch(`/api/search?query=${encodeURIComponent(q)}&source=${encodeURIComponent(searchSourceRef.current)}`);
+            const res = await fetch(`/api/search?query=${encodeURIComponent(q)}`);
             const json = await res.json();
             setSearch({ query: q, sections: json.sections || [], loading: false });
         } catch {
             setSearch({ query: q, sections: [], loading: false });
         }
     }, []);
-
-    // Switching the search mode re-runs the active search in the new mode.
-    useEffect(() => {
-        if (view === "search" && initiatedRef.current) doSearch(initiatedRef.current);
-    }, [settings.searchSource]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Navigate to the search page (real URL with ?q=…) and run the search.
     const runSearch = useCallback((query) => {

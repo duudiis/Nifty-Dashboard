@@ -64,10 +64,10 @@ async function search(query) {
     const push = (kind, title, items) => { if (items.length) sections.push({ kind, title, items }); };
 
     push("song", "Songs", [...songs, ...extras]);
-    push("video", "Videos", itemsOf(yt, "video"));
     push("album", "Albums", itemsOf(dz, "album"));
     push("artist", "Artists", itemsOf(dz, "artist"));
     push("playlist", "Playlists", [...itemsOf(dz, "playlist"), ...itemsOf(yt, "playlist")]);
+    push("video", "Videos", itemsOf(yt, "video"));
 
     return { sections };
 }

@@ -4,22 +4,19 @@ import { useRouter } from "next/router";
 import Logo from "../Logo.js";
 import Icon from "../Icon.js";
 import Account from "./Account.js";
+import SearchSuggest from "../search/SearchSuggest.js";
 import { motion, EASE } from "../motion/index.js";
 import { useNifty } from "../../context/NiftyContext.js";
 
-// Search modes, cycled by the chip inside the search pill. "auto" blends
-// Deezer music with YouTube videos/playlists; the others use one source only.
-const SEARCH_MODES = [
-    { id: "auto", label: "Auto", hint: "Deezer music + YouTube videos" },
-    { id: "deezer", label: "Deezer", hint: "Deezer only" },
-    { id: "youtube", label: "YouTube", hint: "YouTube Music only" }
-];
-
 export default function TopBar() {
-    const { runSearch, setView, updateAvailable, reloadApp, settings, updateSettings } = useNifty();
+    const { runSearch, setView, updateAvailable, reloadApp } = useNifty();
     const router = useRouter();
     const [query, setQuery] = useState(() => (router.query.q ? String(router.query.q) : ""));
+    // What the dropdown is searching for (debounced behind the input value).
+    const [suggestQuery, setSuggestQuery] = useState("");
+    const [suggestOpen, setSuggestOpen] = useState(false);
     const inputRef = useRef(null);
+    const boxRef = useRef(null);
     const debounceRef = useRef(null);
 
     // Keep the box in sync with the URL on navigation (back/forward, leaving the
@@ -32,25 +29,40 @@ export default function TopBar() {
 
     useEffect(() => () => clearTimeout(debounceRef.current), []);
 
-    // Auto-search as the user types (debounced), no Enter needed.
+    // Typing feeds the suggestion dropdown (debounced). The full search page
+    // only opens on Enter.
     const onChange = (e) => {
         const value = e.target.value;
         setQuery(value);
         clearTimeout(debounceRef.current);
         const q = value.trim();
-        if (q) debounceRef.current = setTimeout(() => runSearch(q), 350);
+        if (!q) {
+            setSuggestOpen(false);
+            setSuggestQuery("");
+            return;
+        }
+        setSuggestOpen(true);
+        debounceRef.current = setTimeout(() => setSuggestQuery(q), 300);
     };
+
+    const closeSuggest = () => setSuggestOpen(false);
 
     const submit = (e) => {
         e.preventDefault();
+        clearTimeout(debounceRef.current);
+        closeSuggest();
         if (query.trim()) runSearch(query.trim());
     };
 
-    const mode = SEARCH_MODES.find((m) => m.id === settings.searchSource) || SEARCH_MODES[0];
-    const cycleMode = () => {
-        const next = SEARCH_MODES[(SEARCH_MODES.indexOf(mode) + 1) % SEARCH_MODES.length];
-        updateSettings({ searchSource: next.id });
-    };
+    // A click anywhere outside the search box dismisses the dropdown.
+    useEffect(() => {
+        if (!suggestOpen) return;
+        const onDown = (e) => {
+            if (!boxRef.current?.contains(e.target)) closeSuggest();
+        };
+        document.addEventListener("mousedown", onDown);
+        return () => document.removeEventListener("mousedown", onDown);
+    }, [suggestOpen]);
 
     return (
         <header className="flex h-16 shrink-0 items-center gap-4 bg-topbar px-4">
@@ -67,7 +79,7 @@ export default function TopBar() {
             </div>
 
             {/* Search (always centred) */}
-            <form onSubmit={submit} className="w-full max-w-md shrink">
+            <form ref={boxRef} onSubmit={submit} className="relative w-full max-w-md shrink">
                 <div className="flex w-full items-center gap-2 rounded-full bg-white/10 px-4 py-2 ring-white/0 transition focus-within:bg-white/15 focus-within:ring-2 focus-within:ring-white/20">
                     <Icon name="search" className="h-5 w-5 shrink-0 text-white/60" />
                     <input
@@ -75,18 +87,13 @@ export default function TopBar() {
                         ref={inputRef}
                         value={query}
                         onChange={onChange}
+                        onFocus={() => query.trim().length >= 2 && setSuggestOpen(true)}
+                        onKeyDown={(e) => e.key === "Escape" && closeSuggest()}
                         placeholder="What do you want to play?"
                         className="w-full bg-transparent text-sm text-white placeholder-white/50 outline-none"
                     />
-                    <button
-                        type="button"
-                        onClick={cycleMode}
-                        title={`Search mode: ${mode.label} — ${mode.hint}. Click to switch.`}
-                        className="shrink-0 rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-bold text-white/60 transition hover:bg-white/20 hover:text-white"
-                    >
-                        {mode.label}
-                    </button>
                 </div>
+                <SearchSuggest query={suggestQuery} open={suggestOpen} onClose={closeSuggest} />
             </form>
 
             {/* Update prompt + account (right third) */}

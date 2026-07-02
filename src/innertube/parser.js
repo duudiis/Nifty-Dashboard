@@ -4,10 +4,14 @@
 const SEPARATORS = new Set([" • ", " & ", ", ", "•", "&", " · "]);
 const isDuration = (t) => /^\d{1,2}:\d{2}(:\d{2})?$/.test((t || "").trim());
 
+// Long playlists page their tracks in chunks of 100; how many continuation
+// pages to follow at most (19 → up to 2 000 tracks).
+const MAX_CONTINUATIONS = 19;
+
 export default class InnerTubeParser {
 
-    constructor(browse) {
-        this.browse = browse;
+    constructor(client) {
+        this.client = client; // InnerTubeBrowse: { browse(id), continuation(token) }
     }
 
     /* ----------------------------------------------------------------- search */
@@ -136,7 +140,7 @@ export default class InnerTubeParser {
         return this.parseCollection(json, browseId.startsWith("MPREb") ? "album" : "playlist", browseId);
     }
 
-    parseCollection(json, type, browseId) {
+    async parseCollection(json, type, browseId) {
         const mf = this.microformat(json);
         const header = this.findHeader(json);
 
@@ -152,9 +156,32 @@ export default class InnerTubeParser {
             sl.find((s) => s.musicShelfRenderer)?.musicShelfRenderer ||
             sl.find((s) => s.musicPlaylistShelfRenderer)?.musicPlaylistShelfRenderer;
 
+        const rowOpts = { fallbackArtwork: artwork, fallbackArtist: albumArtist };
         const tracks = (shelf?.contents || [])
-            .map((r) => this.parseTrackRow(r?.musicResponsiveListItemRenderer, { fallbackArtwork: artwork, fallbackArtist: albumArtist }))
+            .map((r) => this.parseTrackRow(r?.musicResponsiveListItemRenderer, rowOpts))
             .filter(Boolean);
+
+        // Playlists longer than 100 tracks arrive paged — follow the
+        // continuation chain (bounded) so the page shows the whole list.
+        let token = this.continuationToken(shelf);
+        for (let page = 0; token && page < MAX_CONTINUATIONS; page++) {
+            const next = await this.client.continuation(token).catch(() => null);
+            // Two response shapes: classic continuationContents, or the newer
+            // appendContinuationItemsAction row list.
+            const cont =
+                next?.continuationContents?.musicPlaylistShelfContinuation ||
+                next?.continuationContents?.musicShelfContinuation;
+            const rows =
+                cont?.contents ||
+                next?.onResponseReceivedActions?.[0]?.appendContinuationItemsAction?.continuationItems ||
+                [];
+            if (!rows.length) break;
+            for (const r of rows) {
+                const t = this.parseTrackRow(r?.musicResponsiveListItemRenderer, rowOpts);
+                if (t) tracks.push(t);
+            }
+            token = this.continuationToken(cont || { contents: rows });
+        }
 
         // The whole-collection playlist, so "queue all" loads it in order in one
         // request. Albums expose an audio playlist (OLAK…) via the play button;
@@ -237,6 +264,17 @@ export default class InnerTubeParser {
             url,
             playQuery
         };
+    }
+
+    // Two token shapes: classic shelf-level continuations, or (newer) a
+    // continuationItemRenderer tucked in as the shelf's last row.
+    continuationToken(node) {
+        if (!node) return null;
+        const legacy = node.continuations?.[0]?.nextContinuationData?.continuation;
+        if (legacy) return legacy;
+        const rows = node.contents || [];
+        const last = rows[rows.length - 1]?.continuationItemRenderer;
+        return last?.continuationEndpoint?.continuationCommand?.token || null;
     }
 
     parseTwoRow(tr) {

@@ -25,10 +25,9 @@ const SOURCES = {
     [auto.id]: auto
 };
 
-// The source used for new searches: the requested mode when it's valid (the
-// search bar passes the user's pick per-request), else the configured default.
-export function getActiveSource(requested) {
-    return SOURCES[requested] || SOURCES[SEARCH_SOURCE] || deezer;
+// The source used for new searches.
+export function getActiveSource() {
+    return SOURCES[SEARCH_SOURCE] || deezer;
 }
 
 // Resolve a namespaced browseId to the source that should handle it.

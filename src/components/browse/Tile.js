@@ -4,6 +4,7 @@ import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
+import { useEntityMenu } from "../menu/entityMenu.js";
 import QueueGlyph from "./QueueGlyph.js";
 
 // A grid card for any search item. Songs/videos queue on click (the corner icon
@@ -12,6 +13,7 @@ import QueueGlyph from "./QueueGlyph.js";
 export default function Tile({ item }) {
     const { play, selected, openEntity } = useNifty();
     const trackMenu = useTrackMenu();
+    const entityMenu = useEntityMenu();
     const playable = item.kind === "song" || item.kind === "video";
     const [done, setDone] = useState(false);
 
@@ -27,7 +29,7 @@ export default function Tile({ item }) {
 
     // "Add to queue" in the menu runs the same animated add as a plain click.
     const { onContextMenu, active } = useContextMenu(() =>
-        playable ? trackMenu(item, { source: "search", onAdd: queue }) : []
+        playable ? trackMenu(item, { source: "search", onAdd: queue }) : entityMenu(item)
     );
     const onClick = () => (playable ? queue() : openEntity(item.kind, item.browseId));
 

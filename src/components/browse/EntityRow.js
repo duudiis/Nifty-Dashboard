@@ -1,16 +1,22 @@
 import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
 import Icon from "../Icon.js";
+import { useContextMenu } from "../menu/ContextMenu.js";
+import { useEntityMenu } from "../menu/entityMenu.js";
 
-// List-mode row for an album/artist/playlist. Opens its page on click.
+// List-mode row for an album/artist/playlist. Opens its page on click;
+// right-click plays/queues the whole thing.
 export default function EntityRow({ item }) {
     const { openEntity } = useNifty();
+    const entityMenu = useEntityMenu();
+    const { onContextMenu, active } = useContextMenu(() => entityMenu(item));
     const round = item.kind === "artist";
 
     return (
         <button
             onClick={() => openEntity(item.kind, item.browseId)}
-            className="group flex w-full items-center gap-3 rounded-md p-2 text-left transition hover:bg-elevated"
+            onContextMenu={onContextMenu}
+            className={`group flex w-full items-center gap-3 rounded-md p-2 text-left transition hover:bg-elevated ${active ? "bg-elevated" : ""}`}
         >
             <img
                 src={artworkOrFallback(item.artwork)}

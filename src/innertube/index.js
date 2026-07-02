@@ -4,7 +4,7 @@ import InnerTubeSearch from "./search.js";
 
 // Lightweight YouTube Music search client, shared as a singleton.
 const browseClient = new InnerTubeBrowse();
-const parser = new InnerTubeParser((id) => browseClient.browse(id));
+const parser = new InnerTubeParser(browseClient);
 const searchClient = new InnerTubeSearch(parser);
 
 export default class InnerTube {
