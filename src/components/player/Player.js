@@ -125,12 +125,13 @@ function SongSkeleton() {
 
 // Hoisted so it isn't a fresh component type each render (which would remount
 // the buttons every progress tick and replay their hover transitions).
-function Toggle({ icon, on, onClick, title }) {
+function Toggle({ icon, on, onClick, title, disabled }) {
     return (
         <button
             onClick={onClick}
             title={title}
-            className={`relative flex items-center justify-center transition ${on ? "text-accent" : "text-subtext hover:text-maintext"}`}
+            disabled={disabled}
+            className={`relative flex items-center justify-center transition disabled:cursor-not-allowed disabled:opacity-40 ${on ? "text-accent" : "text-subtext hover:text-maintext"}`}
         >
             <Icon name={icon} className="h-[18px] w-[18px]" />
             {on && <ActiveDot />}
@@ -143,16 +144,20 @@ function PanelToggles() {
     const rightPanel = settings.rightPanel;
     // Toggling a panel that's already open returns to the default (now playing).
     const togglePanel = (p) => updateSettings({ rightPanel: rightPanel === p ? "nowplaying" : p });
-    // Watch is only offered when the playing track is a YouTube video — but it
-    // stays while the view is open, so it can always be toggled back off.
-    const watchable = !!getYouTubeVideoId(player?.track?.songUrl) || view === "watch";
+    // Watch only works for YouTube tracks; the toggle stays put regardless and
+    // just disables — unless the view is already open, so it can be closed.
+    const watchable = !!getYouTubeVideoId(player?.track?.songUrl);
 
     return (
         <div className="flex items-center gap-4">
             <Toggle icon="lyrics" title="Lyrics" on={view === "lyrics"} onClick={() => (view === "lyrics" ? closeOverlay() : setView("lyrics"))} />
-            {watchable && (
-                <Toggle icon="video" title="Watch" on={view === "watch"} onClick={() => (view === "watch" ? closeOverlay() : setView("watch"))} />
-            )}
+            <Toggle
+                icon="video"
+                title={watchable || view === "watch" ? "Watch" : "Watch — YouTube tracks only"}
+                on={view === "watch"}
+                disabled={!watchable && view !== "watch"}
+                onClick={() => (view === "watch" ? closeOverlay() : setView("watch"))}
+            />
             <Toggle icon="queue" title="Queue" on={rightPanel === "queue"} onClick={() => togglePanel("queue")} />
             <Toggle icon="connect" title="Connect to a server" on={rightPanel === "connect"} onClick={() => togglePanel("connect")} />
         </div>

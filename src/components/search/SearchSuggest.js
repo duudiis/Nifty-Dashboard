@@ -54,7 +54,7 @@ function SkeletonRows() {
     ));
 }
 
-function Row({ item, onClose }) {
+function Row({ item, onPick }) {
     const { play, selected, openEntity } = useNifty();
     const trackMenu = useTrackMenu();
     const entityMenu = useEntityMenu();
@@ -64,6 +64,7 @@ function Row({ item, onClose }) {
     );
 
     // Tracks queue straight from the dropdown; entities open their page.
+    // Either way the pick closes the dropdown and clears the search box.
     const onClick = () => {
         if (isTrack) {
             if (!selected) return;
@@ -71,7 +72,7 @@ function Row({ item, onClose }) {
         } else {
             openEntity(item.kind, item.browseId);
         }
-        onClose();
+        onPick();
     };
 
     const round = item.kind === "artist";
@@ -105,7 +106,7 @@ function Row({ item, onClose }) {
     );
 }
 
-export default function SearchSuggest({ query, open, onClose }) {
+export default function SearchSuggest({ query, open, onClose, onPick }) {
     const q = query.trim();
     const [state, setState] = useState({ items: [], loading: false });
     const seqRef = useRef(0);
@@ -192,7 +193,7 @@ export default function SearchSuggest({ query, open, onClose }) {
                                                 animate={{ opacity: 1, y: 0 }}
                                                 transition={{ duration: 0.18, ease: EASE, delay: i * 0.03 }}
                                             >
-                                                <Row item={item} onClose={onClose} />
+                                                <Row item={item} onPick={onPick} />
                                             </motion.div>
                                         ))}
                                         <div className="px-3 pb-1 pt-1.5 text-[10px] text-subtext/70">

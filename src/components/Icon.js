@@ -179,11 +179,13 @@ const ICONS = {
         )
     },
     video: {
-        // screen with a play triangle — the Watch (synced video) view
+        // screen with a play triangle — the Watch (synced video) view.
+        // Sits a touch above true centre so its shorter glyph reads level
+        // with the fuller icons beside it in the player bar.
         body: (
             <>
-                <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
-                <polygon points="10.2 9 15 12 10.2 15" fill="currentColor" />
+                <rect x="2.5" y="4" width="19" height="14" rx="2.5" />
+                <polygon points="10.2 8 15 11 10.2 14" fill="currentColor" />
             </>
         )
     },

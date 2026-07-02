@@ -33,6 +33,12 @@ export default function TopBar() {
     };
 
     const closeSuggest = () => setSuggestOpen(false);
+    // Picking a suggestion (queue a track / open a page) also clears the box;
+    // plain dismissals (Escape, outside click) keep the typed text.
+    const pickSuggest = () => {
+        setSuggestOpen(false);
+        setQuery("");
+    };
 
     const submit = (e) => {
         e.preventDefault();
@@ -79,7 +85,7 @@ export default function TopBar() {
                         className="w-full bg-transparent text-sm text-white placeholder-white/50 outline-none"
                     />
                 </div>
-                <SearchSuggest query={query} open={suggestOpen} onClose={closeSuggest} />
+                <SearchSuggest query={query} open={suggestOpen} onClose={closeSuggest} onPick={pickSuggest} />
             </form>
 
             {/* Update prompt + account (right third) */}
