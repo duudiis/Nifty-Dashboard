@@ -21,6 +21,8 @@ const KIND_LABEL = { song: "Song", video: "Video", album: "Album", artist: "Arti
 const MIN_SCORE = 0.35;
 const MAX_ROWS = 8;
 const DEBOUNCE_MS = 300;
+const VIDEO_SLOTS = 2;       // rows reserved for well-matching videos
+const VIDEO_MIN_SCORE = 0.5; // the "matches well" bar for those slots
 
 function scoreItem(query, item) {
     const title = closeness(query, item.title);
@@ -29,16 +31,55 @@ function scoreItem(query, item) {
     return Math.max(title, artist * 0.9, combo * 0.95);
 }
 
+// The same song shows up once per release on Deezer (album, single,
+// compilation…) — one suggestion row per title+artist+kind is plenty.
+const dedupeKey = (item) =>
+    `${item.kind}|${(item.title || "").toLowerCase().trim()}|${(item.artist || item.subtitle || "").toLowerCase().trim()}`;
+
 function rank(query, sections) {
     const scored = [];
+    const seen = new Set();
     for (const section of sections) {
         for (const item of section.items) {
             const score = scoreItem(query, item);
-            if (score >= MIN_SCORE) scored.push({ item, score });
+            if (score < MIN_SCORE) continue;
+            const key = dedupeKey(item);
+            if (seen.has(key)) continue;
+            seen.add(key);
+            scored.push({ item, score });
         }
     }
     scored.sort((a, b) => b.score - a.score); // stable: ties keep section order
-    return scored.slice(0, MAX_ROWS).map((s) => s.item);
+
+    const top = scored.slice(0, MAX_ROWS);
+
+    // Songs of a popular query score a hair above their music videos, which
+    // would sweep every video out of the list — so reserve a couple of rows
+    // for videos that still match well ("the official video of X" should
+    // always be within reach).
+    const isVideo = (e) => e.item.kind === "video";
+    const missing = VIDEO_SLOTS - top.filter(isVideo).length;
+    if (missing > 0) {
+        const extras = scored
+            .slice(MAX_ROWS)
+            .filter((e) => isVideo(e) && e.score >= VIDEO_MIN_SCORE)
+            .slice(0, missing);
+        for (const extra of extras) {
+            if (top.length >= MAX_ROWS) {
+                // Swap out the lowest-ranked non-video row.
+                for (let i = top.length - 1; i >= 0; i--) {
+                    if (!isVideo(top[i])) {
+                        top.splice(i, 1);
+                        break;
+                    }
+                }
+            }
+            top.push(extra);
+        }
+        top.sort((a, b) => b.score - a.score);
+    }
+
+    return top.map((e) => e.item);
 }
 
 // Placeholder rows mirroring the real row layout (artwork + two text lines).
