@@ -4,20 +4,25 @@ import { useNifty } from "../../context/NiftyContext.js";
 import { getYouTubeVideoId, loadYouTubeIframeAPI } from "../../lib/youtube.js";
 import { AnimatePresence, motion, EASE } from "../motion/index.js";
 
-// The bot stays the single source of truth: the embed mirrors the player state
-// it already pushes (play/pause/seek/track changes plus the 1s progress
-// updates) — no timers of our own. The expected position is interpolated on
-// the wall clock between pushes, so corrections work from the real "now", not
-// a progress value that may be up to a second stale.
+// Sync is two-way. The bot remains the shared source of truth — its pushes
+// (play/pause/seek/track changes plus the 1s progress updates) drive the
+// embed, with positions interpolated on the wall clock between pushes. But
+// the embed's own controls talk back: pausing, playing or seeking with the
+// YouTube UI forwards that action to the bot instead of being snapped back.
 //
-// Corrections come in two strengths. Small drift (buffering after a load put
-// the video a second or two behind) is caught up smoothly by nudging the
-// playback rate — no visible seek, no rebuffer. Large drift gets a hard seek.
+// Corrections (bot → embed) come in two strengths. Small drift (buffering
+// after a load) is caught up smoothly by nudging the playback rate — no
+// visible seek, no rebuffer. Large drift gets a hard seek. To tell a user's
+// seek apart from our own corrections, every programmatic seek/load is
+// timestamped and the embed's clock is watched for jumps we didn't cause.
 const DRIFT_SOFT_MS = 450;  // start rate-nudging beyond this…
 const DRIFT_LOCK_MS = 150;  // …and return to 1x once back within this
 const DRIFT_HARD_MS = 3000; // beyond this, hard-seek instead
 const RATE_UP = 1.25;       // catch-up rate when behind
 const RATE_DOWN = 0.75;     // slow-down rate when ahead
+const USER_SEEK_MS = 2000;       // embed-clock jump that reads as a user seek
+const SELF_SEEK_GRACE_MS = 3000; // our own seeks/loads settle within this
+const SELF_CMD_GRACE_MS = 1500;  // our own play/pause commands settle within this
 
 // YT.PlayerState values (the enum object isn't available until the API loads).
 const YT_ENDED = 0;
@@ -27,7 +32,7 @@ const YT_BUFFERING = 3;
 const YT_CUED = 5;
 
 export default function WatchView() {
-    const { player, selected } = useNifty();
+    const { player, selected, control } = useNifty();
     const track = player?.track || null;
     const videoId = getYouTubeVideoId(track?.songUrl);
     const playing = !!player?.playing;
@@ -44,6 +49,13 @@ export default function WatchView() {
     // out once — when the video actually plays, or the cued poster is the
     // steady state.
     const [revealed, setRevealed] = useState(false);
+    // Timestamps of our own commands, so their effects aren't mistaken for
+    // user interaction with the embed.
+    const selfSeekRef = useRef(0); // last programmatic seek / load / cue
+    const selfCmdRef = useRef(0);  // last programmatic play / pause
+    // The embed's own clock as last observed — a jump we didn't cause means
+    // the user seeked with the YouTube UI.
+    const videoClockRef = useRef({ v: 0, t: 0, rate: 1, playing: false });
 
     // Latest playback state for the async player callbacks.
     const liveRef = useRef({ videoId, playing, progress });
@@ -57,21 +69,45 @@ export default function WatchView() {
     }, [progress, playing]);
 
     // One correction pass: compare the embed to the interpolated bot position
-    // and nudge / seek as needed. Reads refs only, so it's safe to call from
-    // the player's own event callbacks.
+    // and nudge / seek as needed — or, if the embed's clock jumped on its own,
+    // forward that user seek to the bot. Reads refs only, so it's safe to call
+    // from the player's own event callbacks.
     const syncNow = useCallback(() => {
         const yt = ytRef.current;
         if (!yt || !readyRef.current) return;
         const state = yt.getPlayerState?.();
         const clock = clockRef.current;
-        const expected = clock.playing ? clock.p + (performance.now() - clock.t) : clock.p;
-        const drift = (yt.getCurrentTime?.() || 0) * 1000 - expected; // >0 = embed ahead
+        const now = performance.now();
+        const expected = clock.playing ? clock.p + (now - clock.t) : clock.p;
+        const actual = (yt.getCurrentTime?.() || 0) * 1000;
+        const drift = actual - expected; // >0 = embed ahead
         const abs = Math.abs(drift);
+
+        // A discontinuity in the embed's own clock that we didn't cause is the
+        // user dragging the YouTube seek bar — follow them on the bot instead
+        // of snapping the video back.
+        const vc = videoClockRef.current;
+        const predicted = vc.playing ? vc.v + (now - vc.t) * vc.rate : vc.v;
+        const jumped = vc.t > 0 && Math.abs(actual - predicted) > USER_SEEK_MS;
+        videoClockRef.current = { v: actual, t: now, rate: rateRef.current, playing: state === YT_PLAYING };
+        if (
+            jumped &&
+            now - selfSeekRef.current > SELF_SEEK_GRACE_MS &&
+            state !== YT_CUED &&
+            state !== YT_ENDED &&
+            abs > DRIFT_SOFT_MS
+        ) {
+            control("seek", { position: Math.round(actual) });
+            // Optimistic local clock, until the bot's push confirms it.
+            clockRef.current = { ...clock, p: actual, t: now };
+            return;
+        }
 
         if (state === YT_CUED) {
             // Paused before first play: keep the cue point near the bot position
             // (seeking a cued video would start it, so re-cue instead).
             if (abs > DRIFT_HARD_MS) {
+                selfSeekRef.current = now;
                 yt.cueVideoById({ videoId: liveRef.current.videoId, startSeconds: expected / 1000 });
             }
             return;
@@ -81,12 +117,16 @@ export default function WatchView() {
         if (state !== YT_PLAYING) {
             // Paused: snap the frame if it's clearly off (stays paused). While
             // buffering, leave it alone — it's already heading somewhere.
-            if (state === YT_PAUSED && abs > DRIFT_SOFT_MS) yt.seekTo(expected / 1000, true);
+            if (state === YT_PAUSED && abs > DRIFT_SOFT_MS) {
+                selfSeekRef.current = now;
+                yt.seekTo(expected / 1000, true);
+            }
             return;
         }
 
         let target;
         if (abs >= DRIFT_HARD_MS) {
+            selfSeekRef.current = now;
             yt.seekTo(expected / 1000, true);
             target = 1;
         } else if (rateRef.current === 1) {
@@ -99,7 +139,7 @@ export default function WatchView() {
             rateRef.current = target;
             yt.setPlaybackRate?.(target);
         }
-    }, []);
+    }, [control]);
 
     // Create the player the first time a YouTube track is on screen. It's then
     // reused across track changes (load/cue) and destroyed only on unmount.
@@ -115,13 +155,11 @@ export default function WatchView() {
                 height: "100%",
                 videoId: liveRef.current.videoId,
                 playerVars: {
-                    // Native controls stay available (volume, captions, quality)
-                    // but playback is enforced from the bot's state below, so
-                    // pausing or seeking the embed just snaps back in sync.
+                    // Full native controls, keyboard and fullscreen included —
+                    // pause/play/seek on the embed forwards to the bot (see
+                    // onStateChange / syncNow), so everyone follows along.
                     // Muted by default — the shared audio comes from Discord.
                     mute: 1,
-                    disablekb: 1,
-                    fs: 0,
                     rel: 0,
                     iv_load_policy: 3,
                     playsinline: 1,
@@ -133,13 +171,22 @@ export default function WatchView() {
                         const clock = clockRef.current;
                         const expected = clock.playing ? clock.p + (performance.now() - clock.t) : clock.p;
                         e.target.mute();
+                        // Captions start off (undocumented but long-standing);
+                        // the CC button still turns them on.
+                        try {
+                            e.target.unloadModule("captions");
+                            e.target.unloadModule("cc");
+                        } catch {}
                         if (live.playing) {
+                            selfSeekRef.current = performance.now();
+                            selfCmdRef.current = performance.now();
                             e.target.seekTo(expected / 1000, true);
                             e.target.playVideo();
                         } else {
                             // Re-cue at the bot position — seeking a cued video
                             // would start it playing. The poster is the steady
                             // state while paused, so show it.
+                            selfSeekRef.current = performance.now();
                             e.target.cueVideoById({ videoId: live.videoId, startSeconds: expected / 1000 });
                             setRevealed(true);
                         }
@@ -149,18 +196,29 @@ export default function WatchView() {
                     onError: () => setFailed(true),
                     onStateChange: (e) => {
                         const live = liveRef.current;
+                        const settling = performance.now() - selfCmdRef.current < SELF_CMD_GRACE_MS;
                         if (e.data === YT_PLAYING) {
                             setRevealed(true);
-                            // Either buffering just ended (correct whatever the
-                            // load time cost us) or someone pressed play on the
-                            // embed while the bot is paused (undo it).
-                            if (!live.playing) e.target.pauseVideo();
-                            else syncNow();
-                        } else if (e.data === YT_PAUSED && live.playing) {
-                            // Paused via the embed's own UI — the bot decides.
-                            e.target.playVideo();
+                            if (!live.playing) {
+                                // Play pressed on the embed while the bot is
+                                // paused — resume the bot for everyone. (Unless
+                                // one of our own commands is still settling.)
+                                if (settling) e.target.pauseVideo();
+                                else control("togglePause");
+                            } else {
+                                syncNow(); // buffering ended — settle the drift
+                            }
+                        } else if (e.data === YT_PAUSED) {
+                            if (live.playing && !settling) {
+                                // Paused via the embed — pause the bot too.
+                                control("togglePause");
+                            } else if (!live.playing) {
+                                // Seeks while paused land here; follow a jump.
+                                syncNow();
+                            }
                         } else if (e.data === YT_CUED && live.playing) {
                             // Autoplay didn't take (policy hiccup) — try again.
+                            selfCmdRef.current = performance.now();
                             e.target.playVideo();
                         }
                     }
@@ -188,6 +246,8 @@ export default function WatchView() {
         setFailed(false);
         if (getYouTubeVideoId(yt.getVideoUrl?.()) === videoId) return;
         rateRef.current = 1;
+        selfSeekRef.current = performance.now();
+        selfCmdRef.current = performance.now();
         const target = { videoId, startSeconds: liveRef.current.progress / 1000 };
         if (liveRef.current.playing) yt.loadVideoById(target);
         else yt.cueVideoById(target);
@@ -199,8 +259,12 @@ export default function WatchView() {
         if (!yt || !ready) return;
         const state = yt.getPlayerState?.();
         if (playing) {
-            if (state !== YT_PLAYING) yt.playVideo?.();
+            if (state !== YT_PLAYING) {
+                selfCmdRef.current = performance.now();
+                yt.playVideo?.();
+            }
         } else if (state === YT_PLAYING || state === YT_BUFFERING) {
+            selfCmdRef.current = performance.now();
             yt.pauseVideo?.();
         }
     }, [playing, ready]);

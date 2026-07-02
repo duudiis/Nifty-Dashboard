@@ -111,6 +111,10 @@ export function ContextMenuProvider({ children }) {
                         {menu && (
                             <>
                                 <div
+                                    // Tagged so outside-click handlers (e.g. the
+                                    // search dropdown's) can tell "closing a menu"
+                                    // apart from a genuine outside click.
+                                    data-ctxmenu=""
                                     className="fixed inset-0 z-[90]"
                                     onClick={close}
                                     onContextMenu={(e) => {
@@ -119,6 +123,7 @@ export function ContextMenuProvider({ children }) {
                                     }}
                                 />
                                 <motion.div
+                                    data-ctxmenu=""
                                     className="fixed z-[95] overflow-hidden rounded-lg border border-border bg-elevated p-1 shadow-2xl"
                                     style={{ left: menu.x, top: menu.y, width: MENU_W, transformOrigin: menu.origin }}
                                     initial={{ opacity: 0, scale: 0.95 }}

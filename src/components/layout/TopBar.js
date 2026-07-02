@@ -46,10 +46,13 @@ export default function TopBar() {
         if (query.trim()) runSearch(query.trim());
     };
 
-    // A click anywhere outside the search box dismisses the dropdown.
+    // A click anywhere outside the search box dismisses the dropdown — except
+    // clicks that belong to an open context menu (its backdrop covers the
+    // screen); closing the menu shouldn't take the dropdown with it.
     useEffect(() => {
         if (!suggestOpen) return;
         const onDown = (e) => {
+            if (e.target?.closest?.("[data-ctxmenu]")) return;
             if (!boxRef.current?.contains(e.target)) closeSuggest();
         };
         document.addEventListener("mousedown", onDown);
