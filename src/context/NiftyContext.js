@@ -11,6 +11,59 @@ export const THEME_GROUPS = {
 };
 export const THEMES = [...THEME_GROUPS.dark, ...THEME_GROUPS.light];
 
+// Custom-theme scaffolding: every color the palette exposes, editable in the
+// settings, applied as inline CSS variables when theme === "custom".
+export const CUSTOM_THEME_DEFAULT = {
+    colors: {
+        accent: "#79a5fa",
+        base: "#09090b",
+        surface: "#121214",
+        elevated: "#202024",
+        topbar: "#000000",
+        topbartext: "#ffffff",
+        border: "#27272a",
+        text: "#f5f5f5",
+        subtext: "#a1a1aa"
+    },
+    gradient: { enabled: false, from: "#0b0b10", to: "#1b1035", angle: 135 }
+};
+
+export function normalizeCustomTheme(raw) {
+    return {
+        colors: { ...CUSTOM_THEME_DEFAULT.colors, ...(raw?.colors || {}) },
+        gradient: { ...CUSTOM_THEME_DEFAULT.gradient, ...(raw?.gradient || {}) }
+    };
+}
+
+const hexToTriplet = (hex) => {
+    const m = String(hex || "").match(/^#?([0-9a-f]{6})$/i);
+    if (!m) return null;
+    const n = parseInt(m[1], 16);
+    return `${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255}`;
+};
+
+const isLightHex = (hex) => {
+    const m = String(hex || "").match(/^#?([0-9a-f]{6})$/i);
+    if (!m) return false;
+    const n = parseInt(m[1], 16);
+    const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.5;
+};
+
+const CUSTOM_VAR_MAP = {
+    base: "--c-base",
+    surface: "--c-surface",
+    elevated: "--c-elevated",
+    topbar: "--c-topbar",
+    topbartext: "--c-topbar-text",
+    border: "--c-border",
+    accent: "--c-accent",
+    text: "--c-text",
+    subtext: "--c-subtext"
+};
+
+const CUSTOM_EXTRA_VARS = ["--c-accent-soft", "--c-lyric", "--c-scrim", "--app-gradient"];
+
 const DEFAULT_SETTINGS = {
     theme: "nifty",
     rightPanel: "queue"     // "queue" | "nowplaying"
@@ -354,9 +407,41 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
 
     useEffect(() => {
         if (typeof window === "undefined") return;
-        document.documentElement.dataset.theme = settings.theme;
-        // data-mode lets CSS adapt media backdrops per light/dark family.
-        document.documentElement.dataset.mode = THEME_GROUPS.light.includes(settings.theme) ? "light" : "dark";
+        const root = document.documentElement;
+        root.dataset.theme = settings.theme;
+
+        if (settings.theme === "custom") {
+            // Paint the user's palette straight onto :root — inline variables
+            // beat every [data-theme] rule.
+            const custom = normalizeCustomTheme(settings.customTheme);
+            for (const [key, cssVar] of Object.entries(CUSTOM_VAR_MAP)) {
+                const triplet = hexToTriplet(custom.colors[key]);
+                if (triplet) root.style.setProperty(cssVar, triplet);
+            }
+            root.style.setProperty("--c-accent-soft", hexToTriplet(custom.colors.accent) || "121 165 250");
+
+            // Light/dark family (media backdrops, lyric ink) follows the
+            // chosen background's luminance.
+            const light = isLightHex(custom.colors.base);
+            root.dataset.mode = light ? "light" : "dark";
+            root.style.setProperty("--c-lyric", light ? "28 26 32" : "255 255 255");
+            root.style.setProperty("--c-scrim", light ? "255 255 255" : "0 0 0");
+
+            root.style.setProperty(
+                "--app-gradient",
+                custom.gradient.enabled
+                    ? `linear-gradient(${custom.gradient.angle}deg, ${custom.gradient.from}, ${custom.gradient.to})`
+                    : "none"
+            );
+        } else {
+            // Solid theme: clear every inline override so the stylesheet rules.
+            for (const cssVar of [...Object.values(CUSTOM_VAR_MAP), ...CUSTOM_EXTRA_VARS]) {
+                root.style.removeProperty(cssVar);
+            }
+            // data-mode lets CSS adapt media backdrops per light/dark family.
+            root.dataset.mode = THEME_GROUPS.light.includes(settings.theme) ? "light" : "dark";
+        }
+
         try { localStorage.setItem("nifty:settings", JSON.stringify(settings)); } catch {}
     }, [settings]);
 

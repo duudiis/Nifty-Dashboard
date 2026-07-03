@@ -75,7 +75,7 @@ export default function Dashboard({ user, inviteUrl }) {
 
                 {/* The frame is the navbar colour, so the top bar and the gaps
                     between the floating surface boxes read as one continuous shell. */}
-                <div className="flex h-screen flex-col bg-topbar text-maintext">
+                <div className="app-frame flex h-screen flex-col bg-topbar text-maintext">
                     <TopBar />
 
                     <div className="flex min-h-0 flex-1 flex-col gap-2 p-2 pt-0">

@@ -26,7 +26,7 @@ export default function ArtBackdrop() {
                     <div className="lyric-blob-c backdrop-art absolute inset-0 bg-cover bg-center opacity-30 blur-3xl saturate-150" style={{ backgroundImage: `url(${art})` }} />
                 </motion.div>
             </AnimatePresence>
-            <div className="absolute inset-0 bg-scrim/55 backdrop-blur-2xl" />
+            <div className="art-scrim absolute inset-0 backdrop-blur-2xl" />
         </div>
     );
 }

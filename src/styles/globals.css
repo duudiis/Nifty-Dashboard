@@ -426,6 +426,24 @@
 /* Light themes lighten every artwork used as a background wash so dark
    covers don't turn the page murky. data-mode is set alongside data-theme. */
 [data-mode="light"] .backdrop-art {
-    opacity: 0.3;
-    filter: blur(64px) saturate(1.1) brightness(1.55);
+    opacity: 0.22;
+    filter: blur(64px) saturate(1.05) brightness(1.75);
+}
+
+/* Scrim over the lyrics/watch art blobs: near-black in dark themes, properly
+   white (not grey) in light ones. */
+.art-scrim {
+    background-color: rgb(0 0 0 / 0.55);
+}
+
+[data-mode="light"] .art-scrim {
+    background-color: rgb(255 255 255 / 0.82);
+}
+
+/* Custom-theme background gradient, painted on the app frame behind all the
+   cards. --app-gradient is set inline by the theme engine; solid themes
+   leave it unset. */
+.app-frame {
+    background-image: var(--app-gradient, none);
+    background-attachment: fixed;
 }

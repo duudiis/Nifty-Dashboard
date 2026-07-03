@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from "react";
 
-import { useNifty, THEME_GROUPS } from "../../context/NiftyContext.js";
+import { useNifty, THEME_GROUPS, normalizeCustomTheme } from "../../context/NiftyContext.js";
 import Icon from "../Icon.js";
 import { AnimatePresence, motion, EASE } from "../motion/index.js";
 
@@ -93,6 +93,130 @@ function ThemeSwatch({ theme, active, onPick }) {
     );
 }
 
+const COLOR_FIELDS = [
+    { key: "accent", label: "Accent" },
+    { key: "base", label: "Background" },
+    { key: "surface", label: "Cards" },
+    { key: "elevated", label: "Raised" },
+    { key: "topbar", label: "Frame" },
+    { key: "topbartext", label: "Frame text" },
+    { key: "border", label: "Borders" },
+    { key: "text", label: "Text" },
+    { key: "subtext", label: "Muted text" }
+];
+
+function ColorField({ label, value, onChange }) {
+    return (
+        <label className="flex cursor-pointer items-center gap-2.5 rounded-lg bg-elevated/60 px-3 py-2 transition-colors hover:bg-elevated">
+            <span
+                className="relative h-6 w-6 shrink-0 overflow-hidden rounded-full border border-border"
+                style={{ backgroundColor: value }}
+            >
+                <input
+                    type="color"
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                />
+            </span>
+            <span className="flex min-w-0 flex-col leading-tight">
+                <span className="truncate text-xs font-bold text-maintext">{label}</span>
+                <span className="text-[10px] uppercase text-subtext">{value}</span>
+            </span>
+        </label>
+    );
+}
+
+// Live editor for the fully custom theme. Touching any control switches the
+// app onto it, so every change previews instantly.
+function CustomThemeEditor() {
+    const { settings, updateSettings } = useNifty();
+    const custom = normalizeCustomTheme(settings.customTheme);
+    const active = settings.theme === "custom";
+
+    const apply = (next) => updateSettings({ theme: "custom", customTheme: next });
+    const setColor = (key, value) => apply({ ...custom, colors: { ...custom.colors, [key]: value } });
+    const setGradient = (patch) => apply({ ...custom, gradient: { ...custom.gradient, ...patch } });
+
+    const previewBackground = custom.gradient.enabled
+        ? `linear-gradient(${custom.gradient.angle}deg, ${custom.gradient.from}, ${custom.gradient.to})`
+        : custom.colors.base;
+
+    return (
+        <div className="flex flex-col gap-4">
+            {/* activate + live preview strip */}
+            <button
+                onClick={() => updateSettings({ theme: "custom" })}
+                className={`flex items-center gap-4 rounded-xl border-2 p-3 text-left transition-colors ${
+                    active ? "border-accent" : "border-border hover:border-subtext/50"
+                }`}
+                style={{ background: previewBackground }}
+            >
+                <span className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ backgroundColor: custom.colors.surface }}>
+                    <span className="h-4 w-4 rounded-full" style={{ backgroundColor: custom.colors.accent }} />
+                    <span className="flex flex-col gap-1">
+                        <span className="h-1.5 w-10 rounded-full" style={{ backgroundColor: custom.colors.text }} />
+                        <span className="h-1.5 w-6 rounded-full" style={{ backgroundColor: custom.colors.subtext }} />
+                    </span>
+                </span>
+                <span
+                    className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
+                    style={{ backgroundColor: custom.colors.accent, color: custom.colors.base }}
+                >
+                    {active ? "Active" : "Use custom theme"}
+                </span>
+            </button>
+
+            {/* colors */}
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                {COLOR_FIELDS.map((field) => (
+                    <ColorField
+                        key={field.key}
+                        label={field.label}
+                        value={custom.colors[field.key]}
+                        onChange={(value) => setColor(field.key, value)}
+                    />
+                ))}
+            </div>
+
+            {/* gradient */}
+            <div className="flex flex-col gap-3 rounded-xl bg-elevated/40 p-4">
+                <div className="flex items-center justify-between gap-4">
+                    <div className="flex flex-col gap-0.5">
+                        <span className="text-xs font-bold text-maintext">Background gradient</span>
+                        <span className="text-[11px] text-subtext">Painted across the app frame, behind the cards.</span>
+                    </div>
+                    <Segmented
+                        value={custom.gradient.enabled ? "on" : "off"}
+                        onChange={(v) => setGradient({ enabled: v === "on" })}
+                        options={[{ id: "off", label: "Off" }, { id: "on", label: "On" }]}
+                    />
+                </div>
+                {custom.gradient.enabled && (
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="grid flex-1 grid-cols-2 gap-1.5">
+                            <ColorField label="From" value={custom.gradient.from} onChange={(v) => setGradient({ from: v })} />
+                            <ColorField label="To" value={custom.gradient.to} onChange={(v) => setGradient({ to: v })} />
+                        </div>
+                        <label className="flex w-full items-center gap-3">
+                            <span className="text-[11px] font-bold text-subtext">Angle</span>
+                            <input
+                                type="range"
+                                min="0"
+                                max="360"
+                                value={custom.gradient.angle}
+                                onChange={(e) => setGradient({ angle: Number(e.target.value) })}
+                                className="flex-1 accent-accent"
+                            />
+                            <span className="w-10 text-right text-[11px] text-subtext">{custom.gradient.angle}°</span>
+                        </label>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 function AppearanceSettings() {
     const { settings, updateSettings } = useNifty();
 
@@ -118,6 +242,12 @@ function AppearanceSettings() {
                 </Setting>
                 <Setting title="Light themes" description="Bright and clean. Artwork backdrops soften automatically.">
                     {swatches(THEME_GROUPS.light)}
+                </Setting>
+                <Setting
+                    title="Custom theme"
+                    description="Build your own — every color is yours to pick, with an optional background gradient. Editing anything switches you onto it."
+                >
+                    <CustomThemeEditor />
                 </Setting>
                 <Setting
                     inline
@@ -311,7 +441,7 @@ export default function SettingsPanel() {
     const Page = PAGES[category] || AppearanceSettings;
 
     return (
-        <div className="flex h-[34rem] max-h-[70vh] min-h-0">
+        <div className="flex h-[42rem] max-h-[78vh] min-h-0">
             {/* category rail — same surface, hairline divider */}
             <nav className="flex w-52 shrink-0 flex-col gap-4 overflow-y-auto border-r border-border/60 p-4">
                 {GROUPS.map((group) => (
