@@ -27,13 +27,13 @@ export default function Account() {
         <div ref={ref} className="relative">
             <button
                 onClick={() => setOpen((o) => !o)}
-                className="flex items-center gap-2 rounded-full bg-white/10 py-1 pl-1 pr-3 text-white transition hover:bg-white/15"
+                className="flex items-center gap-2 rounded-full bg-topbartext/10 py-1 pl-1 pr-3 text-topbartext transition hover:bg-topbartext/15"
             >
                 <img src={user.avatar_url} alt="" className="h-7 w-7 rounded-full object-cover" />
                 <span className="hidden max-w-[120px] truncate text-xs font-bold md:block">{user.username}</span>
                 <Icon
                     name="chevron-down"
-                    className={`h-4 w-4 text-white/70 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+                    className={`h-4 w-4 text-topbartext/70 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
                 />
             </button>
 
@@ -52,7 +52,8 @@ export default function Account() {
                                 setOpen(false);
                                 modal.open({
                                     title: "Settings",
-                                    size: "md",
+                                    size: "xl",
+                                    bare: true,
                                     render: () => <SettingsPanel />
                                 });
                             }}

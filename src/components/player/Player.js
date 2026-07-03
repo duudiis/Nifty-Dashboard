@@ -95,7 +95,7 @@ function Song({ track }) {
     return (
         <div
             onContextMenu={onContextMenu}
-            className={`group -mx-2 flex min-w-0 items-center gap-3 rounded-md px-2 py-1 transition ${active ? "bg-white/5" : ""}`}
+            className={`group -mx-2 flex min-w-0 items-center gap-3 rounded-md px-2 py-1 transition ${active ? "bg-maintext/5" : ""}`}
         >
             <img
                 src={artworkOrFallback(track?.artwork)}
@@ -206,7 +206,7 @@ function FullscreenButton() {
 function Glow() {
     return (
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute bottom-0 left-1/2 h-28 w-[55%] -translate-x-1/2 translate-y-1/2 rounded-[100%] bg-white/10 blur-3xl" />
+            <div className="absolute bottom-0 left-1/2 h-28 w-[55%] -translate-x-1/2 translate-y-1/2 rounded-[100%] bg-maintext/10 blur-3xl" />
         </div>
     );
 }

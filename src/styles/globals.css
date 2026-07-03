@@ -19,6 +19,7 @@
     --c-accent-soft: 121 165 250;
     --c-text: 245 245 245;
     --c-subtext: 161 161 170;
+    --c-topbar-text: 255 255 255;
 }
 
 [data-theme="spotify"] {
@@ -31,6 +32,7 @@
     --c-accent-soft: 29 185 84;
     --c-text: 255 255 255;
     --c-subtext: 179 179 179;
+    --c-topbar-text: 255 255 255;
 }
 
 [data-theme="amethyst"] {
@@ -43,6 +45,7 @@
     --c-accent-soft: 168 85 247;
     --c-text: 245 243 255;
     --c-subtext: 176 165 196;
+    --c-topbar-text: 245 243 255;
 }
 
 [data-theme="crimson"] {
@@ -55,18 +58,85 @@
     --c-accent-soft: 244 63 94;
     --c-text: 253 242 243;
     --c-subtext: 197 165 168;
+    --c-topbar-text: 253 242 243;
 }
 
 [data-theme="light"] {
     --c-base: 247 247 248;
     --c-surface: 255 255 255;
     --c-elevated: 238 238 240;
-    --c-topbar: 17 17 19;
+    --c-topbar: 232 232 236;
     --c-border: 224 224 228;
     --c-accent: 37 99 235;
     --c-accent-soft: 37 99 235;
     --c-text: 24 24 27;
     --c-subtext: 90 90 99;
+    --c-topbar-text: 24 24 27;
+}
+
+[data-theme="midnight"] {
+    --c-base: 6 10 18;
+    --c-surface: 12 18 30;
+    --c-elevated: 23 32 50;
+    --c-topbar: 2 5 10;
+    --c-border: 32 42 64;
+    --c-accent: 56 189 248;
+    --c-accent-soft: 56 189 248;
+    --c-text: 238 245 255;
+    --c-subtext: 148 163 184;
+    --c-topbar-text: 238 245 255;
+}
+
+[data-theme="forest"] {
+    --c-base: 8 14 10;
+    --c-surface: 14 22 17;
+    --c-elevated: 25 39 30;
+    --c-topbar: 4 8 6;
+    --c-border: 34 50 40;
+    --c-accent: 52 211 153;
+    --c-accent-soft: 52 211 153;
+    --c-text: 240 253 244;
+    --c-subtext: 158 180 164;
+    --c-topbar-text: 240 253 244;
+}
+
+[data-theme="sunset"] {
+    --c-base: 20 10 6;
+    --c-surface: 31 18 12;
+    --c-elevated: 50 29 21;
+    --c-topbar: 12 6 4;
+    --c-border: 64 39 29;
+    --c-accent: 251 146 60;
+    --c-accent-soft: 251 146 60;
+    --c-text: 255 247 237;
+    --c-subtext: 213 176 150;
+    --c-topbar-text: 255 247 237;
+}
+
+[data-theme="rose"] {
+    --c-base: 250 245 247;
+    --c-surface: 255 255 255;
+    --c-elevated: 245 233 238;
+    --c-topbar: 243 226 233;
+    --c-border: 233 214 222;
+    --c-accent: 219 39 119;
+    --c-accent-soft: 219 39 119;
+    --c-text: 40 24 32;
+    --c-subtext: 132 100 113;
+    --c-topbar-text: 40 24 32;
+}
+
+[data-theme="mint"] {
+    --c-base: 243 249 245;
+    --c-surface: 255 255 255;
+    --c-elevated: 229 241 234;
+    --c-topbar: 222 238 229;
+    --c-border: 211 229 218;
+    --c-accent: 5 150 105;
+    --c-accent-soft: 5 150 105;
+    --c-text: 18 34 26;
+    --c-subtext: 88 114 99;
+    --c-topbar-text: 18 34 26;
 }
 
 @layer base {

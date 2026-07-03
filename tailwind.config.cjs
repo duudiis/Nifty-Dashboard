@@ -18,6 +18,7 @@ module.exports = {
                 surface: themed("--c-surface"),
                 elevated: themed("--c-elevated"),
                 topbar: themed("--c-topbar"),
+                topbartext: themed("--c-topbar-text"),
                 border: themed("--c-border"),
                 accent: themed("--c-accent"),
                 "accent-soft": themed("--c-accent-soft"),

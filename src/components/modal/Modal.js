@@ -29,7 +29,8 @@ const ModalCtx = createContext(null);
 const SIZES = {
     sm: "max-w-sm",
     md: "max-w-lg",
-    lg: "max-w-2xl"
+    lg: "max-w-2xl",
+    xl: "max-w-4xl"
 };
 
 export function ModalProvider({ children }) {
@@ -123,56 +124,55 @@ export function ModalProvider({ children }) {
                                     role="dialog"
                                     aria-modal="true"
                                     aria-label={entry.title || "Dialog"}
-                                    initial={{ opacity: 0, scale: 0.95, y: 14 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 0.96, y: 10 }}
+                                    initial={{ opacity: 0, scale: 0.92 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.94 }}
                                     transition={{ duration: 0.22, ease: EASE }}
                                     className={`pointer-events-auto flex max-h-[85vh] w-full flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xl ${SIZES[entry.size] || SIZES.md}`}
                                 >
-                                    {/* header */}
-                                    <div className="flex items-center gap-3 border-b border-border/70 px-5 py-4">
-                                        <h2 className="min-w-0 flex-1 truncate text-base font-bold text-maintext">{entry.title}</h2>
-                                        {entry.dismissable && (
-                                            <button
-                                                onClick={() => close(entry.id, false)}
-                                                title="Close"
-                                                className="flex h-7 w-7 items-center justify-center rounded-full text-subtext transition-colors hover:bg-elevated hover:text-maintext"
-                                            >
-                                                <Icon name="x" className="h-4 w-4" />
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    {/* body */}
-                                    <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-                                        {entry.confirm ? (
-                                            <p className="text-sm leading-relaxed text-subtext">{entry.confirm.message}</p>
-                                        ) : (
-                                            entry.render?.({ close: (answer = false) => close(entry.id, answer) })
-                                        )}
-                                    </div>
-
-                                    {/* confirm footer */}
-                                    {entry.confirm && (
-                                        <div className="flex items-center justify-end gap-2 border-t border-border/70 px-5 py-3.5">
-                                            <button
-                                                onClick={() => close(entry.id, false)}
-                                                className="rounded-full bg-elevated px-4 py-1.5 text-xs font-bold text-maintext transition hover:bg-border/60"
-                                            >
-                                                {entry.confirm.cancelLabel || "Cancel"}
-                                            </button>
-                                            <button
-                                                autoFocus
-                                                onClick={() => close(entry.id, true)}
-                                                className={`rounded-full px-4 py-1.5 text-xs font-bold transition hover:brightness-110 ${
-                                                    entry.confirm.danger
-                                                        ? "bg-rose-500 text-white"
-                                                        : "bg-accent text-canvas"
-                                                }`}
-                                            >
-                                                {entry.confirm.confirmLabel || "Confirm"}
-                                            </button>
+                                    {entry.confirm ? (
+                                        /* minimal confirmation: title, message, buttons */
+                                        <div className="flex flex-col gap-2 px-5 py-4">
+                                            <h2 className="text-sm font-bold text-maintext">{entry.title}</h2>
+                                            <p className="text-[13px] leading-relaxed text-subtext">{entry.confirm.message}</p>
+                                            <div className="mt-2 flex items-center justify-end gap-2">
+                                                <button
+                                                    onClick={() => close(entry.id, false)}
+                                                    className="rounded-full bg-elevated px-4 py-1.5 text-xs font-bold text-maintext transition hover:bg-border/60"
+                                                >
+                                                    {entry.confirm.cancelLabel || "Cancel"}
+                                                </button>
+                                                <button
+                                                    autoFocus
+                                                    onClick={() => close(entry.id, true)}
+                                                    className={`rounded-full px-4 py-1.5 text-xs font-bold transition hover:brightness-110 ${
+                                                        entry.confirm.danger
+                                                            ? "bg-rose-500 text-white"
+                                                            : "bg-accent text-canvas"
+                                                    }`}
+                                                >
+                                                    {entry.confirm.confirmLabel || "Confirm"}
+                                                </button>
+                                            </div>
                                         </div>
+                                    ) : (
+                                        <>
+                                            <div className="flex items-center gap-3 px-5 pb-1 pt-4">
+                                                <h2 className="min-w-0 flex-1 truncate text-base font-bold text-maintext">{entry.title}</h2>
+                                                {entry.dismissable && (
+                                                    <button
+                                                        onClick={() => close(entry.id, false)}
+                                                        title="Close"
+                                                        className="flex h-7 w-7 items-center justify-center rounded-full text-subtext transition-colors hover:bg-elevated hover:text-maintext"
+                                                    >
+                                                        <Icon name="x" className="h-4 w-4" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className={`min-h-0 flex-1 overflow-y-auto ${entry.bare ? "" : "px-5 py-4"}`}>
+                                                {entry.render?.({ close: (answer = false) => close(entry.id, answer) })}
+                                            </div>
+                                        </>
                                     )}
                                 </motion.div>
                             </div>

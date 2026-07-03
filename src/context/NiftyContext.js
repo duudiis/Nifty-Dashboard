@@ -5,7 +5,11 @@ import { buildEntityId, parseEntityId } from "../sources/ids.js";
 
 const NiftyContext = createContext(null);
 
-export const THEMES = ["nifty", "spotify", "amethyst", "crimson", "light"];
+export const THEME_GROUPS = {
+    dark: ["nifty", "spotify", "amethyst", "crimson", "midnight", "forest", "sunset"],
+    light: ["light", "rose", "mint"]
+};
+export const THEMES = [...THEME_GROUPS.dark, ...THEME_GROUPS.light];
 
 const DEFAULT_SETTINGS = {
     theme: "nifty",

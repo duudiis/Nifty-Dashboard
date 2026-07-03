@@ -89,17 +89,17 @@ export default function TopBar() {
             <div className="flex min-w-0 flex-1 items-center justify-start">
                 <button
                     onClick={() => setView("home")}
-                    className="ml-1 flex items-center gap-3 text-white transition-opacity hover:opacity-90"
+                    className="ml-1 flex items-center gap-3 text-topbartext transition-opacity hover:opacity-90"
                 >
-                    <Logo className="h-11 w-11 text-white" />
+                    <Logo className="h-11 w-11 text-topbartext" />
                     <span className="hidden text-3xl font-extrabold tracking-tight sm:block">Nifty</span>
                 </button>
             </div>
 
             {/* Search (always centred) */}
             <form ref={boxRef} onSubmit={submit} className="relative w-full max-w-md shrink">
-                <div className="flex w-full items-center gap-2 rounded-full bg-white/10 px-4 py-2 ring-white/0 transition focus-within:bg-white/15 focus-within:ring-2 focus-within:ring-white/20">
-                    <Icon name="search" className="h-5 w-5 shrink-0 text-white/60" />
+                <div className="flex w-full items-center gap-2 rounded-full bg-topbartext/10 px-4 py-2 ring-topbartext/0 transition focus-within:bg-topbartext/15 focus-within:ring-2 focus-within:ring-topbartext/20">
+                    <Icon name="search" className="h-5 w-5 shrink-0 text-topbartext/60" />
                     <input
                         id="nifty-search"
                         ref={inputRef}
@@ -108,7 +108,7 @@ export default function TopBar() {
                         onFocus={() => setSuggestOpen(true)}
                         onKeyDown={(e) => e.key === "Escape" && closeSuggest()}
                         placeholder="What do you want to play?"
-                        className="w-full bg-transparent text-sm text-white placeholder-white/50 outline-none"
+                        className="w-full bg-transparent text-sm text-topbartext placeholder-topbartext/50 outline-none"
                     />
                 </div>
                 <SearchSuggest query={query} open={suggestOpen} onClose={closeSuggest} onPick={pickSuggest} />
@@ -123,7 +123,7 @@ export default function TopBar() {
                         transition={{ duration: 0.25, ease: EASE }}
                         onClick={reloadApp}
                         title="A new version is available — click to update"
-                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-accent transition hover:bg-white/15"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-topbartext/10 text-accent transition hover:bg-topbartext/15"
                     >
                         <Icon name="download" className="h-5 w-5" />
                     </motion.button>
