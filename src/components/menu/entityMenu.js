@@ -10,11 +10,13 @@
 import { useCallback } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
+import { useModal } from "../modal/Modal.js";
 import { useEntityActions, entityExternalUrl } from "../browse/useEntityActions.js";
 
 export function useEntityMenu() {
     const { selected, notify, openEntity, library, isSaved, toggleSaveEntity, addToPlaylist, createPlaylist, removePlaylist } = useNifty();
     const { playEntity } = useEntityActions();
+    const modal = useModal();
 
     return useCallback(
         (item) => {
@@ -94,12 +96,25 @@ export function useEntityMenu() {
                 ...(item.custom && !item.liked && !item.browseId.endsWith(":liked")
                     ? [
                         { separator: true },
-                        { label: "Delete playlist", icon: "trash", danger: true, onClick: () => removePlaylist(item) }
+                        {
+                            label: "Delete playlist",
+                            icon: "trash",
+                            danger: true,
+                            onClick: async () => {
+                                const sure = await modal.confirm({
+                                    title: "Delete playlist?",
+                                    message: `“${item.title}” and everything in it will be gone for good.`,
+                                    confirmLabel: "Delete",
+                                    danger: true
+                                });
+                                if (sure) removePlaylist(item);
+                            }
+                        }
                     ]
                     : [])
             ];
         },
         [selected, notify, openEntity, playEntity, library.playlists, library.savedRefs,
-         isSaved, toggleSaveEntity, addToPlaylist, createPlaylist, removePlaylist]
+         isSaved, toggleSaveEntity, addToPlaylist, createPlaylist, removePlaylist, modal]
     );
 }

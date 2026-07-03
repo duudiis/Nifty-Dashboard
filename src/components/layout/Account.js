@@ -3,9 +3,12 @@ import { useEffect, useRef, useState } from "react";
 import { useNifty } from "../../context/NiftyContext.js";
 import Icon from "../Icon.js";
 import { AnimatePresence, motion, EASE } from "../motion/index.js";
+import { useModal } from "../modal/Modal.js";
+import SettingsPanel from "../modal/SettingsModal.js";
 
 export default function Account() {
     const { user, logout } = useNifty();
+    const modal = useModal();
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
 
@@ -44,6 +47,21 @@ export default function Account() {
                         style={{ transformOrigin: "top right" }}
                         className="absolute right-0 z-50 mt-2 w-40 overflow-hidden rounded-lg border border-border bg-elevated p-1 shadow-2xl"
                     >
+                        <button
+                            onClick={() => {
+                                setOpen(false);
+                                modal.open({
+                                    title: "Settings",
+                                    size: "md",
+                                    render: () => <SettingsPanel />
+                                });
+                            }}
+                            className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[12px] font-medium text-maintext transition hover:bg-surface"
+                        >
+                            <Icon name="settings" className="h-3.5 w-3.5" />
+                            Settings
+                        </button>
+                        <div className="my-1 h-px bg-border/70" />
                         <button
                             onClick={logout}
                             className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[12px] font-medium text-rose-400 transition hover:bg-rose-500/10"

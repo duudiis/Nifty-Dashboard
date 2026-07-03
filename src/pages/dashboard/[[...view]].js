@@ -4,6 +4,7 @@ import { parse } from "cookie";
 import { verifySession } from "../../lib/jwt.js";
 import { NiftyProvider } from "../../context/NiftyContext.js";
 import { ContextMenuProvider } from "../../components/menu/ContextMenu.js";
+import { ModalProvider } from "../../components/modal/Modal.js";
 
 import TopBar from "../../components/layout/TopBar.js";
 import LeftSidebar from "../../components/layout/LeftSidebar.js";
@@ -63,6 +64,7 @@ export async function getServerSideProps({ req, params }) {
 export default function Dashboard({ user, inviteUrl }) {
     return (
         <NiftyProvider user={user} inviteUrl={inviteUrl}>
+            <ModalProvider>
             <ContextMenuProvider>
                 <Head>
                     {/* Live title is driven from NiftyProvider; this is the SSR/
@@ -92,6 +94,7 @@ export default function Dashboard({ user, inviteUrl }) {
                     <ConnectionOverlay />
                 </div>
             </ContextMenuProvider>
+            </ModalProvider>
         </NiftyProvider>
     );
 }

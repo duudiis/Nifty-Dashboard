@@ -6,6 +6,7 @@ import Icon from "../Icon.js";
 import TrackRow from "./TrackRow.js";
 import ArtistLink from "./ArtistLink.js";
 import { AnimatePresence, motion, EASE } from "../motion/index.js";
+import { useModal } from "../modal/Modal.js";
 import { entityExternalUrl, recordCollectionQueued } from "./useEntityActions.js";
 
 // Album & playlist pages: an artwork-tinted header (the blur itself is pinned
@@ -68,6 +69,7 @@ export function CollectionSkeleton({ round = false }) {
 
 export default function CollectionPage({ id }) {
     const { play, selected, notify, setPageArt, isSaved, toggleSaveEntity, removePlaylist } = useNifty();
+    const modal = useModal();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -197,7 +199,15 @@ export default function CollectionPage({ id }) {
                             )}
                             {data.custom && !data.liked && (
                                 <button
-                                    onClick={() => removePlaylist(item)}
+                                    onClick={async () => {
+                                        const sure = await modal.confirm({
+                                            title: "Delete playlist?",
+                                            message: `“${data.title}” and everything in it will be gone for good.`,
+                                            confirmLabel: "Delete",
+                                            danger: true
+                                        });
+                                        if (sure) removePlaylist(item);
+                                    }}
                                     title="Delete this playlist"
                                     className="flex h-10 w-10 items-center justify-center rounded-full text-subtext transition-colors hover:text-rose-400"
                                 >
