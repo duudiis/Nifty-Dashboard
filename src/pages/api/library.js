@@ -13,7 +13,11 @@ import {
     createPlaylist,
     deletePlaylist,
     addTracksToPlaylist,
-    reorderLibrary
+    reorderLibrary,
+    getCollectionSort,
+    setCollectionSort,
+    reorderPlaylistTracks,
+    reorderLikedTracks
 } from "../../lib/db.js";
 import { parseEntityId } from "../../sources/ids.js";
 import { parseLink, externalUrl } from "../../sources/links.js";
@@ -48,6 +52,11 @@ export default async function handler(req, res) {
             }
             if (req.query.view === "state") {
                 return res.status(200).json(await getLibraryState(user.id));
+            }
+            if (req.query.view === "sort") {
+                const ref = String(req.query.ref || "");
+                if (!ref) return res.status(400).json({ message: "Missing ref." });
+                return res.status(200).json(await getCollectionSort(user.id, ref));
             }
 
             const refs = String(req.query.refs || "").split(",").filter(Boolean);
@@ -141,6 +150,33 @@ export default async function handler(req, res) {
                 return res.status(400).json({ message: "Invalid reorder." });
             }
             await reorderLibrary(user.id, itemId, toIndex);
+            return res.status(200).json({ ok: true });
+        }
+
+        if (action === "set_sort") {
+            const ref = String(req.body.ref || "");
+            if (!ref) return res.status(400).json({ message: "Missing ref." });
+            await ensureUser(user);
+            await setCollectionSort(user.id, ref, req.body.sortBy, req.body.sortDesc);
+            return res.status(200).json({ ok: true });
+        }
+
+        if (action === "reorder_playlist") {
+            const playlistId = String(req.body.playlistId || "");
+            const order = Array.isArray(req.body.order) ? req.body.order.map(String) : [];
+            if (!playlistId || !order.length) {
+                return res.status(400).json({ message: "Invalid reorder." });
+            }
+            await reorderPlaylistTracks(user.id, playlistId, order);
+            return res.status(200).json({ ok: true });
+        }
+
+        if (action === "reorder_liked") {
+            const order = Array.isArray(req.body.order) ? req.body.order.map(String) : [];
+            if (!order.length) {
+                return res.status(400).json({ message: "Invalid reorder." });
+            }
+            await reorderLikedTracks(user.id, order);
             return res.status(200).json({ ok: true });
         }
 

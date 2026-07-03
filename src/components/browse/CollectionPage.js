@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
+import { parseEntityId } from "../../sources/ids.js";
 import Icon from "../Icon.js";
 import TrackRow from "./TrackRow.js";
 import ArtistLink from "./ArtistLink.js";
-import { AnimatePresence, motion, EASE } from "../motion/index.js";
+import { AnimatePresence, motion, Reorder, EASE } from "../motion/index.js";
+import { useContextMenu } from "../menu/ContextMenu.js";
 import { useModal } from "../modal/Modal.js";
 import { entityExternalUrl, recordCollectionQueued } from "./useEntityActions.js";
 
@@ -63,6 +65,155 @@ export function CollectionSkeleton({ round = false }) {
                     </div>
                 ))}
             </div>
+        </div>
+    );
+}
+
+const SORT_OPTIONS = [
+    { id: "custom", label: "Custom order" },
+    { id: "title", label: "Title" },
+    { id: "artist", label: "Artist" },
+    { id: "duration", label: "Duration" }
+];
+
+function sortTracks(tracks, sortBy, sortDesc) {
+    if (sortBy === "custom") return tracks;
+    const dir = sortDesc ? -1 : 1;
+    const key = {
+        title: (t) => (t.title || "").toLowerCase(),
+        artist: (t) => (t.artist || "").toLowerCase(),
+        duration: (t) => clockToSeconds(t.duration)
+    }[sortBy];
+    if (!key) return tracks;
+    return [...tracks].sort((a, b) => {
+        const ka = key(a);
+        const kb = key(b);
+        if (ka < kb) return -dir;
+        if (ka > kb) return dir;
+        return 0;
+    });
+}
+
+// The track table: a queue-style column header (both albums and playlists),
+// plus — for playlists only — a persisted sort control and drag reordering of
+// owned collections while in custom order.
+function TrackList({ data, refId, kind, playUrl }) {
+    const isPlaylist = data.type === "playlist";
+    const reorderable = !!data.reorderable; // owned custom playlists + liked songs
+
+    const [sort, setSort] = useState({ sortBy: "custom", sortDesc: false });
+    const [order, setOrder] = useState(data.tracks || []);
+    const orderRef = useRef(order);
+    orderRef.current = order;
+
+    // Mirror fresh data on load / navigation (unless we're the source of the change).
+    useEffect(() => { setOrder(data.tracks || []); }, [data.tracks]);
+
+    // Load the user's saved sort for this playlist.
+    useEffect(() => {
+        if (!isPlaylist) return;
+        let stale = false;
+        fetch(`/api/library?view=sort&ref=${encodeURIComponent(refId)}`)
+            .then((r) => r.json())
+            .then((j) => { if (!stale) setSort({ sortBy: j.sortBy || "custom", sortDesc: !!j.sortDesc }); })
+            .catch(() => {});
+        return () => { stale = true; };
+    }, [isPlaylist, refId]);
+
+    const persistSort = (next) => {
+        setSort(next);
+        fetch("/api/library", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "set_sort", ref: refId, sortBy: next.sortBy, sortDesc: next.sortDesc })
+        }).catch(() => {});
+    };
+
+    const chooseSort = (sortBy) => {
+        if (sortBy === sort.sortBy && sortBy !== "custom") persistSort({ sortBy, sortDesc: !sort.sortDesc });
+        else persistSort({ sortBy, sortDesc: false });
+    };
+
+    const dragEnabled = reorderable && sort.sortBy === "custom";
+    const displayed = dragEnabled ? order : sortTracks(order, sort.sortBy, sort.sortDesc);
+
+    const commitReorder = () => {
+        const ids = orderRef.current.map((t) => t.entryId).filter(Boolean);
+        if (!ids.length) return;
+        const body = data.liked
+            ? { action: "reorder_liked", order: ids }
+            : { action: "reorder_playlist", playlistId: parseEntityId(refId)?.id, order: ids };
+        fetch("/api/library", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+        }).catch(() => {});
+    };
+
+    const { onContextMenu: openSortMenu } = useContextMenu(() =>
+        SORT_OPTIONS.map((o) => ({
+            label: o.id === sort.sortBy && o.id !== "custom"
+                ? `${o.label} · ${sort.sortDesc ? "descending" : "ascending"}`
+                : o.label,
+            icon: o.id === sort.sortBy ? "check" : undefined,
+            onClick: () => chooseSort(o.id)
+        }))
+    );
+
+    const currentSortLabel = SORT_OPTIONS.find((o) => o.id === sort.sortBy)?.label || "Custom order";
+
+    if (displayed.length === 0) {
+        return (
+            <div className="px-6 py-8 text-sm text-subtext">
+                {playUrl
+                    ? `Track list unavailable for this ${kind} — Play still queues the whole thing.`
+                    : data.liked
+                        ? "Songs you save with the heart will show up here."
+                        : "This playlist is empty — right-click any track and pick “Add to playlist”."}
+            </div>
+        );
+    }
+
+    const rows = displayed.map((track, i) => (
+        <TrackRow
+            key={dragEnabled ? track.entryId : `${track.url}-${i}`}
+            track={track}
+            index={i + 1}
+            dragValue={dragEnabled ? track : null}
+            onDragCommit={commitReorder}
+        />
+    ));
+
+    return (
+        <div className="flex flex-col gap-1 px-4 pb-6">
+            {/* column header */}
+            <div className="flex items-center gap-3 border-b border-border/60 px-2 pb-2 text-[10px] font-bold uppercase tracking-wide text-subtext">
+                <span className="hidden w-5 shrink-0 text-center sm:block">#</span>
+                <span className="w-11 shrink-0" />
+                <span className="min-w-0 flex-1">Title</span>
+                {isPlaylist && (
+                    <button
+                        onClick={openSortMenu}
+                        title="Sort"
+                        className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-subtext transition-colors hover:bg-elevated hover:text-maintext"
+                    >
+                        <Icon name="list" className="h-3.5 w-3.5" />
+                        {currentSortLabel}
+                        {sort.sortBy !== "custom" && (
+                            <Icon name="chevron-down" className={`h-3 w-3 transition-transform ${sort.sortDesc ? "" : "rotate-180"}`} />
+                        )}
+                    </button>
+                )}
+                <span className="w-12 shrink-0 text-center">Time</span>
+            </div>
+
+            {dragEnabled ? (
+                <Reorder.Group as="div" axis="y" values={order} onReorder={setOrder} className="flex flex-col gap-1">
+                    {rows}
+                </Reorder.Group>
+            ) : (
+                <div className="flex flex-col gap-1">{rows}</div>
+            )}
         </div>
     );
 }
@@ -217,23 +368,7 @@ export default function CollectionPage({ id }) {
                         </div>
 
                         {/* tracks */}
-                        <div className="flex flex-col gap-1 px-4 pb-6">
-                            {tracks.map((track, i) => (
-                                <TrackRow key={`${track.url}-${i}`} track={track} index={i + 1} />
-                            ))}
-                            {tracks.length === 0 && playUrl && (
-                                <div className="px-4 py-6 text-sm text-subtext">
-                                    Track list unavailable for this {kind} — Play still queues the whole thing.
-                                </div>
-                            )}
-                            {tracks.length === 0 && !playUrl && data.custom && (
-                                <div className="px-4 py-6 text-sm text-subtext">
-                                    {data.liked
-                                        ? "Songs you save with the heart will show up here."
-                                        : "This playlist is empty — right-click any track and pick “Add to playlist”."}
-                                </div>
-                            )}
-                        </div>
+                        <TrackList data={data} refId={id} kind={kind} playUrl={playUrl} />
                     </div>
                 )}
             </motion.div>

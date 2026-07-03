@@ -451,7 +451,7 @@ export async function browsePlaylistFromDb(playlistId) {
             [playlistId]
         ),
         db.query(
-            `SELECT t.title, t.artist, t.duration_ms, t.artwork_url, t.url
+            `SELECT pt.id AS entry_id, t.title, t.artist, t.duration_ms, t.artwork_url, t.url
              FROM playlist_tracks pt JOIN tracks t ON t.id = pt.track_id
              WHERE pt.playlist_id = $1 ORDER BY pt.position ASC`,
             [playlistId]
@@ -464,10 +464,12 @@ export async function browsePlaylistFromDb(playlistId) {
     return {
         type: "playlist",
         custom: true,
+        reorderable: true,
         title: p.name,
         subtitle: p.owner_name ? `by ${p.owner_name}` : "",
         artwork: p.artwork_url || tracks.rows[0]?.artwork_url || null,
         tracks: tracks.rows.map((t) => ({
+            entryId: String(t.entry_id),
             title: t.title,
             artist: t.artist,
             duration: clockFromMs(t.duration_ms),
@@ -482,7 +484,7 @@ export async function browsePlaylistFromDb(playlistId) {
 /** The user's Liked songs as a browsable collection page. */
 export async function browseLikedFromDb(userId) {
     const { rows } = await db.query(
-        `SELECT t.title, t.artist, t.duration_ms, t.artwork_url, t.url
+        `SELECT lt.track_id, t.title, t.artist, t.duration_ms, t.artwork_url, t.url
          FROM liked_tracks lt JOIN tracks t ON t.id = lt.track_id
          WHERE lt.user_id = $1 ORDER BY lt.position ASC`,
         [userId]
@@ -492,10 +494,12 @@ export async function browseLikedFromDb(userId) {
         type: "playlist",
         custom: true,
         liked: true,
+        reorderable: true,
         title: "Liked songs",
         subtitle: `${rows.length} song${rows.length === 1 ? "" : "s"}`,
         artwork: rows[0]?.artwork_url || null,
         tracks: rows.map((t) => ({
+            entryId: String(t.track_id),
             title: t.title,
             artist: t.artist,
             duration: clockFromMs(t.duration_ms),
@@ -505,6 +509,115 @@ export async function browseLikedFromDb(userId) {
         })),
         playUrl: null
     };
+}
+
+/* ===================== per-playlist sort preference + reordering ===================== */
+
+const SORT_KEYS = ["custom", "added", "title", "artist", "duration"];
+
+/** The user's saved sort choice for a collection (default: custom order). */
+export async function getCollectionSort(userId, ref) {
+    const { rows } = await db.query(
+        `SELECT sort_by, sort_desc FROM collection_sorting WHERE user_id = $1 AND collection_ref = $2`,
+        [userId, ref]
+    );
+    const row = rows[0];
+    return { sortBy: row?.sort_by || "custom", sortDesc: !!row?.sort_desc };
+}
+
+/** Persists the user's sort choice for a collection. */
+export async function setCollectionSort(userId, ref, sortBy, sortDesc) {
+    const by = SORT_KEYS.includes(sortBy) ? sortBy : "custom";
+    await db.query(
+        `INSERT INTO collection_sorting (user_id, collection_ref, sort_by, sort_desc)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (user_id, collection_ref) DO UPDATE SET sort_by = EXCLUDED.sort_by, sort_desc = EXCLUDED.sort_desc`,
+        [userId, ref, by, !!sortDesc]
+    );
+}
+
+/**
+ * Rewrites a custom playlist's track order to the given entry ids (0..n-1).
+ * Owner-checked; ids that aren't in the playlist are ignored. Rewriting the
+ * whole order is gap-proof — no shift math, no stale-index hazard.
+ */
+export async function reorderPlaylistTracks(userId, playlistId, orderedEntryIds) {
+    const owner = await db.query(`SELECT owner_id FROM playlists WHERE id = $1`, [playlistId]);
+    if (!owner.rows[0] || String(owner.rows[0].owner_id) !== String(userId)) {
+        throw new Error("Not your playlist.");
+    }
+
+    const client = await db.connect();
+    try {
+        await client.query("BEGIN");
+        // Park positions out of range first so the unique (playlist, position)
+        // index can't collide mid-rewrite.
+        await client.query(
+            `UPDATE playlist_tracks SET position = position + 1000000 WHERE playlist_id = $1`,
+            [playlistId]
+        );
+        let pos = 0;
+        for (const entryId of orderedEntryIds) {
+            const { rowCount } = await client.query(
+                `UPDATE playlist_tracks SET position = $1 WHERE id = $2 AND playlist_id = $3`,
+                [pos, entryId, playlistId]
+            );
+            if (rowCount) pos++;
+        }
+        // Anything not named (added elsewhere since load) is appended in its
+        // existing relative order — collision-free.
+        await client.query(
+            `WITH ranked AS (
+                 SELECT id, row_number() OVER (ORDER BY position) - 1 + $2 AS newpos
+                 FROM playlist_tracks WHERE playlist_id = $1 AND position >= 1000000
+             )
+             UPDATE playlist_tracks pt SET position = ranked.newpos
+             FROM ranked WHERE pt.id = ranked.id`,
+            [playlistId, pos]
+        );
+        await client.query(`UPDATE playlists SET updated_at = now() WHERE id = $1`, [playlistId]);
+        await client.query("COMMIT");
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+/** Rewrites the user's Liked songs order to the given track ids (0..n-1). */
+export async function reorderLikedTracks(userId, orderedTrackIds) {
+    const client = await db.connect();
+    try {
+        await client.query("BEGIN");
+        await client.query(
+            `UPDATE liked_tracks SET position = position + 1000000 WHERE user_id = $1`,
+            [userId]
+        );
+        let pos = 0;
+        for (const trackId of orderedTrackIds) {
+            const { rowCount } = await client.query(
+                `UPDATE liked_tracks SET position = $1 WHERE user_id = $2 AND track_id = $3`,
+                [pos, userId, trackId]
+            );
+            if (rowCount) pos++;
+        }
+        await client.query(
+            `WITH ranked AS (
+                 SELECT track_id, row_number() OVER (ORDER BY position) - 1 + $2 AS newpos
+                 FROM liked_tracks WHERE user_id = $1 AND position >= 1000000
+             )
+             UPDATE liked_tracks lt SET position = ranked.newpos
+             FROM ranked WHERE lt.track_id = ranked.track_id AND lt.user_id = $1`,
+            [userId, pos]
+        );
+        await client.query("COMMIT");
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
 }
 
 /** Deletes one of the user's own playlists (tracks + shelf entry cascade). */

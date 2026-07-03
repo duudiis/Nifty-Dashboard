@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
+import { Reorder } from "../motion/index.js";
 import QueueGlyph from "./QueueGlyph.js";
 import ArtistLink from "./ArtistLink.js";
 import Icon from "../Icon.js";
@@ -12,14 +13,24 @@ import Icon from "../Icon.js";
 // Click anywhere on the row to add it to the queue; right-click for the full
 // play/queue menu. The cover icon flips to a check for a second on add; the
 // heart on the right saves to Liked songs, and the artist name opens their page.
-export default function TrackRow({ track, index }) {
+//
+// When `dragValue` is provided the row renders as a drag-reorderable
+// Reorder.Item (used by owned playlists in custom order); `onDragCommit` fires
+// once the drop settles so the parent can persist the new order.
+export default function TrackRow({ track, index, dragValue = null, onDragStart, onDragCommit }) {
     const { play, selected, isLiked, toggleLike } = useNifty();
     const trackMenu = useTrackMenu();
     const [done, setDone] = useState(false);
+    const [dragging, setDragging] = useState(false);
+    // A drag fires a trailing click on release; this flag makes the click ignore
+    // it so reordering never queues the track.
+    const draggedRef = useRef(false);
 
     const liked = isLiked(track);
+    const draggable = dragValue != null;
 
     const queue = () => {
+        if (draggedRef.current) return;
         if (!selected || done) return;
         play(track.playQuery || track.url, "queue", track.title);
         setDone(true);
@@ -34,15 +45,19 @@ export default function TrackRow({ track, index }) {
     // "Add to queue" in the menu runs the same animated add as a plain click.
     const { onContextMenu, active } = useContextMenu(() => trackMenu(track, { source: "search", onAdd: queue }));
 
-    return (
-        <div
-            onClick={queue}
-            onContextMenu={onContextMenu}
-            title={selected ? "Add to queue" : "Select a server first"}
-            className={`group flex items-center gap-3 rounded-md p-2 transition hover:bg-elevated ${selected ? "cursor-pointer" : ""} ${active ? "bg-elevated" : ""}`}
-        >
+    const className = `group flex items-center gap-3 rounded-md p-2 transition-colors hover:bg-elevated ${selected ? "cursor-pointer" : ""} ${active || dragging ? "bg-elevated" : ""}`;
+
+    const inner = (
+        <>
             {index != null && (
-                <span className="hidden w-5 shrink-0 text-center text-xs text-subtext sm:block">{index}</span>
+                <span className="hidden w-5 shrink-0 items-center justify-center text-center text-xs text-subtext sm:flex">
+                    {draggable ? (
+                        <>
+                            <span className="group-hover:hidden">{index}</span>
+                            <Icon name="grip" className="hidden h-3.5 w-3.5 cursor-grab text-subtext group-hover:block" />
+                        </>
+                    ) : index}
+                </span>
             )}
 
             <div className="relative h-11 w-11 shrink-0">
@@ -80,6 +95,38 @@ export default function TrackRow({ track, index }) {
             {track.duration && (
                 <span className="w-12 shrink-0 text-center text-[11px] text-subtext">{track.duration}</span>
             )}
-        </div>
+        </>
+    );
+
+    if (!draggable) {
+        return (
+            <div
+                onClick={queue}
+                onContextMenu={onContextMenu}
+                title={selected ? "Add to queue" : "Select a server first"}
+                className={className}
+            >
+                {inner}
+            </div>
+        );
+    }
+
+    return (
+        <Reorder.Item
+            as="div"
+            value={dragValue}
+            onDragStart={() => { draggedRef.current = true; setDragging(true); onDragStart?.(); }}
+            onDragEnd={() => {
+                setDragging(false);
+                onDragCommit?.();
+                setTimeout(() => { draggedRef.current = false; }, 0);
+            }}
+            whileDrag={{ boxShadow: "0 12px 28px rgb(0 0 0 / 0.45)", cursor: "grabbing" }}
+            onClick={queue}
+            onContextMenu={onContextMenu}
+            className={`select-none ${className}`}
+        >
+            {inner}
+        </Reorder.Item>
     );
 }
