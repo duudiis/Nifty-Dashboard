@@ -80,10 +80,10 @@ function Line({ line, state, ms, onClick, nodeRef }) {
             onClick={onClick}
             className={`block w-full text-balance text-left text-3xl font-extrabold leading-tight transition-all duration-500 sm:text-4xl ${
                 state === "active"
-                    ? `${timed ? "lyric-line-timed" : "lyric-line-active"} scale-[1.02] text-white`
+                    ? `${timed ? "lyric-line-timed" : "lyric-line-active"} scale-[1.02] text-lyric`
                     : state === "past"
-                    ? "text-white/25 hover:text-white/40"
-                    : "text-white/30 hover:text-white/45"
+                    ? "text-lyric/25 hover:text-lyric/40"
+                    : "text-lyric/30 hover:text-lyric/45"
             }`}
         >
             {tokens.map((tk, i) => {
@@ -244,7 +244,7 @@ export default function LyricsView() {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.16, ease: EASE }}
-                            className="absolute bottom-4 right-4 flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-bold text-white shadow-lg backdrop-blur-md transition hover:bg-white/25"
+                            className="absolute bottom-4 right-4 flex items-center gap-2 rounded-full bg-lyric/15 px-4 py-2 text-sm font-bold text-lyric shadow-lg backdrop-blur-md transition hover:bg-lyric/25"
                         >
                             <Icon name="sync" className="h-4 w-4" />
                             Sync
@@ -256,17 +256,17 @@ export default function LyricsView() {
     } else if (mode === "plain") {
         body = (
             <div className="flex-1 overflow-y-auto px-8 py-12 sm:px-14">
-                <pre className="whitespace-pre-wrap text-left font-unbounded text-2xl font-extrabold leading-relaxed text-white/85">
+                <pre className="whitespace-pre-wrap text-left font-unbounded text-2xl font-extrabold leading-relaxed text-lyric/85">
                     {data.plain}
                 </pre>
             </div>
         );
     } else if (mode === "instrumental") {
-        body = <Centered><p className="text-2xl font-extrabold text-white/80">Instrumental</p></Centered>;
+        body = <Centered><p className="text-2xl font-extrabold text-lyric/80">Instrumental</p></Centered>;
     } else if (mode === "notrack") {
-        body = <Centered><p className="text-lg font-bold text-white/70">No track playing</p></Centered>;
+        body = <Centered><p className="text-lg font-bold text-lyric/70">No track playing</p></Centered>;
     } else {
-        body = <Centered><p className="text-lg font-bold text-white/70">Lyrics not found</p></Centered>;
+        body = <Centered><p className="text-lg font-bold text-lyric/70">Lyrics not found</p></Centered>;
     }
 
     return (

@@ -126,6 +126,58 @@
     --c-topbar-text: 40 24 32;
 }
 
+[data-theme="graphite"] {
+    --c-base: 12 12 14;
+    --c-surface: 20 20 23;
+    --c-elevated: 36 36 41;
+    --c-topbar: 5 5 6;
+    --c-border: 44 44 50;
+    --c-accent: 203 213 225;
+    --c-accent-soft: 203 213 225;
+    --c-text: 244 244 245;
+    --c-subtext: 152 152 160;
+    --c-topbar-text: 244 244 245;
+}
+
+[data-theme="ocean"] {
+    --c-base: 5 14 16;
+    --c-surface: 10 23 26;
+    --c-elevated: 18 39 44;
+    --c-topbar: 2 7 8;
+    --c-border: 26 52 58;
+    --c-accent: 45 212 191;
+    --c-accent-soft: 45 212 191;
+    --c-text: 236 254 255;
+    --c-subtext: 141 177 180;
+    --c-topbar-text: 236 254 255;
+}
+
+[data-theme="sand"] {
+    --c-base: 250 246 240;
+    --c-surface: 255 253 250;
+    --c-elevated: 242 234 222;
+    --c-topbar: 240 230 216;
+    --c-border: 230 219 203;
+    --c-accent: 202 106 6;
+    --c-accent-soft: 202 106 6;
+    --c-text: 41 32 22;
+    --c-subtext: 128 112 92;
+    --c-topbar-text: 41 32 22;
+}
+
+[data-theme="lavender"] {
+    --c-base: 248 246 252;
+    --c-surface: 255 255 255;
+    --c-elevated: 238 233 247;
+    --c-topbar: 233 226 245;
+    --c-border: 224 216 238;
+    --c-accent: 124 58 237;
+    --c-accent-soft: 124 58 237;
+    --c-text: 34 26 48;
+    --c-subtext: 110 100 130;
+    --c-topbar-text: 34 26 48;
+}
+
 [data-theme="mint"] {
     --c-base: 243 249 245;
     --c-surface: 255 255 255;
@@ -139,9 +191,35 @@
     --c-topbar-text: 18 34 26;
 }
 
+/* Ink and scrim over media backdrops (lyrics, page art). Dark themes put
+   white text on a black scrim; light themes flip both. */
+:root {
+    --c-lyric: 255 255 255;
+    --c-scrim: 0 0 0;
+}
+
+[data-theme="light"],
+[data-theme="rose"],
+[data-theme="mint"],
+[data-theme="sand"],
+[data-theme="lavender"] {
+    --c-lyric: 28 26 32;
+    --c-scrim: 255 255 255;
+}
+
 @layer base {
     html {
         -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+    }
+
+    /* Theme switches morph instead of snapping. Lives in the base layer, so
+       any element with its own transition utility keeps its own timing. */
+    *,
+    *::before,
+    *::after {
+        transition-property: background-color, border-color, color, fill;
+        transition-duration: 250ms;
+        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     body {
@@ -343,4 +421,11 @@
     font-weight: 100 900;
     font-style: normal;
     font-display: swap;
+}
+
+/* Light themes lighten every artwork used as a background wash so dark
+   covers don't turn the page murky. data-mode is set alongside data-theme. */
+[data-mode="light"] .backdrop-art {
+    opacity: 0.3;
+    filter: blur(64px) saturate(1.1) brightness(1.55);
 }

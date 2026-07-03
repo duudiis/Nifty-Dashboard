@@ -30,7 +30,7 @@ const SIZES = {
     sm: "max-w-sm",
     md: "max-w-lg",
     lg: "max-w-2xl",
-    xl: "max-w-4xl"
+    xl: "max-w-5xl"
 };
 
 export function ModalProvider({ children }) {
@@ -108,7 +108,7 @@ export function ModalProvider({ children }) {
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                transition={{ duration: 0.2, ease: EASE }}
+                                transition={{ duration: 0.13, ease: EASE }}
                                 onClick={() => {
                                     const top = stack[stack.length - 1];
                                     if (top?.dismissable) close(top.id, false);
@@ -127,7 +127,7 @@ export function ModalProvider({ children }) {
                                     initial={{ opacity: 0, scale: 0.92 }}
                                     animate={{ opacity: 1, scale: 1 }}
                                     exit={{ opacity: 0, scale: 0.94 }}
-                                    transition={{ duration: 0.22, ease: EASE }}
+                                    transition={{ duration: 0.15, ease: EASE }}
                                     className={`pointer-events-auto flex max-h-[85vh] w-full flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xl ${SIZES[entry.size] || SIZES.md}`}
                                 >
                                     {entry.confirm ? (

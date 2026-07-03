@@ -19,6 +19,8 @@ module.exports = {
                 elevated: themed("--c-elevated"),
                 topbar: themed("--c-topbar"),
                 topbartext: themed("--c-topbar-text"),
+                lyric: themed("--c-lyric"),
+                scrim: themed("--c-scrim"),
                 border: themed("--c-border"),
                 accent: themed("--c-accent"),
                 "accent-soft": themed("--c-accent-soft"),

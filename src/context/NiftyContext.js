@@ -6,8 +6,8 @@ import { buildEntityId, parseEntityId } from "../sources/ids.js";
 const NiftyContext = createContext(null);
 
 export const THEME_GROUPS = {
-    dark: ["nifty", "spotify", "amethyst", "crimson", "midnight", "forest", "sunset"],
-    light: ["light", "rose", "mint"]
+    dark: ["nifty", "spotify", "amethyst", "crimson", "midnight", "forest", "sunset", "graphite", "ocean"],
+    light: ["light", "rose", "mint", "sand", "lavender"]
 };
 export const THEMES = [...THEME_GROUPS.dark, ...THEME_GROUPS.light];
 
@@ -355,6 +355,8 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     useEffect(() => {
         if (typeof window === "undefined") return;
         document.documentElement.dataset.theme = settings.theme;
+        // data-mode lets CSS adapt media backdrops per light/dark family.
+        document.documentElement.dataset.mode = THEME_GROUPS.light.includes(settings.theme) ? "light" : "dark";
         try { localStorage.setItem("nifty:settings", JSON.stringify(settings)); } catch {}
     }, [settings]);
 

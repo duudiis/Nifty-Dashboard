@@ -29,10 +29,10 @@ export default function Backdrop({ artwork, height = 340 }) {
                             <img
                                 src={artwork}
                                 alt=""
-                                className="h-full w-full scale-125 object-cover opacity-60 blur-3xl saturate-150"
+                                className="backdrop-art h-full w-full scale-125 object-cover opacity-60 blur-3xl saturate-150"
                             />
                         )}
-                        <div className="absolute inset-0 bg-black/30" />
+                        <div className="absolute inset-0 bg-scrim/30" />
                         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-surface" />
                     </motion.div>
                 )}
