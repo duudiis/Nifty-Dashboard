@@ -7,18 +7,27 @@ import {
     unsaveCollection,
     getSavedRefs,
     likeTrack,
-    unlikeTrack
+    unlikeTrack,
+    listLibrary,
+    getLibraryState,
+    createPlaylist,
+    addTracksToPlaylist,
+    reorderLibrary
 } from "../../lib/db.js";
 import { parseEntityId } from "../../sources/ids.js";
 import { parseLink, externalUrl } from "../../sources/links.js";
 
-// The user's library: saved collections (albums / playlists / artists, stored
-// as live platform pointers) and liked tracks (stored against the shared
-// track catalog).
+// The user's library: the ordered shelf (custom playlists + saved
+// collections), liked tracks, and playlist editing.
 //
-//   GET  /api/library?refs=a,b,c   -> { saved: [refs...] }   (heart states)
-//   POST /api/library { action: "save"|"unsave", entity: { browseId, kind, title, subtitle, artwork, url } }
-//   POST /api/library { action: "like"|"unlike", track: { title, artist, artwork, duration, url } }
+//   GET  /api/library?view=list     -> { items }                 (the shelf)
+//   GET  /api/library?view=state    -> { savedRefs, likedUrls, playlists }
+//   GET  /api/library?refs=a,b      -> { saved: [refs...] }      (heart states)
+//   POST { action: "save"|"unsave", entity }
+//   POST { action: "like"|"unlike", track }
+//   POST { action: "create_playlist", name }
+//   POST { action: "add_to_playlist", playlistId, tracks: [...] }
+//   POST { action: "reorder", itemId, toIndex }
 
 export default async function handler(req, res) {
 
@@ -31,10 +40,17 @@ export default async function handler(req, res) {
     try {
 
         if (req.method === "GET") {
-            const refs = String(req.query.refs || "").split(",").filter(Boolean);
-            const saved = await getSavedRefs(user.id, refs);
             res.setHeader("Cache-Control", "no-store");
-            return res.status(200).json({ saved });
+
+            if (req.query.view === "list") {
+                return res.status(200).json({ items: await listLibrary(user.id) });
+            }
+            if (req.query.view === "state") {
+                return res.status(200).json(await getLibraryState(user.id));
+            }
+
+            const refs = String(req.query.refs || "").split(",").filter(Boolean);
+            return res.status(200).json({ saved: await getSavedRefs(user.id, refs) });
         }
 
         const { action } = req.body || {};
@@ -81,11 +97,48 @@ export default async function handler(req, res) {
             return res.status(200).json({ liked: false });
         }
 
+        if (action === "create_playlist") {
+            const name = String(req.body.name || "").trim().slice(0, 100);
+            if (!name) {
+                return res.status(400).json({ message: "A playlist needs a name." });
+            }
+            await ensureUser(user);
+            const playlist = await createPlaylist(user.id, name);
+            return res.status(200).json({ playlist });
+        }
+
+        if (action === "add_to_playlist") {
+            const { playlistId } = req.body || {};
+            const rawTracks = Array.isArray(req.body.tracks) ? req.body.tracks : [];
+
+            const resolvable = rawTracks
+                .map((item) => ({ item, parsedLink: parseLink(item?.url) }))
+                .filter((t) => t.parsedLink && t.parsedLink.kind === "track");
+
+            if (!playlistId || !resolvable.length) {
+                return res.status(400).json({ message: "Nothing addable in that selection." });
+            }
+
+            await ensureUser(user);
+            const added = await addTracksToPlaylist(user.id, playlistId, resolvable);
+            return res.status(200).json({ added, skipped: rawTracks.length - resolvable.length });
+        }
+
+        if (action === "reorder") {
+            const itemId = String(req.body.itemId || "");
+            const toIndex = Number(req.body.toIndex);
+            if (!itemId || !Number.isInteger(toIndex) || toIndex < 0) {
+                return res.status(400).json({ message: "Invalid reorder." });
+            }
+            await reorderLibrary(user.id, itemId, toIndex);
+            return res.status(200).json({ ok: true });
+        }
+
         return res.status(400).json({ message: "Unknown action." });
 
     } catch (error) {
         console.error("[Dashboard] /api/library failed:", error.message);
-        return res.status(500).json({ message: "Database unavailable." });
+        return res.status(500).json({ message: error.message || "Database unavailable." });
     }
 
 }

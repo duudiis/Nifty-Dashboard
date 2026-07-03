@@ -5,20 +5,30 @@ import { artworkOrFallback } from "../../lib/format.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
 import QueueGlyph from "./QueueGlyph.js";
+import ArtistLink from "./ArtistLink.js";
+import Icon from "../Icon.js";
 
 // A playable song/video row (search results, album/playlist/artist track lists).
 // Click anywhere on the row to add it to the queue; right-click for the full
-// play/queue menu. The cover icon flips to a check for a second on add.
+// play/queue menu. The cover icon flips to a check for a second on add; the
+// heart on the right saves to Liked songs, and the artist name opens their page.
 export default function TrackRow({ track, index }) {
-    const { play, selected } = useNifty();
+    const { play, selected, isLiked, toggleLike } = useNifty();
     const trackMenu = useTrackMenu();
     const [done, setDone] = useState(false);
+
+    const liked = isLiked(track);
 
     const queue = () => {
         if (!selected || done) return;
         play(track.playQuery || track.url, "queue", track.title);
         setDone(true);
         setTimeout(() => setDone(false), 1000);
+    };
+
+    const like = (e) => {
+        e.stopPropagation();
+        toggleLike(track);
     };
 
     // "Add to queue" in the menu runs the same animated add as a plain click.
@@ -51,8 +61,20 @@ export default function TrackRow({ track, index }) {
 
             <div className="flex min-w-0 flex-1 flex-col leading-tight">
                 <span className="truncate text-[13px] text-maintext">{track.title}</span>
-                <span className="truncate text-[11px] text-subtext">{track.artist}</span>
+                <ArtistLink
+                    name={track.artist}
+                    browseId={track.artistBrowseId}
+                    className="text-[11px] text-subtext"
+                />
             </div>
+
+            <button
+                onClick={like}
+                title={liked ? "Remove from Liked songs" : "Save to Liked songs"}
+                className={`shrink-0 transition-all ${liked ? "text-accent opacity-100" : "text-subtext opacity-0 hover:text-maintext group-hover:opacity-100"}`}
+            >
+                <Icon name={liked ? "heart-filled" : "heart"} className="h-4 w-4" />
+            </button>
 
             {track.duration && (
                 <span className="w-12 shrink-0 text-center text-[11px] text-subtext">{track.duration}</span>

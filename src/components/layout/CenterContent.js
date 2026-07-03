@@ -9,6 +9,7 @@ import QueueList from "../queue/QueueList.js";
 import LyricsView from "../lyrics/LyricsView.js";
 import WatchView from "../watch/WatchView.js";
 import ArtBackdrop from "../ArtBackdrop.js";
+import Backdrop from "../browse/Backdrop.js";
 import CollectionPage from "../browse/CollectionPage.js";
 import ArtistPage from "../browse/ArtistPage.js";
 
@@ -77,10 +78,11 @@ function Home() {
 }
 
 export default function CenterContent() {
-    const { view, entityId } = useNifty();
+    const { view, entityId, pageArt } = useNifty();
     // Full-surface overlays (lyrics, watch): fixed height, pinned art backdrop,
     // the view manages its own scrolling.
     const isOverlay = view === "lyrics" || view === "watch";
+    const isEntity = view === "album" || view === "playlist" || view === "artist";
 
     return (
         <motion.main layoutScroll className={`min-h-0 flex-1 rounded-lg bg-surface ${isOverlay ? "overflow-hidden" : "overflow-auto"}`}>
@@ -90,8 +92,13 @@ export default function CenterContent() {
                 contentClassName={isOverlay ? "h-full" : undefined}
                 backdrop={
                     // lyrics get the drifting cover-art lights; watch gets plain
-                    // black so the video's letterboxing blends into the page
-                    view === "lyrics" ? <ArtBackdrop /> : isOverlay ? <div className="absolute inset-0 bg-black" /> : null
+                    // black so the video's letterboxing blends into the page;
+                    // entity pages pin their artwork blur here so it never
+                    // slides (and so never leaks past the header)
+                    view === "lyrics" ? <ArtBackdrop />
+                        : isOverlay ? <div className="absolute inset-0 bg-black" />
+                        : isEntity ? <Backdrop artwork={pageArt} />
+                        : null
                 }
             >
                 {view === "lyrics" ? (

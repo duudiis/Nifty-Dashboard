@@ -60,6 +60,7 @@ function track(t) {
     return {
         title: t.title_short || t.title,
         artist: t.artist?.name || "Unknown artist",
+        artistBrowseId: t.artist?.id ? buildEntityId(ID, "artist", t.artist.id) : null,
         duration: clock(t.duration),
         artwork: art(t.album, "cover") || art(t, "cover"),
         url,
@@ -134,6 +135,7 @@ async function browseCollection(kind, id) {
             ? data.artist?.name || ""
             : data.creator?.name || data.user?.name || "",
         artwork: art(data, isAlbum ? "cover" : "playlist"),
+        artistBrowseId: isAlbum && data.artist?.id ? buildEntityId(ID, "artist", data.artist.id) : null,
         releaseDate: isAlbum ? data.release_date || null : null,
         url: link(kind, id, data.link),
         tracks: (data.tracks?.data || []).map(track),

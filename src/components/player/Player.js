@@ -5,6 +5,7 @@ import { artworkOrFallback } from "../../lib/format.js";
 import { getYouTubeVideoId } from "../../lib/youtube.js";
 import Icon from "../Icon.js";
 import AddedBy from "../AddedBy.js";
+import ArtistLink from "../browse/ArtistLink.js";
 import Marquee from "../Marquee.js";
 import { AnimatePresence, motion, EASE, DUR } from "../motion/index.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
@@ -27,7 +28,7 @@ function IconButton({ onClick, active, title, large, disabled, className = "", c
                 onClick={onClick}
                 title={title}
                 disabled={disabled}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-maintext text-canvas transition hover:scale-105 active:scale-95 disabled:opacity-40 disabled:hover:scale-100"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-maintext text-canvas transition active:scale-95 disabled:opacity-40"
             >
                 {children}
             </button>
@@ -85,13 +86,16 @@ function Controls({ playing, onPlayPause, sideDisabled, playDisabled }) {
 }
 
 function Song({ track }) {
+    const { isLiked, toggleLike } = useNifty();
     const trackMenu = useTrackMenu();
     const { onContextMenu, active } = useContextMenu(() => (track ? trackMenu(track, { source: "player" }) : []));
+
+    const liked = track ? isLiked(track) : false;
 
     return (
         <div
             onContextMenu={onContextMenu}
-            className={`-mx-2 flex min-w-0 items-center gap-3 rounded-md px-2 py-1 transition ${active ? "bg-white/5" : ""}`}
+            className={`group -mx-2 flex min-w-0 items-center gap-3 rounded-md px-2 py-1 transition ${active ? "bg-white/5" : ""}`}
         >
             <img
                 src={artworkOrFallback(track?.artwork)}
@@ -101,9 +105,16 @@ function Song({ track }) {
             />
             <div className="flex min-w-0 max-w-[14rem] flex-col leading-tight">
                 <Marquee text={track?.title || ""} className="text-[13px] font-bold text-maintext" />
-                <span className="truncate text-[11px] text-subtext">{track?.artist || "—"}</span>
+                <ArtistLink name={track?.artist || "—"} className="text-[11px] text-subtext" />
             </div>
-            <AddedBy track={track} size={20} className="ml-3 w-24 shrink-0 text-[11px] text-subtext/80" />
+            <button
+                onClick={() => track && toggleLike(track)}
+                title={liked ? "Remove from Liked songs" : "Save to Liked songs"}
+                className={`ml-1 shrink-0 transition-all ${liked ? "text-accent opacity-100" : "text-subtext opacity-0 hover:text-maintext group-hover:opacity-100"}`}
+            >
+                <Icon name={liked ? "heart-filled" : "heart"} className="h-4 w-4" />
+            </button>
+            <AddedBy track={track} size={20} className="ml-2 w-24 shrink-0 text-[11px] text-subtext/80" />
         </div>
     );
 }

@@ -205,16 +205,24 @@ export async function recordQueuedCollection(userId, entity) {
     );
 }
 
-/** Saves a collection to the user's library (idempotent). */
+/** Saves a collection to the user's library shelf (idempotent). */
 export async function saveCollection(userId, entity) {
-    await db.query(
+    const { rows } = await db.query(
         `INSERT INTO saved_collections (user_id, kind, source, source_url, browse_ref, name, subtitle, artwork_url)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (user_id, source_url) DO UPDATE
              SET name = EXCLUDED.name, subtitle = EXCLUDED.subtitle, artwork_url = EXCLUDED.artwork_url,
-                 browse_ref = EXCLUDED.browse_ref`,
+                 browse_ref = EXCLUDED.browse_ref
+         RETURNING id`,
         [userId, entity.kind, entity.source, entity.sourceUrl, entity.browseRef || null,
          entity.name || null, entity.subtitle || null, entity.artwork || null]
+    );
+
+    await db.query(
+        `INSERT INTO library_items (user_id, position, saved_id)
+         SELECT $1, COALESCE(MAX(position) + 1, 0), $2 FROM library_items WHERE user_id = $1
+         ON CONFLICT (user_id, playlist_id, saved_id) DO NOTHING`,
+        [userId, rows[0].id]
     );
 }
 
@@ -284,4 +292,217 @@ export async function unlikeTrack(userId, parsedLink) {
             (SELECT id FROM tracks WHERE source = $2 AND source_id = $3)`,
         [userId, parsedLink.source, parsedLink.id]
     );
+}
+
+/* ===================== library shelf, playlists ===================== */
+
+function clockFromMs(ms) {
+    if (ms == null) return null;
+    const total = Math.floor(Number(ms) / 1000);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const sec = String(total % 60).padStart(2, "0");
+    return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${sec}` : `${m}:${sec}`;
+}
+
+/** The user's ordered library shelf (custom playlists + saved collections). */
+export async function listLibrary(userId) {
+    const { rows } = await db.query(
+        `SELECT li.id AS item_id, li.position, li.added_at,
+                p.id AS playlist_id, p.name AS playlist_name, p.artwork_url AS playlist_art,
+                sc.kind AS saved_kind, sc.name AS saved_name, sc.subtitle AS saved_subtitle,
+                sc.artwork_url AS saved_art, sc.browse_ref, sc.source_url, sc.source
+         FROM library_items li
+         LEFT JOIN playlists p ON p.id = li.playlist_id
+         LEFT JOIN saved_collections sc ON sc.id = li.saved_id
+         WHERE li.user_id = $1
+         ORDER BY li.position ASC`,
+        [userId]
+    );
+
+    return rows.map((r) => r.playlist_id
+        ? {
+            itemId: String(r.item_id),
+            kind: "playlist",
+            custom: true,
+            browseId: `nifty:playlist:${r.playlist_id}`,
+            title: r.playlist_name,
+            subtitle: "Playlist · by you",
+            artwork: r.playlist_art,
+            addedAt: r.added_at
+        }
+        : {
+            itemId: String(r.item_id),
+            kind: r.saved_kind,
+            browseId: r.browse_ref,
+            title: r.saved_name,
+            subtitle: r.saved_subtitle || `${r.saved_kind} · ${r.source}`,
+            artwork: r.saved_art,
+            url: r.source_url,
+            addedAt: r.added_at
+        });
+}
+
+/** Everything the client caches for instant heart/menu states. */
+export async function getLibraryState(userId) {
+    const [saved, liked, playlists] = await Promise.all([
+        db.query(`SELECT browse_ref FROM saved_collections WHERE user_id = $1 AND browse_ref IS NOT NULL`, [userId]),
+        db.query(`SELECT t.url FROM liked_tracks lt JOIN tracks t ON t.id = lt.track_id WHERE lt.user_id = $1`, [userId]),
+        db.query(`SELECT id, name FROM playlists WHERE owner_id = $1 ORDER BY created_at ASC`, [userId])
+    ]);
+    return {
+        savedRefs: saved.rows.map((r) => r.browse_ref),
+        likedUrls: liked.rows.map((r) => r.url).filter(Boolean),
+        playlists: playlists.rows.map((r) => ({ id: r.id, name: r.name }))
+    };
+}
+
+/** Creates a custom playlist and shelves it. */
+export async function createPlaylist(userId, name) {
+    const client = await db.connect();
+    try {
+        await client.query("BEGIN");
+        const { rows } = await client.query(
+            `INSERT INTO playlists (owner_id, name) VALUES ($1, $2) RETURNING id, name`,
+            [userId, name]
+        );
+        await client.query(
+            `INSERT INTO library_items (user_id, position, playlist_id)
+             SELECT $1, COALESCE(MAX(position) + 1, 0), $2 FROM library_items WHERE user_id = $1`,
+            [userId, rows[0].id]
+        );
+        await client.query("COMMIT");
+        return rows[0];
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+/**
+ * Appends tracks to one of the user's own playlists. Tracks are upserted into
+ * the shared catalog first (parsed platform link required per track).
+ */
+export async function addTracksToPlaylist(userId, playlistId, tracks) {
+    const owner = await db.query(`SELECT owner_id FROM playlists WHERE id = $1`, [playlistId]);
+    if (!owner.rows[0] || String(owner.rows[0].owner_id) !== String(userId)) {
+        throw new Error("Not your playlist.");
+    }
+
+    let added = 0;
+    for (const { item, parsedLink } of tracks) {
+        const trackId = await upsertTrackFromItem(item, parsedLink);
+        const { rowCount } = await db.query(
+            `INSERT INTO playlist_tracks (playlist_id, position, track_id, added_by)
+             SELECT $1, COALESCE(MAX(position) + 1, 0), $2, $3 FROM playlist_tracks WHERE playlist_id = $1`,
+            [playlistId, trackId, userId]
+        );
+        added += rowCount;
+    }
+
+    await db.query(`UPDATE playlists SET updated_at = now() WHERE id = $1`, [playlistId]);
+    return added;
+}
+
+/** Moves a shelf entry to a new index (same shift pattern as the queue). */
+export async function reorderLibrary(userId, itemId, toIndex) {
+    const client = await db.connect();
+    try {
+        await client.query("BEGIN");
+        const { rows } = await client.query(
+            `SELECT position FROM library_items WHERE id = $1 AND user_id = $2`,
+            [itemId, userId]
+        );
+        if (!rows[0]) { await client.query("ROLLBACK"); return; }
+        const from = rows[0].position;
+        if (from === toIndex) { await client.query("ROLLBACK"); return; }
+
+        if (toIndex > from) {
+            await client.query(
+                `UPDATE library_items SET position = position - 1
+                 WHERE user_id = $1 AND position > $2 AND position <= $3`,
+                [userId, from, toIndex]
+            );
+        } else {
+            await client.query(
+                `UPDATE library_items SET position = position + 1
+                 WHERE user_id = $1 AND position >= $3 AND position < $2`,
+                [userId, from, toIndex]
+            );
+        }
+        await client.query(`UPDATE library_items SET position = $2 WHERE id = $1`, [itemId, toIndex]);
+        await client.query("COMMIT");
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
+/** Backs the "nifty" source: a custom playlist page read straight from the db. */
+export async function browsePlaylistFromDb(playlistId) {
+    const [meta, tracks] = await Promise.all([
+        db.query(
+            `SELECT p.name, p.artwork_url, u.display_name AS owner_name
+             FROM playlists p LEFT JOIN users u ON u.id = p.owner_id WHERE p.id = $1`,
+            [playlistId]
+        ),
+        db.query(
+            `SELECT t.title, t.artist, t.duration_ms, t.artwork_url, t.url
+             FROM playlist_tracks pt JOIN tracks t ON t.id = pt.track_id
+             WHERE pt.playlist_id = $1 ORDER BY pt.position ASC`,
+            [playlistId]
+        )
+    ]);
+
+    const p = meta.rows[0];
+    if (!p) throw new Error("Playlist not found.");
+
+    return {
+        type: "playlist",
+        custom: true,
+        title: p.name,
+        subtitle: p.owner_name ? `by ${p.owner_name}` : "",
+        artwork: p.artwork_url || tracks.rows[0]?.artwork_url || null,
+        tracks: tracks.rows.map((t) => ({
+            title: t.title,
+            artist: t.artist,
+            duration: clockFromMs(t.duration_ms),
+            artwork: t.artwork_url,
+            url: t.url,
+            playQuery: t.url
+        })),
+        playUrl: null
+    };
+}
+
+/** The user's Liked songs as a browsable collection page. */
+export async function browseLikedFromDb(userId) {
+    const { rows } = await db.query(
+        `SELECT t.title, t.artist, t.duration_ms, t.artwork_url, t.url
+         FROM liked_tracks lt JOIN tracks t ON t.id = lt.track_id
+         WHERE lt.user_id = $1 ORDER BY lt.position ASC`,
+        [userId]
+    );
+
+    return {
+        type: "playlist",
+        custom: true,
+        liked: true,
+        title: "Liked songs",
+        subtitle: `${rows.length} song${rows.length === 1 ? "" : "s"}`,
+        artwork: rows[0]?.artwork_url || null,
+        tracks: rows.map((t) => ({
+            title: t.title,
+            artist: t.artist,
+            duration: clockFromMs(t.duration_ms),
+            artwork: t.artwork_url,
+            url: t.url,
+            playQuery: t.url
+        })),
+        playUrl: null
+    };
 }

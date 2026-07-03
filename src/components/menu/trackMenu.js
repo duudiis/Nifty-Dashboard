@@ -3,16 +3,14 @@
 // `useTrackMenu()` returns a factory: pass a track plus its source and get a
 // menu-item list ready for <... onContextMenu={useContextMenu(items)}>.
 //
-//   source "search"  → not yet in the queue (search result / browse row):
-//                      Play now / Play next / Add to queue.
-//   source "queue"   → an existing queue entry, addressed by track_id.
-//   source "player"  → the live player track — i.e. the current queue entry,
-//                      addressed by the queue cursor.
+//   source "search"  -> not yet in the queue (search result / browse row):
+//                       Play now / Play next / Add to queue.
+//   source "queue"   -> an existing queue entry, addressed by track_id.
+//   source "player"  -> the live player track — i.e. the current queue entry,
+//                       addressed by the queue cursor.
 //
-// "queue" and "player" share one menu: both are queue entries, so the player
-// bar and Now-playing panel get the full set of player controls too. The
-// current entry shows Pause/Resume + Skip; any other entry shows Play now /
-// Play next. Open / Copy link are client-side and always available with a URL.
+// Library items are state-aware (Save flips to Remove when already liked) and
+// "Add to playlist" expands into the user's playlists.
 
 import { useCallback } from "react";
 
@@ -44,7 +42,10 @@ async function copyLink(url) {
 }
 
 export function useTrackMenu() {
-    const { selected, queue, player, play, playNow, playNextTrack, moveToLast, removeTrack, control, notify } = useNifty();
+    const {
+        selected, queue, player, play, playNow, playNextTrack, moveToLast, removeTrack,
+        control, notify, library, isLiked, toggleLike, addToPlaylist, createPlaylist
+    } = useNifty();
 
     return useCallback(
         (track, { source, onAdd } = {}) => {
@@ -57,27 +58,43 @@ export function useTrackMenu() {
             const title = track.title;
             const label = title ? `“${title}”` : "track";
 
-            const saveTrack = async () => {
-                try {
-                    const res = await fetch("/api/library", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            action: "like",
-                            track: { title, artist: track.artist, artwork: track.artwork, duration: track.duration, url }
-                        })
-                    });
-                    const json = await res.json();
-                    if (!res.ok) throw new Error(json.message);
-                    notify(json.already ? `${label} is already in your Liked songs` : `Saved ${label} to your Liked songs`);
-                } catch {
-                    notify("Couldn't save this track");
+            const liked = isLiked(track);
+
+            const playlistChildren = [
+                {
+                    label: "New playlist…",
+                    icon: "enqueue",
+                    onClick: async () => {
+                        const name = window.prompt("Name your new playlist:", title || "My playlist");
+                        if (!name?.trim()) return;
+                        const playlist = await createPlaylist(name.trim());
+                        if (playlist) addToPlaylist(playlist, [track], label);
+                    }
+                },
+                ...library.playlists.map((playlist) => ({
+                    label: playlist.name,
+                    onClick: () => addToPlaylist(playlist, [track], label)
+                }))
+            ];
+
+            const libraryItems = [
+                { separator: true },
+                {
+                    label: liked ? "Remove from Liked songs" : "Save to Liked songs",
+                    icon: liked ? "heart-filled" : "heart",
+                    onClick: () => toggleLike(track),
+                    disabled: !url
+                },
+                {
+                    label: "Add to playlist",
+                    icon: "library",
+                    children: playlistChildren,
+                    disabled: !url
                 }
-            };
+            ];
 
             const linkItems = [
                 { separator: true },
-                { label: "Save to Liked songs", icon: "heart", onClick: saveTrack, disabled: !url },
                 { label: "Open in browser", icon: "open", onClick: () => openLink(url), disabled: !url },
                 {
                     label: "Copy link",
@@ -132,6 +149,7 @@ export function useTrackMenu() {
                         onClick: () => { moveToLast(id); notify(`Moved ${label} to the end of the queue`); },
                         disabled: !selected
                     },
+                    ...libraryItems,
                     ...linkItems,
                     { separator: true },
                     {
@@ -156,9 +174,12 @@ export function useTrackMenu() {
                     onClick: () => (onAdd ? onAdd() : play(queueRef, "queue", title)),
                     disabled: !selected
                 },
+                ...libraryItems,
                 ...linkItems
             ];
         },
-        [selected, queue.position, player?.track, player?.playing, play, playNow, playNextTrack, moveToLast, removeTrack, control, notify]
+        [selected, queue.position, player?.track, player?.playing, play, playNow, playNextTrack,
+         moveToLast, removeTrack, control, notify, library.playlists, library.likedUrls,
+         isLiked, toggleLike, addToPlaylist, createPlaylist]
     );
 }

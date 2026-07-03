@@ -97,6 +97,11 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
 
     const [search, setSearch] = useState({ query: "", sections: [], loading: false });
 
+    // Artwork for the current entity page's pinned backdrop. Lives here (not in
+    // the page) so the transition layer can render it in the non-sliding layer
+    // — the blur can never leak past the header during the slide-up.
+    const [pageArt, setPageArt] = useState(null);
+
     const [settings, setSettings] = useState(DEFAULT_SETTINGS);
 
     const wsRef = useRef(null);
@@ -157,6 +162,167 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
             setNotifications((prev) => prev.filter((n) => n.id !== id));
         }, duration);
     }, []);
+
+    /* ---- library: the user's shelf + liked/saved caches ----
+       Loaded once per login and kept fresh by the mutation helpers, so hearts
+       and context menus can read saved/liked state synchronously. ---- */
+
+    const [library, setLibrary] = useState({
+        items: [], savedRefs: [], likedUrls: [], playlists: [], loaded: false
+    });
+    const libraryRef = useRef(library);
+    libraryRef.current = library;
+
+    const refreshLibrary = useCallback(async () => {
+        try {
+            const [state, list] = await Promise.all([
+                fetch("/api/library?view=state").then((r) => r.json()),
+                fetch("/api/library?view=list").then((r) => r.json())
+            ]);
+            setLibrary({
+                items: list.items || [],
+                savedRefs: state.savedRefs || [],
+                likedUrls: state.likedUrls || [],
+                playlists: state.playlists || [],
+                loaded: true
+            });
+        } catch { /* next mutation retries */ }
+    }, []);
+
+    useEffect(() => { if (user) refreshLibrary(); }, [user, refreshLibrary]);
+
+    const isLiked = useCallback((track) => {
+        const url = track?.url || track?.songUrl;
+        return !!url && libraryRef.current.likedUrls.includes(url);
+    }, []);
+
+    const toggleLike = useCallback(async (track) => {
+        const url = track?.url || track?.songUrl;
+        if (!url) return;
+        const liked = libraryRef.current.likedUrls.includes(url);
+        const label = track.title ? `“${track.title}”` : "track";
+
+        // Optimistic: hearts flip instantly, revert on failure.
+        setLibrary((prev) => ({
+            ...prev,
+            likedUrls: liked ? prev.likedUrls.filter((u) => u !== url) : [...prev.likedUrls, url]
+        }));
+        try {
+            const res = await fetch("/api/library", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: liked ? "unlike" : "like",
+                    track: { title: track.title, artist: track.artist, artwork: track.artwork, duration: track.duration, url }
+                })
+            });
+            if (!res.ok) throw new Error();
+            notify(liked ? `Removed ${label} from Liked songs` : `Saved ${label} to Liked songs`);
+        } catch {
+            setLibrary((prev) => ({
+                ...prev,
+                likedUrls: liked ? [...prev.likedUrls, url] : prev.likedUrls.filter((u) => u !== url)
+            }));
+            notify("Couldn't update Liked songs");
+        }
+    }, [notify]);
+
+    const isSaved = useCallback((browseId) => {
+        return !!browseId && libraryRef.current.savedRefs.includes(browseId);
+    }, []);
+
+    const toggleSaveEntity = useCallback(async (item, data = null) => {
+        const ref = item?.browseId;
+        if (!ref) return;
+        const saved = libraryRef.current.savedRefs.includes(ref);
+        const label = item.title ? `“${item.title}”` : `this ${item.kind}`;
+
+        setLibrary((prev) => ({
+            ...prev,
+            savedRefs: saved ? prev.savedRefs.filter((r) => r !== ref) : [...prev.savedRefs, ref]
+        }));
+        try {
+            const res = await fetch("/api/library", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: saved ? "unsave" : "save",
+                    entity: {
+                        browseId: ref,
+                        kind: item.kind,
+                        title: data?.title || item.title,
+                        subtitle: data?.subtitle || item.subtitle || null,
+                        artwork: data?.artwork || item.artwork || null,
+                        url: data?.url || item.url || null
+                    }
+                })
+            });
+            if (!res.ok) throw new Error();
+            notify(saved ? `Removed ${label} from your library` : `Saved ${label} to your library`);
+            refreshLibrary(); // the shelf changed
+        } catch {
+            setLibrary((prev) => ({
+                ...prev,
+                savedRefs: saved ? [...prev.savedRefs, ref] : prev.savedRefs.filter((r) => r !== ref)
+            }));
+            notify("Couldn't update your library");
+        }
+    }, [notify, refreshLibrary]);
+
+    const createPlaylist = useCallback(async (name) => {
+        try {
+            const res = await fetch("/api/library", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "create_playlist", name })
+            });
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.message);
+            notify(`Created “${json.playlist.name}”`);
+            refreshLibrary();
+            return json.playlist;
+        } catch {
+            notify("Couldn't create the playlist");
+            return null;
+        }
+    }, [notify, refreshLibrary]);
+
+    const addToPlaylist = useCallback(async (playlist, tracks, label = null) => {
+        try {
+            const res = await fetch("/api/library", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    action: "add_to_playlist",
+                    playlistId: playlist.id,
+                    tracks: tracks.map((t) => ({
+                        title: t.title, artist: t.artist, artwork: t.artwork,
+                        duration: t.duration, url: t.url || t.songUrl || t.playQuery
+                    }))
+                })
+            });
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.message);
+            notify(`Added ${label || (json.added === 1 ? "1 track" : `${json.added} tracks`)} to “${playlist.name}”`);
+        } catch {
+            notify(`Couldn't add to “${playlist.name}”`);
+        }
+    }, [notify]);
+
+    const reorderLibraryItem = useCallback(async (itemId, toIndex, nextItems) => {
+        // Optimistic: the sidebar hands us its already-reordered list.
+        if (nextItems) setLibrary((prev) => ({ ...prev, items: nextItems }));
+        try {
+            const res = await fetch("/api/library", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "reorder", itemId, toIndex })
+            });
+            if (!res.ok) throw new Error();
+        } catch {
+            refreshLibrary();
+        }
+    }, [refreshLibrary]);
 
     /* ---- settings: load + persist + apply theme ---- */
 
@@ -499,6 +665,16 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         moveToLast,
         moveTrack,
         removeTrack,
+        pageArt, setPageArt,
+        library,
+        refreshLibrary,
+        isLiked,
+        toggleLike,
+        isSaved,
+        toggleSaveEntity,
+        createPlaylist,
+        addToPlaylist,
+        reorderLibraryItem,
         logout
     };
 

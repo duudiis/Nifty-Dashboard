@@ -14,6 +14,7 @@
 import deezer from "./deezer/index.js";
 import youtube from "./youtube/index.js";
 import spotify from "./spotify/index.js";
+import nifty from "./nifty/index.js";
 import auto from "./auto/index.js";
 import { SEARCH_SOURCE } from "./config.js";
 import { parseEntityId } from "./ids.js";
@@ -24,6 +25,7 @@ const SOURCES = {
     [deezer.id]: deezer,
     [youtube.id]: youtube,
     [spotify.id]: spotify,
+    [nifty.id]: nifty,
     [auto.id]: auto
 };
 

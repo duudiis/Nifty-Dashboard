@@ -3,20 +3,36 @@
 // a header tinted by its own art instead of one static accent gradient.
 // Pure CSS on top of the artwork URL, so it needs no pixel access (remote
 // covers are cross-origin and would taint a canvas).
+//
+// Rendered inside the transition's pinned (non-sliding) layer — see
+// CenterContent — so the blur never leaks past the header while the page
+// content slides up.
 
-import { artworkOrFallback } from "../../lib/format.js";
+import { AnimatePresence, motion } from "../motion/index.js";
 
-export default function Backdrop({ artwork, className = "" }) {
+export default function Backdrop({ artwork, height = 460 }) {
     return (
-        <div aria-hidden className={`pointer-events-none absolute inset-0 overflow-hidden ${className}`}>
-            <img
-                src={artworkOrFallback(artwork)}
-                alt=""
-                className="h-full w-full scale-125 object-cover opacity-60 blur-3xl saturate-150"
-            />
-            {/* Darken for text contrast, then dissolve into the page colour. */}
-            <div className="absolute inset-0 bg-black/30" />
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-canvas" />
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 overflow-hidden" style={{ height }}>
+            <AnimatePresence>
+                {artwork && (
+                    <motion.div
+                        key={artwork}
+                        className="absolute inset-0"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
+                    >
+                        <img
+                            src={artwork}
+                            alt=""
+                            className="h-full w-full scale-125 object-cover opacity-60 blur-3xl saturate-150"
+                        />
+                        <div className="absolute inset-0 bg-black/30" />
+                        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-surface" />
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

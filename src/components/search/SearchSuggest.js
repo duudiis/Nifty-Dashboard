@@ -166,8 +166,15 @@ export default function SearchSuggest({ query, open, onClose, onPick }) {
     useEffect(() => {
         clearTimeout(debounceRef.current);
         const seq = ++seqRef.current;
-        const apply = (items) => seqRef.current === seq && setState({ items, loading: false });
-        const fail = () => seqRef.current === seq && setState({ items: [], loading: false });
+        // A brief minimum skeleton time so near-instant answers (cached, or an
+        // empty recents list) ease in instead of flashing open and shut.
+        const shownAt = Date.now();
+        const settle = (updater) => {
+            const wait = Math.max(0, 250 - (Date.now() - shownAt));
+            setTimeout(() => { if (seqRef.current === seq) updater(); }, wait);
+        };
+        const apply = (items) => settle(() => setState({ items, loading: false }));
+        const fail = () => settle(() => setState({ items: [], loading: false }));
 
         // A pasted platform link resolves to exactly one item — no ranking.
         if (link) {
@@ -208,9 +215,12 @@ export default function SearchSuggest({ query, open, onClose, onPick }) {
         return () => clearTimeout(debounceRef.current);
     }, [q, open, link ? link.url : null]);
 
+    // Link and recent modes stay visible with zero items — they show a message
+    // instead of flashing shut. Search mode still hides when nothing matches.
     const visible = open
-        && (state.items.length > 0 || state.loading)
-        && (mode !== "search" || q.length >= 2);
+        && (mode === "search"
+            ? q.length >= 2 && (state.items.length > 0 || state.loading)
+            : true);
 
     // Track the content's real height while the panel is up (skeleton and
     // results have different sizes); reset when hidden so a re-open starts
@@ -255,6 +265,17 @@ export default function SearchSuggest({ query, open, onClose, onPick }) {
                             >
                                 {state.loading ? (
                                     <SkeletonRows />
+                                ) : state.items.length === 0 ? (
+                                    <div className="flex flex-col items-center gap-1 px-6 py-6 text-center">
+                                        <span className="text-[13px] font-bold text-maintext">
+                                            {mode === "link" ? "Couldn't recognise that link" : "Nothing queued yet"}
+                                        </span>
+                                        <span className="text-[11px] text-subtext">
+                                            {mode === "link"
+                                                ? "YouTube, Deezer and Spotify links are supported."
+                                                : "Tracks and collections you queue will show up here."}
+                                        </span>
+                                    </div>
                                 ) : (
                                     <>
                                         {state.items.map((item, i) => (

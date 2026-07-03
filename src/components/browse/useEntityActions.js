@@ -79,33 +79,5 @@ export function useEntityActions() {
         }
     }, [play, notify]);
 
-    /** Saves / removes the entity in the user's library. Returns the new state. */
-    const saveEntity = useCallback(async (item, save, data = null) => {
-        const label = item.title ? `“${item.title}”` : `this ${item.kind}`;
-        try {
-            const res = await fetch("/api/library", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    action: save ? "save" : "unsave",
-                    entity: {
-                        browseId: item.browseId,
-                        kind: item.kind,
-                        title: data?.title || item.title,
-                        subtitle: data?.subtitle || item.subtitle || null,
-                        artwork: data?.artwork || item.artwork || null,
-                        url: entityExternalUrl(item, data)
-                    }
-                })
-            });
-            if (!res.ok) throw new Error(`library ${res.status}`);
-            notify(save ? `Saved ${label} to your library` : `Removed ${label} from your library`);
-            return save;
-        } catch {
-            notify(`Couldn't update your library`);
-            return !save;
-        }
-    }, [notify]);
-
-    return { playEntity, saveEntity };
+    return { playEntity };
 }

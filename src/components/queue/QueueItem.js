@@ -4,6 +4,7 @@ import { useNifty } from "../../context/NiftyContext.js";
 import { msToClock, artworkOrFallback } from "../../lib/format.js";
 import Icon from "../Icon.js";
 import AddedBy from "../AddedBy.js";
+import ArtistLink from "../browse/ArtistLink.js";
 import Equalizer from "../Equalizer.js";
 import AlbumCell from "./AlbumCell.js";
 import { Reorder } from "../motion/index.js";
@@ -11,7 +12,7 @@ import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
 
 export default function QueueItem({ track, index, isCurrent, dense, onDragStart, onDragEnd }) {
-    const { control, player, jump, removeTrack } = useNifty();
+    const { control, player, jump, removeTrack, isLiked, toggleLike } = useNifty();
     const trackMenu = useTrackMenu();
     const { onContextMenu, active } = useContextMenu(() => trackMenu(track, { source: "queue" }));
 
@@ -51,6 +52,12 @@ export default function QueueItem({ track, index, isCurrent, dense, onDragStart,
     const remove = (e) => {
         e.stopPropagation();
         removeTrack(track.track_id);
+    };
+
+    const liked = isLiked(track);
+    const like = (e) => {
+        e.stopPropagation();
+        toggleLike(track);
     };
 
     return (
@@ -105,7 +112,7 @@ export default function QueueItem({ track, index, isCurrent, dense, onDragStart,
             {/* title / artist */}
             <div className="flex min-w-0 flex-1 flex-col leading-tight">
                 <span className={`truncate text-[13px] transition-colors duration-300 ${isCurrent ? "text-accent" : "text-maintext"}`}>{track.title}</span>
-                <span className="truncate text-[11px] text-subtext">{track.artist}</span>
+                <ArtistLink name={track.artist} className="text-[11px] text-subtext" />
             </div>
 
             {/* album */}
@@ -116,9 +123,31 @@ export default function QueueItem({ track, index, isCurrent, dense, onDragStart,
             {/* added by — name + avatar on the main page, avatar only in the
                 dense sidebar (sits just left of the duration) */}
             {!dense && (
-                <AddedBy track={track} size={18} className="hidden w-28 shrink-0 text-[11px] text-subtext lg:flex" />
+                <div className="hidden w-28 shrink-0 items-center lg:flex">
+                    <AddedBy track={track} size={18} className="text-[11px] text-subtext group-hover:hidden" />
+                    <button
+                        onClick={like}
+                        title={liked ? "Remove from Liked songs" : "Save to Liked songs"}
+                        className={`hidden transition-colors group-hover:block ${liked ? "text-accent" : "text-subtext hover:text-maintext"}`}
+                    >
+                        <Icon name={liked ? "heart-filled" : "heart"} className="h-4 w-4" />
+                    </button>
+                </div>
             )}
-            {dense && <AddedBy track={track} size={16} showName={false} className="-mr-1.5 shrink-0" />}
+            {dense && (
+                <div className="-mr-1.5 flex shrink-0 items-center">
+                    <span className={liked ? "hidden" : "group-hover:hidden"}>
+                        <AddedBy track={track} size={16} showName={false} />
+                    </span>
+                    <button
+                        onClick={like}
+                        title={liked ? "Remove from Liked songs" : "Save to Liked songs"}
+                        className={`transition-colors ${liked ? "block text-accent" : "hidden text-subtext hover:text-maintext group-hover:block"}`}
+                    >
+                        <Icon name={liked ? "heart-filled" : "heart"} className="h-4 w-4" />
+                    </button>
+                </div>
+            )}
 
             {/* duration, swapping to a remove (trash) button on hover */}
             <div className="flex w-12 shrink-0 items-center justify-center">

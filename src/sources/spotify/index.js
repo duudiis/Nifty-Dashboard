@@ -65,6 +65,7 @@ function track(t, albumArt = null) {
     return {
         title: t.name,
         artist: (t.artists || []).map((a) => a.name).join(", ") || "Unknown artist",
+        artistBrowseId: t.artists?.[0]?.id ? buildEntityId(ID, "artist", t.artists[0].id) : null,
         duration: clock(t.duration_ms),
         artwork: art(t.album?.images) || albumArt,
         url,
@@ -114,6 +115,7 @@ async function browseCollection(kind, id) {
             ? (data.artists || []).map((a) => a.name).join(", ")
             : data.owner?.display_name || "",
         artwork,
+        artistBrowseId: isAlbum && data.artists?.[0]?.id ? buildEntityId(ID, "artist", data.artists[0].id) : null,
         releaseDate: isAlbum ? data.release_date || null : null,
         url: data.external_urls?.spotify || external(kind, id),
         tracks: rawTracks.map((t) => track(t, artwork)),

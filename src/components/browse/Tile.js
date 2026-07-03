@@ -68,7 +68,7 @@ export default function Tile({ item }) {
                     <span
                         title={selected ? `Play this ${item.kind}` : "Select a server first"}
                         onClick={playCollection}
-                        className="absolute bottom-2 right-2 flex h-10 w-10 translate-y-2 items-center justify-center rounded-full bg-accent text-canvas opacity-0 shadow-lg transition hover:scale-105 group-hover:translate-y-0 group-hover:opacity-100"
+                        className="absolute bottom-2 right-2 flex h-10 w-10 translate-y-2 items-center justify-center rounded-full bg-accent text-canvas opacity-0 shadow-lg transition group-hover:translate-y-0 group-hover:opacity-100"
                     >
                         <Icon name="play" className="h-5 w-5" />
                     </span>

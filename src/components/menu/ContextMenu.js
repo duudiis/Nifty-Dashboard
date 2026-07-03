@@ -15,7 +15,9 @@
 //
 // `buildItems` may be an array or a function returning one (evaluated on open,
 // so it can read fresh state). Items: { label, icon?, onClick, disabled?,
-// danger? } or { separator: true }. A handler that yields no items lets the
+// danger? }, { separator: true }, or { label, icon?, children: [...] } for a
+// one-level submenu (opens on hover, arrow on the right). A handler that
+// yields no items lets the
 // event fall through to the global suppressor, so the native browser menu is
 // hidden on "dead" areas while still working inside text fields.
 
@@ -27,7 +29,8 @@ import { AnimatePresence, motion } from "../motion/index.js";
 
 const Ctx = createContext(null);
 
-const MENU_W = 196;
+const MENU_W = 224;
+const SUB_W = 208;
 const ITEM_H = 33;
 const SEP_H = 9;
 const PAD = 8;
@@ -35,11 +38,12 @@ const FORM_FIELDS = 'input, textarea, select, [contenteditable=""], [contentedit
 
 export function ContextMenuProvider({ children }) {
     const [menu, setMenu] = useState(null); // { x, y, items, origin, id }
+    const [sub, setSub] = useState(null);   // { index, top } — open submenu
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => setMounted(true), []);
 
-    const close = useCallback(() => setMenu(null), []);
+    const close = useCallback(() => { setMenu(null); setSub(null); }, []);
 
     const open = useCallback((event, items, id) => {
         const list = (typeof items === "function" ? items() : items)?.filter(Boolean) || [];
@@ -138,7 +142,15 @@ export function ContextMenuProvider({ children }) {
                                             <button
                                                 key={item.label}
                                                 disabled={item.disabled}
+                                                onMouseEnter={(e) => {
+                                                    if (item.children?.length) {
+                                                        setSub({ index: i, top: e.currentTarget.getBoundingClientRect().top - 4 });
+                                                    } else {
+                                                        setSub(null);
+                                                    }
+                                                }}
                                                 onClick={() => {
+                                                    if (item.children?.length) return; // hover opens it
                                                     close();
                                                     item.onClick?.();
                                                 }}
@@ -146,14 +158,53 @@ export function ContextMenuProvider({ children }) {
                                                     item.danger
                                                         ? "text-rose-400 hover:bg-rose-500/10"
                                                         : "text-maintext hover:bg-surface"
-                                                }`}
+                                                } ${sub?.index === i ? "bg-surface" : ""}`}
                                             >
                                                 {item.icon && <Icon name={item.icon} className="h-3.5 w-3.5" />}
                                                 <span className="truncate">{item.label}</span>
+                                                {item.children?.length > 0 && (
+                                                    <Icon name="chevron-down" className="ml-auto h-3 w-3 shrink-0 -rotate-90 text-subtext" />
+                                                )}
                                             </button>
                                         )
                                     )}
                                 </motion.div>
+                                {sub && menu.items[sub.index]?.children?.length > 0 && (
+                                    <motion.div
+                                        data-ctxmenu=""
+                                        className="fixed z-[96] max-h-72 overflow-y-auto rounded-lg border border-border bg-elevated p-1 shadow-2xl"
+                                        style={{
+                                            left: menu.x + MENU_W + SUB_W + PAD > window.innerWidth
+                                                ? menu.x - SUB_W + 4
+                                                : menu.x + MENU_W - 4,
+                                            top: Math.min(
+                                                sub.top,
+                                                window.innerHeight - PAD -
+                                                    (menu.items[sub.index].children.length * ITEM_H + 8)
+                                            ),
+                                            width: SUB_W
+                                        }}
+                                        initial={{ opacity: 0, x: -4 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 0.1, ease: [0.4, 0, 0.2, 1] }}
+                                    >
+                                        {menu.items[sub.index].children.map((child) => (
+                                            <button
+                                                key={child.label}
+                                                disabled={child.disabled}
+                                                onClick={() => {
+                                                    close();
+                                                    child.onClick?.();
+                                                }}
+                                                className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[12px] font-medium text-maintext transition hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
+                                            >
+                                                {child.icon && <Icon name={child.icon} className="h-3.5 w-3.5 shrink-0" />}
+                                                <span className="truncate">{child.label}</span>
+                                            </button>
+                                        ))}
+                                    </motion.div>
+                                )}
                             </>
                         )}
                     </AnimatePresence>,

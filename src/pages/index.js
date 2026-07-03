@@ -23,7 +23,7 @@ export default function Landing() {
                     </div>
                     <Link
                         href="/dashboard"
-                        className="rounded-full bg-maintext px-5 py-2 text-sm font-bold text-canvas transition-transform hover:scale-105"
+                        className="rounded-full bg-maintext px-5 py-2 text-sm font-bold text-canvas transition-transform"
                     >
                         Open dashboard
                     </Link>
@@ -45,7 +45,7 @@ export default function Landing() {
                     <div className="mt-10 flex items-center gap-4">
                         <Link
                             href="/dashboard"
-                            className="rounded-full bg-accent px-8 py-3 font-bold text-canvas transition-transform hover:scale-105"
+                            className="rounded-full bg-accent px-8 py-3 font-bold text-canvas transition-transform"
                         >
                             Launch
                         </Link>
