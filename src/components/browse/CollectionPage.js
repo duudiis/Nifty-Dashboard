@@ -81,7 +81,9 @@ export default function CollectionPage({ id }) {
             .then((j) => {
                 if (stale) return;
                 setData(j);
-                setPageArt(j?.artwork || null);
+                // Liked songs gets the accent-tinted backdrop matching its
+                // cover tile, never a track's artwork.
+                setPageArt(j?.liked ? "accent" : j?.artwork || null);
             })
             .catch(() => !stale && setData(null))
             .finally(() => !stale && setLoading(false));
