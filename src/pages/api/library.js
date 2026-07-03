@@ -11,6 +11,7 @@ import {
     listLibrary,
     getLibraryState,
     createPlaylist,
+    deletePlaylist,
     addTracksToPlaylist,
     reorderLibrary
 } from "../../lib/db.js";
@@ -105,6 +106,15 @@ export default async function handler(req, res) {
             await ensureUser(user);
             const playlist = await createPlaylist(user.id, name);
             return res.status(200).json({ playlist });
+        }
+
+        if (action === "delete_playlist") {
+            const playlistId = String(req.body.playlistId || "");
+            if (!playlistId) {
+                return res.status(400).json({ message: "Missing playlist id." });
+            }
+            const playlist = await deletePlaylist(user.id, playlistId);
+            return res.status(200).json({ deleted: playlist.name });
         }
 
         if (action === "add_to_playlist") {

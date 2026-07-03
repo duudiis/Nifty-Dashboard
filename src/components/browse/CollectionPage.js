@@ -67,7 +67,7 @@ export function CollectionSkeleton({ round = false }) {
 }
 
 export default function CollectionPage({ id }) {
-    const { play, selected, notify, setPageArt, isSaved, toggleSaveEntity } = useNifty();
+    const { play, selected, notify, setPageArt, isSaved, toggleSaveEntity, removePlaylist } = useNifty();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -193,6 +193,15 @@ export default function CollectionPage({ id }) {
                                     className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${saved ? "text-accent" : "text-subtext hover:text-maintext"}`}
                                 >
                                     <Icon name={saved ? "heart-filled" : "heart"} className="h-6 w-6" />
+                                </button>
+                            )}
+                            {data.custom && !data.liked && (
+                                <button
+                                    onClick={() => removePlaylist(item)}
+                                    title="Delete this playlist"
+                                    className="flex h-10 w-10 items-center justify-center rounded-full text-subtext transition-colors hover:text-rose-400"
+                                >
+                                    <Icon name="trash" className="h-5 w-5" />
                                 </button>
                             )}
                         </div>

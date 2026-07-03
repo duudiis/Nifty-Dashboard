@@ -40,11 +40,30 @@ async function getToken() {
 }
 
 async function api(path) {
-    const res = await fetch(`${API}${path}`, {
+    return apiUrl(`${API}${path}`);
+}
+
+async function apiUrl(url) {
+    const res = await fetch(url, {
         headers: { Authorization: `Bearer ${await getToken()}` }
     });
-    if (!res.ok) throw new Error(`Spotify ${path} -> ${res.status}`);
+    if (!res.ok) throw new Error(`Spotify ${url} -> ${res.status}`);
     return res.json();
+}
+
+// Walks a paged list (albums cap at 50/page, playlists at 100/page) until
+// exhausted or a sane ceiling, so big playlists aren't cut off.
+const MAX_ITEMS = 1000;
+
+async function allPages(paging) {
+    const items = [...(paging?.items || [])];
+    let next = paging?.next;
+    while (next && items.length < MAX_ITEMS) {
+        const page = await apiUrl(next);
+        items.push(...(page.items || []));
+        next = page.next;
+    }
+    return items;
 }
 
 /* --------------------------------------------------------------- helpers */
@@ -104,7 +123,7 @@ async function browseCollection(kind, id) {
     const isAlbum = kind === "album";
     const artwork = art(data.images);
 
-    const rawTracks = (data.tracks?.items || [])
+    const rawTracks = (await allPages(data.tracks))
         .map((entry) => (isAlbum ? entry : entry.track))
         .filter(Boolean);
 

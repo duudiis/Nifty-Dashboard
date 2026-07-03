@@ -506,3 +506,13 @@ export async function browseLikedFromDb(userId) {
         playUrl: null
     };
 }
+
+/** Deletes one of the user's own playlists (tracks + shelf entry cascade). */
+export async function deletePlaylist(userId, playlistId) {
+    const { rows } = await db.query(
+        `DELETE FROM playlists WHERE id = $1 AND owner_id = $2 RETURNING name`,
+        [playlistId, userId]
+    );
+    if (!rows[0]) throw new Error("Not your playlist.");
+    return rows[0];
+}

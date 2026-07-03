@@ -39,6 +39,12 @@ const PATTERNS = [
         source: "youtube",
         re: /^https?:\/\/youtu\.be\/([A-Za-z0-9_-]{6,})/i,
         map: (m) => ({ kind: "track", id: m[1] })
+    },
+    // Tidal: tidal.com/[browse/]{track|album|playlist|artist}/{id} (+ listen.)
+    {
+        source: "tidal",
+        re: /^https?:\/\/(?:www\.|listen\.)?tidal\.com\/(?:browse\/)?(track|album|playlist|artist)\/([A-Za-z0-9-]+)/i,
+        map: (m) => ({ kind: m[1].toLowerCase(), id: m[2] })
     }
 ];
 
@@ -73,6 +79,7 @@ export function externalUrl(source, kind, id) {
             if (kind === "artist") return `https://www.youtube.com/channel/${id}`;
             if (kind === "track") return `https://www.youtube.com/watch?v=${id}`;
             return `https://www.youtube.com/playlist?list=${id.replace(/^VL/, "")}`;
+        case "tidal": return `https://tidal.com/browse/${kind}/${id}`;
         default: return null;
     }
 }

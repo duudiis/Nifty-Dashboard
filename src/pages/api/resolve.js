@@ -3,6 +3,7 @@ import { parse } from "cookie";
 import { verifySession } from "../../lib/jwt.js";
 import { parseLink, externalUrl } from "../../sources/links.js";
 import { getSourceFor, buildEntityId } from "../../sources/index.js";
+import tidal from "../../sources/tidal/index.js";
 
 // Resolves a pasted platform link (YouTube / Deezer / Spotify) into one
 // presentable search item: entities resolve through the browse layer (title,
@@ -13,6 +14,10 @@ const cache = new Map();
 const TTL = 1000 * 60 * 30;
 
 async function trackItem(link) {
+
+    if (link.source === "tidal") {
+        return tidal.trackItem(link.id);
+    }
 
     if (link.source === "deezer") {
         const res = await fetch(`https://api.deezer.com/track/${link.id}`);

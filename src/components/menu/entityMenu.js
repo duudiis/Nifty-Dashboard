@@ -13,7 +13,7 @@ import { useNifty } from "../../context/NiftyContext.js";
 import { useEntityActions, entityExternalUrl } from "../browse/useEntityActions.js";
 
 export function useEntityMenu() {
-    const { selected, notify, openEntity, library, isSaved, toggleSaveEntity, addToPlaylist, createPlaylist } = useNifty();
+    const { selected, notify, openEntity, library, isSaved, toggleSaveEntity, addToPlaylist, createPlaylist, removePlaylist } = useNifty();
     const { playEntity } = useEntityActions();
 
     return useCallback(
@@ -89,10 +89,17 @@ export function useEntityMenu() {
                         },
                         { label: "Copy link", icon: "link", onClick: copyExternal }
                     ]
+                    : []),
+                // Your own playlists can be deleted (Liked songs cannot).
+                ...(item.custom && !item.liked && !item.browseId.endsWith(":liked")
+                    ? [
+                        { separator: true },
+                        { label: "Delete playlist", icon: "trash", danger: true, onClick: () => removePlaylist(item) }
+                    ]
                     : [])
             ];
         },
         [selected, notify, openEntity, playEntity, library.playlists, library.savedRefs,
-         isSaved, toggleSaveEntity, addToPlaylist, createPlaylist]
+         isSaved, toggleSaveEntity, addToPlaylist, createPlaylist, removePlaylist]
     );
 }

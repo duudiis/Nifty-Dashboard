@@ -309,6 +309,26 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         }
     }, [notify]);
 
+    const removePlaylist = useCallback(async (item) => {
+        const playlistId = parseEntityId(item?.browseId)?.id;
+        if (!playlistId || playlistId === "liked") return;
+        const label = item.title ? `“${item.title}”` : "playlist";
+        try {
+            const res = await fetch("/api/library", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "delete_playlist", playlistId })
+            });
+            if (!res.ok) throw new Error();
+            notify(`Deleted ${label}`);
+            refreshLibrary();
+            // If its page is open, it no longer exists — go home.
+            if (entityId === item.browseId) setView("home");
+        } catch {
+            notify(`Couldn't delete ${label}`);
+        }
+    }, [notify, refreshLibrary, entityId, setView]);
+
     const reorderLibraryItem = useCallback(async (itemId, toIndex, nextItems) => {
         // Optimistic: the sidebar hands us its already-reordered list.
         if (nextItems) setLibrary((prev) => ({ ...prev, items: nextItems }));
@@ -674,6 +694,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         toggleSaveEntity,
         createPlaylist,
         addToPlaylist,
+        removePlaylist,
         reorderLibraryItem,
         logout
     };
