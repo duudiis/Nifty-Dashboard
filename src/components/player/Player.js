@@ -110,7 +110,7 @@ function Song({ track }) {
             <button
                 onClick={() => track && toggleLike(track)}
                 title={liked ? "Remove from Liked songs" : "Save to Liked songs"}
-                className={`ml-1 shrink-0 transition-all ${liked ? "text-accent opacity-100" : "text-subtext opacity-0 hover:text-maintext group-hover:opacity-100"}`}
+                className={`shrink-0 transition-colors ${liked ? "text-accent" : "text-subtext hover:text-maintext"}`}
             >
                 <Icon name={liked ? "heart-filled" : "heart"} className="h-4 w-4" />
             </button>

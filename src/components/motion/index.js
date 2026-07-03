@@ -89,8 +89,12 @@ export function SlideTransition({
                 animate="animate"
                 exit="exit"
             >
-                {backdrop != null && <div className="absolute inset-0">{backdrop}</div>}
-                <motion.div variants={layerSlide} layoutScroll={layoutScroll} className={contentClassName}>
+                {backdrop != null && <div className="pointer-events-none absolute inset-0">{backdrop}</div>}
+                {/* relative: keeps the foreground painted above the pinned
+                    backdrop even after framer strips the slide transform
+                    (an absolutely-positioned backdrop would otherwise sit on
+                    top of static content and swallow every click). */}
+                <motion.div variants={layerSlide} layoutScroll={layoutScroll} className={`relative ${contentClassName || ""}`}>
                     {children}
                 </motion.div>
             </motion.div>

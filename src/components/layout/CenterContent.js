@@ -1,4 +1,5 @@
 import { useNifty } from "../../context/NiftyContext.js";
+import Icon from "../Icon.js";
 import { totalDuration, artworkOrFallback } from "../../lib/format.js";
 import { SlideTransition, motion } from "../motion/index.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
@@ -22,7 +23,9 @@ function QueueHeader() {
             className="flex items-end gap-6 px-6 pb-6 pt-10"
             style={{ background: "linear-gradient(180deg, rgb(var(--c-accent) / 0.35) -40%, transparent 100%)" }}
         >
-            <img src="/images/queue.png" alt="" className="h-32 w-32 rounded-md object-cover shadow-2xl" />
+            <span className="flex h-32 w-32 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-accent to-accent/40 text-canvas shadow-2xl">
+                <Icon name="queue" className="h-14 w-14" />
+            </span>
             <div className="flex flex-col gap-2">
                 <span className="text-xs font-bold uppercase tracking-wide text-subtext">Queue</span>
                 <h1 className="text-5xl font-bold">{selected ? selected.guildName : "Queue"}</h1>

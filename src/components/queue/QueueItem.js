@@ -109,10 +109,21 @@ export default function QueueItem({ track, index, isCurrent, dense, onDragStart,
                 )}
             </div>
 
-            {/* title / artist */}
-            <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                <span className={`truncate text-[13px] transition-colors duration-300 ${isCurrent ? "text-accent" : "text-maintext"}`}>{track.title}</span>
-                <ArtistLink name={track.artist} className="text-[11px] text-subtext" />
+            {/* title / artist (+ always-on heart on the main list) */}
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div className="flex min-w-0 flex-col leading-tight">
+                    <span className={`truncate text-[13px] transition-colors duration-300 ${isCurrent ? "text-accent" : "text-maintext"}`}>{track.title}</span>
+                    <ArtistLink name={track.artist} className="text-[11px] text-subtext" />
+                </div>
+                {!dense && (
+                    <button
+                        onClick={like}
+                        title={liked ? "Remove from Liked songs" : "Save to Liked songs"}
+                        className={`shrink-0 transition-colors ${liked ? "text-accent" : "text-subtext hover:text-maintext"}`}
+                    >
+                        <Icon name={liked ? "heart-filled" : "heart"} className="h-4 w-4" />
+                    </button>
+                )}
             </div>
 
             {/* album */}
@@ -123,16 +134,7 @@ export default function QueueItem({ track, index, isCurrent, dense, onDragStart,
             {/* added by — name + avatar on the main page, avatar only in the
                 dense sidebar (sits just left of the duration) */}
             {!dense && (
-                <div className="hidden w-28 shrink-0 items-center lg:flex">
-                    <AddedBy track={track} size={18} className="text-[11px] text-subtext group-hover:hidden" />
-                    <button
-                        onClick={like}
-                        title={liked ? "Remove from Liked songs" : "Save to Liked songs"}
-                        className={`hidden transition-colors group-hover:block ${liked ? "text-accent" : "text-subtext hover:text-maintext"}`}
-                    >
-                        <Icon name={liked ? "heart-filled" : "heart"} className="h-4 w-4" />
-                    </button>
-                </div>
+                <AddedBy track={track} size={18} className="hidden w-28 shrink-0 text-[11px] text-subtext lg:flex" />
             )}
             {dense && (
                 <div className="-mr-1.5 flex shrink-0 items-center">

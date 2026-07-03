@@ -59,22 +59,23 @@ export default function TrackRow({ track, index }) {
                 </span>
             </div>
 
-            <div className="flex min-w-0 flex-1 flex-col leading-tight">
-                <span className="truncate text-[13px] text-maintext">{track.title}</span>
-                <ArtistLink
-                    name={track.artist}
-                    browseId={track.artistBrowseId}
-                    className="text-[11px] text-subtext"
-                />
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div className="flex min-w-0 flex-col leading-tight">
+                    <span className="truncate text-[13px] text-maintext">{track.title}</span>
+                    <ArtistLink
+                        name={track.artist}
+                        browseId={track.artistBrowseId}
+                        className="text-[11px] text-subtext"
+                    />
+                </div>
+                <button
+                    onClick={like}
+                    title={liked ? "Remove from Liked songs" : "Save to Liked songs"}
+                    className={`shrink-0 transition-colors ${liked ? "text-accent" : "text-subtext hover:text-maintext"}`}
+                >
+                    <Icon name={liked ? "heart-filled" : "heart"} className="h-4 w-4" />
+                </button>
             </div>
-
-            <button
-                onClick={like}
-                title={liked ? "Remove from Liked songs" : "Save to Liked songs"}
-                className={`shrink-0 transition-all ${liked ? "text-accent opacity-100" : "text-subtext opacity-0 hover:text-maintext group-hover:opacity-100"}`}
-            >
-                <Icon name={liked ? "heart-filled" : "heart"} className="h-4 w-4" />
-            </button>
 
             {track.duration && (
                 <span className="w-12 shrink-0 text-center text-[11px] text-subtext">{track.duration}</span>
