@@ -10,7 +10,7 @@
 
 import { AnimatePresence, motion } from "../motion/index.js";
 
-export default function Backdrop({ artwork, height = 460 }) {
+export default function Backdrop({ artwork, height = 340 }) {
     return (
         <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 overflow-hidden" style={{ height }}>
             <AnimatePresence>

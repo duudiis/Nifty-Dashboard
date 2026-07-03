@@ -138,7 +138,7 @@ export default function CollectionPage({ id }) {
                         <div className="flex flex-col gap-6 px-6 pb-6 pt-14 sm:flex-row sm:items-end">
                             {data.liked ? (
                                 <span className="flex h-48 w-48 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-accent to-accent/40 text-canvas shadow-2xl">
-                                    <Icon name="heart-filled" className="h-28 w-28" />
+                                    <Icon name="heart-filled" className="h-20 w-20" />
                                 </span>
                             ) : (
                                 <img

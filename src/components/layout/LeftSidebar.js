@@ -38,7 +38,7 @@ function RowBody({ item, likedCount }) {
         <>
             {item.liked ? (
                 <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-accent to-accent/40 text-canvas">
-                    <Icon name="heart-filled" className="h-7 w-7" />
+                    <Icon name="heart-filled" className="h-6 w-6" />
                 </span>
             ) : (
                 <img
