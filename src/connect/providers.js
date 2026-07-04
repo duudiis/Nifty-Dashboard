@@ -19,6 +19,14 @@
 
 const env = (k) => process.env[k] || null;
 
+// "PT3M20S" -> milliseconds (YouTube contentDetails.duration).
+function iso8601ToMs(iso) {
+    const m = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(iso || "");
+    if (!m) return null;
+    const [, h, min, s] = m;
+    return ((Number(h || 0) * 3600) + (Number(min || 0) * 60) + Number(s || 0)) * 1000;
+}
+
 /* ------------------------------------------------------------------ Spotify */
 
 const spotify = {
@@ -229,9 +237,13 @@ const youtube = {
     },
 
     async fetchLiked(token) {
-        // "LL" is the channel's Liked videos playlist.
+        // "LL" is the channel's Liked videos playlist — which mixes music with
+        // everything else. We keep only videos in the Music category (10), so a
+        // sync imports liked *songs*, not every liked video.
+        const auth = { Authorization: `Bearer ${token}` };
         const out = [];
         let pageToken = "";
+
         do {
             const p = new URLSearchParams({
                 part: "snippet,contentDetails",
@@ -239,29 +251,50 @@ const youtube = {
                 maxResults: "50",
                 ...(pageToken ? { pageToken } : {})
             });
-            const res = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${p}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${p}`, { headers: auth });
             if (!res.ok) throw new Error(`YouTube liked ${res.status}`);
             const j = await res.json();
-            for (const item of j.items || []) {
-                const vid = item.contentDetails?.videoId;
-                if (!vid) continue;
-                const sn = item.snippet || {};
+
+            const pageItems = (j.items || [])
+                .map((item) => ({ vid: item.contentDetails?.videoId, sn: item.snippet || {} }))
+                .filter((x) => x.vid);
+
+            // Look up category + duration for this page's videos in one call.
+            const ids = pageItems.map((x) => x.vid).join(",");
+            const meta = new Map();
+            if (ids) {
+                const vp = new URLSearchParams({ part: "snippet,contentDetails", id: ids, maxResults: "50" });
+                const vres = await fetch(`https://www.googleapis.com/youtube/v3/videos?${vp}`, { headers: auth });
+                if (vres.ok) {
+                    const vj = await vres.json();
+                    for (const v of vj.items || []) {
+                        meta.set(v.id, {
+                            categoryId: v.snippet?.categoryId,
+                            durationMs: iso8601ToMs(v.contentDetails?.duration)
+                        });
+                    }
+                }
+            }
+
+            for (const { vid, sn } of pageItems) {
+                const m = meta.get(vid);
+                if (!m || m.categoryId !== "10") continue; // music only
                 out.push({
                     source: "youtube",
                     sourceId: vid,
-                    title: sn.title || "Video",
+                    title: sn.title || "Song",
                     artist: (sn.videoOwnerChannelTitle || "").replace(/ - Topic$/, ""),
                     isrc: null,
                     url: `https://www.youtube.com/watch?v=${vid}`,
                     artwork: sn.thumbnails?.high?.url || sn.thumbnails?.default?.url || null,
-                    durationMs: null,
+                    durationMs: m.durationMs,
                     addedAt: sn.publishedAt || null
                 });
             }
+
             pageToken = j.nextPageToken || "";
         } while (pageToken && out.length < 10000);
+
         return out;
     }
 };
