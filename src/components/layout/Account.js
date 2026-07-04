@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/router";
 
 import { useNifty } from "../../context/NiftyContext.js";
 import Icon from "../Icon.js";
@@ -7,10 +8,20 @@ import { useModal } from "../modal/Modal.js";
 import SettingsPanel from "../modal/SettingsModal.js";
 
 export default function Account() {
-    const { user, logout } = useNifty();
+    const { user, logout, notify } = useNifty();
     const modal = useModal();
+    const router = useRouter();
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
+
+    const openSettings = (initial = "appearance") => {
+        modal.open({
+            title: "Settings",
+            size: "xl",
+            bare: true,
+            render: () => <SettingsPanel initial={initial} />
+        });
+    };
 
     useEffect(() => {
         if (!open) return;
@@ -20,6 +31,29 @@ export default function Account() {
         window.addEventListener("click", handler);
         return () => window.removeEventListener("click", handler);
     }, [open]);
+
+    // Returning from an OAuth connect: open Settings → Connections and toast
+    // the result, then strip the params so a refresh doesn't reopen it.
+    const handledConnect = useRef(false);
+    useEffect(() => {
+        if (handledConnect.current || !router.isReady) return;
+        const connect = router.query.connect;
+        const settingsTab = router.query.settings;
+        if (!connect && !settingsTab) return;
+        handledConnect.current = true;
+
+        openSettings("connections");
+        if (connect) {
+            const [prov, status] = String(connect).split(":");
+            const name = prov ? prov[0].toUpperCase() + prov.slice(1) : "account";
+            if (status === "ok") notify(`Connected ${name} — importing your liked songs…`);
+            else if (status === "denied") notify(`${name} connection was cancelled`);
+            else notify(`Couldn't connect ${name}`);
+        }
+        const { connect: _c, settings: _s, ...rest } = router.query;
+        router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [router.isReady]);
 
     if (!user) return null;
 
@@ -48,15 +82,7 @@ export default function Account() {
                         className="absolute right-0 z-50 mt-2 w-40 overflow-hidden rounded-lg border border-border bg-elevated p-1 shadow-2xl"
                     >
                         <button
-                            onClick={() => {
-                                setOpen(false);
-                                modal.open({
-                                    title: "Settings",
-                                    size: "xl",
-                                    bare: true,
-                                    render: () => <SettingsPanel />
-                                });
-                            }}
+                            onClick={() => { setOpen(false); openSettings("appearance"); }}
                             className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[12px] font-medium text-maintext transition hover:bg-surface"
                         >
                             <Icon name="settings" className="h-3.5 w-3.5" />

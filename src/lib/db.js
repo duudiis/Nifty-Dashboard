@@ -451,7 +451,7 @@ export async function browsePlaylistFromDb(playlistId) {
             [playlistId]
         ),
         db.query(
-            `SELECT pt.id AS entry_id, t.title, t.artist, t.duration_ms, t.artwork_url, t.url
+            `SELECT pt.id AS entry_id, pt.added_at, t.title, t.artist, t.duration_ms, t.artwork_url, t.url
              FROM playlist_tracks pt JOIN tracks t ON t.id = pt.track_id
              WHERE pt.playlist_id = $1 ORDER BY pt.position ASC`,
             [playlistId]
@@ -475,7 +475,8 @@ export async function browsePlaylistFromDb(playlistId) {
             duration: clockFromMs(t.duration_ms),
             artwork: t.artwork_url,
             url: t.url,
-            playQuery: t.url
+            playQuery: t.url,
+            addedAt: t.added_at
         })),
         playUrl: null
     };
@@ -484,7 +485,7 @@ export async function browsePlaylistFromDb(playlistId) {
 /** The user's Liked songs as a browsable collection page. */
 export async function browseLikedFromDb(userId) {
     const { rows } = await db.query(
-        `SELECT lt.track_id, t.title, t.artist, t.duration_ms, t.artwork_url, t.url
+        `SELECT lt.track_id, lt.added_at, t.title, t.artist, t.duration_ms, t.artwork_url, t.url
          FROM liked_tracks lt JOIN tracks t ON t.id = lt.track_id
          WHERE lt.user_id = $1 ORDER BY lt.position ASC`,
         [userId]
@@ -505,7 +506,8 @@ export async function browseLikedFromDb(userId) {
             duration: clockFromMs(t.duration_ms),
             artwork: t.artwork_url,
             url: t.url,
-            playQuery: t.url
+            playQuery: t.url,
+            addedAt: t.added_at
         })),
         playUrl: null
     };

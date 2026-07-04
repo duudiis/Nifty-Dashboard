@@ -69,8 +69,9 @@ export function CollectionSkeleton({ round = false }) {
     );
 }
 
-const SORT_OPTIONS = [
+const BASE_SORT_OPTIONS = [
     { id: "custom", label: "Custom order" },
+    { id: "added", label: "Date added" },
     { id: "title", label: "Title" },
     { id: "artist", label: "Artist" },
     { id: "duration", label: "Duration" }
@@ -82,7 +83,8 @@ function sortTracks(tracks, sortBy, sortDesc) {
     const key = {
         title: (t) => (t.title || "").toLowerCase(),
         artist: (t) => (t.artist || "").toLowerCase(),
-        duration: (t) => clockToSeconds(t.duration)
+        duration: (t) => clockToSeconds(t.duration),
+        added: (t) => (t.addedAt ? new Date(t.addedAt).getTime() : 0)
     }[sortBy];
     if (!key) return tracks;
     return [...tracks].sort((a, b) => {
@@ -150,8 +152,13 @@ function TrackList({ data, refId, kind, playUrl }) {
         }).catch(() => {});
     };
 
+    // "Date added" only makes sense when the tracks actually carry add dates
+    // (owned playlists + imported liked songs).
+    const hasAddedDates = (data.tracks || []).some((t) => t.addedAt);
+    const sortOptions = BASE_SORT_OPTIONS.filter((o) => o.id !== "added" || hasAddedDates);
+
     const { onContextMenu: openSortMenu } = useContextMenu(() =>
-        SORT_OPTIONS.map((o) => ({
+        sortOptions.map((o) => ({
             label: o.id === sort.sortBy && o.id !== "custom"
                 ? `${o.label} · ${sort.sortDesc ? "descending" : "ascending"}`
                 : o.label,
@@ -160,7 +167,7 @@ function TrackList({ data, refId, kind, playUrl }) {
         }))
     );
 
-    const currentSortLabel = SORT_OPTIONS.find((o) => o.id === sort.sortBy)?.label || "Custom order";
+    const currentSortLabel = BASE_SORT_OPTIONS.find((o) => o.id === sort.sortBy)?.label || "Custom order";
 
     if (displayed.length === 0) {
         return (

@@ -315,55 +315,142 @@ function AccountSettings() {
 
 /* ----------------------------------------------------------- connections */
 
-const PLATFORMS = [
-    { id: "deezer", name: "Deezer", blurb: "Music search, albums, artists and metadata." },
-    { id: "youtube", name: "YouTube", blurb: "Videos, playlists and the Watch view." },
-    { id: "spotify", name: "Spotify", blurb: "Spotify links, albums, playlists and artist pages." },
-    { id: "tidal", name: "Tidal", blurb: "Tidal links, albums, playlists and artist pages." }
-];
+const PLATFORM_META = {
+    spotify: { name: "Spotify", blurb: "Import your Spotify liked songs, kept in sync." },
+    deezer: { name: "Deezer", blurb: "Import your Deezer favorite tracks." },
+    youtube: { name: "YouTube", blurb: "Import your YouTube liked videos." },
+    tidal: { name: "Tidal", blurb: "Import your Tidal favorite tracks." }
+};
+
+function timeAgo(iso) {
+    if (!iso) return null;
+    const secs = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+    if (secs < 60) return "just now";
+    const mins = Math.floor(secs / 60);
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+}
 
 function ConnectionsSettings() {
-    const [status, setStatus] = useState(null);
+    const { notify, refreshLibrary } = useNifty();
+    const [state, setState] = useState(null); // { providers, connections }
+    const [busy, setBusy] = useState(null);    // provider id mid-action
 
-    useEffect(() => {
-        let stale = false;
-        fetch("/api/connections")
+    const load = () =>
+        fetch("/api/connect")
             .then((r) => r.json())
-            .then((j) => !stale && setStatus(j))
-            .catch(() => !stale && setStatus({}));
-        return () => { stale = true; };
-    }, []);
+            .then(setState)
+            .catch(() => setState({ providers: [], connections: [] }));
+
+    useEffect(() => { load(); }, []);
+
+    const connectionFor = (id) => state?.connections?.find((c) => c.provider === id);
+
+    const sync = async (id) => {
+        setBusy(id);
+        try {
+            const res = await fetch("/api/connect", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "sync", provider: id })
+            });
+            const j = await res.json();
+            if (!res.ok) throw new Error(j.message);
+            notify(j.imported > 0 ? `Imported ${j.imported} new liked song${j.imported === 1 ? "" : "s"}` : "Already up to date");
+            refreshLibrary();
+            await load();
+        } catch {
+            notify("Couldn't sync — try reconnecting");
+        } finally {
+            setBusy(null);
+        }
+    };
+
+    const disconnect = async (id) => {
+        setBusy(id);
+        try {
+            await fetch("/api/connect", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "disconnect", provider: id })
+            });
+            notify(`Disconnected ${PLATFORM_META[id].name}`);
+            await load();
+        } finally {
+            setBusy(null);
+        }
+    };
 
     return (
         <>
             <PageHeader
                 title="Connections"
-                description="The music platforms this Nifty deployment can talk to. Playback itself always runs through the bot."
+                description="Link your music accounts to import your liked songs. Imports keep their original dates and merge into one Liked songs list, newest first."
             />
-            <div className="flex flex-col gap-2">
-                {PLATFORMS.map((platform) => {
-                    const on = status?.[platform.id];
-                    return (
-                        <div key={platform.id} className="flex items-center gap-4 rounded-xl bg-elevated/60 px-4 py-3.5">
-                            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                <span className="text-sm font-bold text-maintext">{platform.name}</span>
-                                <span className="text-[11px] text-subtext">{platform.blurb}</span>
+            {state === null ? (
+                <div className="flex flex-col gap-2">
+                    {Object.keys(PLATFORM_META).map((k) => (
+                        <div key={k} className="h-[4.5rem] animate-pulse rounded-xl bg-elevated/60" />
+                    ))}
+                </div>
+            ) : (
+                <div className="flex flex-col gap-2">
+                    {(state.providers || []).map((p) => {
+                        const meta = PLATFORM_META[p.id];
+                        const conn = connectionFor(p.id);
+                        const working = busy === p.id;
+                        return (
+                            <div key={p.id} className="flex items-center gap-4 rounded-xl bg-elevated/60 px-4 py-3.5">
+                                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                    <span className="flex items-center gap-2 text-sm font-bold text-maintext">
+                                        {meta.name}
+                                        {conn && <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-accent">Connected</span>}
+                                    </span>
+                                    <span className="text-[11px] text-subtext">
+                                        {conn
+                                            ? `${conn.externalName || "Account"} · ${conn.likedCount || 0} imported${conn.lastSyncedAt ? ` · synced ${timeAgo(conn.lastSyncedAt)}` : ""}`
+                                            : p.available ? meta.blurb : "Not configured on this server."}
+                                    </span>
+                                </div>
+
+                                {conn ? (
+                                    <div className="flex shrink-0 items-center gap-2">
+                                        <button
+                                            onClick={() => sync(p.id)}
+                                            disabled={working}
+                                            className="flex items-center gap-1.5 rounded-full bg-elevated px-3 py-1.5 text-xs font-bold text-maintext transition hover:bg-border/60 disabled:opacity-50"
+                                        >
+                                            <Icon name={working ? "spinner" : "sync"} className={`h-3.5 w-3.5 ${working ? "animate-spin" : ""}`} />
+                                            {working ? "Syncing…" : "Sync"}
+                                        </button>
+                                        <button
+                                            onClick={() => disconnect(p.id)}
+                                            disabled={working}
+                                            className="rounded-full bg-rose-500/10 px-3 py-1.5 text-xs font-bold text-rose-400 transition hover:bg-rose-500/20 disabled:opacity-50"
+                                        >
+                                            Disconnect
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <a
+                                        href={p.available ? `/api/connect/${p.id}/start` : undefined}
+                                        aria-disabled={!p.available}
+                                        className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-bold transition ${
+                                            p.available
+                                                ? "bg-accent text-canvas hover:brightness-110"
+                                                : "pointer-events-none bg-elevated text-subtext"
+                                        }`}
+                                    >
+                                        {p.available ? "Connect" : "Unavailable"}
+                                    </a>
+                                )}
                             </div>
-                            {status === null ? (
-                                <span className="h-5 w-16 animate-pulse rounded-full bg-elevated" />
-                            ) : (
-                                <span
-                                    className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
-                                        on ? "bg-accent/15 text-accent" : "bg-elevated text-subtext"
-                                    }`}
-                                >
-                                    {on ? "Connected" : "Not configured"}
-                                </span>
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
+                        );
+                    })}
+                </div>
+            )}
         </>
     );
 }
@@ -436,8 +523,8 @@ const PAGES = {
     about: AboutSettings
 };
 
-export default function SettingsPanel() {
-    const [category, setCategory] = useState("appearance");
+export default function SettingsPanel({ initial = "appearance" }) {
+    const [category, setCategory] = useState(PAGES[initial] ? initial : "appearance");
     const Page = PAGES[category] || AppearanceSettings;
 
     return (
