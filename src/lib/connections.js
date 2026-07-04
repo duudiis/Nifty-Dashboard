@@ -144,8 +144,6 @@ async function upsertTracks(client, batch) {
     return map;
 }
 
-const LIKED_REF = "nifty:playlist:liked";
-
 /**
  * Imports the user's liked songs from a connected provider and merges them
  * into liked_tracks. Deduplicates against tracks they already have liked —
@@ -211,14 +209,9 @@ export async function importLikedFromProvider(userId, providerId) {
             [userId, providerId, liked.length]
         );
 
-        // Default the Liked songs view to the merged chronological timeline
-        // (newest first) — but never override a sort the user already chose.
-        await client.query(
-            `INSERT INTO collection_sorting (user_id, collection_ref, sort_by, sort_desc)
-             VALUES ($1, $2, 'added', TRUE)
-             ON CONFLICT (user_id, collection_ref) DO NOTHING`,
-            [userId, LIKED_REF]
-        );
+        // The Liked songs view already defaults to Date-added newest-first (see
+        // getCollectionSort), so imports surface at the top without persisting
+        // a sort row that would freeze the user's later choices.
 
         await client.query("COMMIT");
     } catch (error) {

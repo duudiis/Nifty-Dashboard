@@ -517,14 +517,23 @@ export async function browseLikedFromDb(userId) {
 
 const SORT_KEYS = ["custom", "added", "title", "artist", "duration"];
 
-/** The user's saved sort choice for a collection (default: custom order). */
+/**
+ * The user's saved sort choice for a collection. Default is custom order,
+ * except Liked songs, which default to Date-added newest-first so freshly
+ * liked/imported songs surface at the top.
+ */
 export async function getCollectionSort(userId, ref) {
     const { rows } = await db.query(
         `SELECT sort_by, sort_desc FROM collection_sorting WHERE user_id = $1 AND collection_ref = $2`,
         [userId, ref]
     );
     const row = rows[0];
-    return { sortBy: row?.sort_by || "custom", sortDesc: !!row?.sort_desc };
+    if (!row) {
+        return ref === "nifty:playlist:liked"
+            ? { sortBy: "added", sortDesc: true }
+            : { sortBy: "custom", sortDesc: false };
+    }
+    return { sortBy: row.sort_by, sortDesc: row.sort_desc };
 }
 
 /** Persists the user's sort choice for a collection. */

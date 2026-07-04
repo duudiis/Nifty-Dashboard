@@ -286,7 +286,9 @@ const youtube = {
                     artist: (sn.videoOwnerChannelTitle || "").replace(/ - Topic$/, ""),
                     isrc: null,
                     url: `https://www.youtube.com/watch?v=${vid}`,
-                    artwork: sn.thumbnails?.high?.url || sn.thumbnails?.default?.url || null,
+                    // Full-resolution, bar-free cover — same URL the bot uses,
+                    // so imported rows match what playback writes to the catalog.
+                    artwork: `https://i.ytimg.com/vi/${vid}/maxresdefault.jpg`,
                     durationMs: m.durationMs,
                     addedAt: sn.publishedAt || null
                 });
