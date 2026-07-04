@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
@@ -6,7 +6,8 @@ import { parseEntityId } from "../../sources/ids.js";
 import Icon from "../Icon.js";
 import TrackRow from "./TrackRow.js";
 import ArtistLink from "./ArtistLink.js";
-import { motion, EASE } from "../motion/index.js";
+import { motion, Reorder, EASE } from "../motion/index.js";
+import { useDragScroll, findScroller } from "../motion/useDragScroll.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useModal } from "../modal/Modal.js";
 import { entityExternalUrl, recordCollectionQueued } from "./useEntityActions.js";
@@ -99,31 +100,35 @@ function sortTracks(tracks, sortBy, sortDesc) {
 // The track table: a queue-style column header (both albums and playlists),
 // plus — for playlists only — a persisted sort control and drag reordering of
 // owned collections while in custom order.
-function TrackList({ data, refId, kind, playUrl }) {
+const PAGE = 100;
+
+// The track table: a queue-style column header (both albums and playlists),
+// plus — for playlists only — a persisted sort control and drag reordering of
+// owned collections while in custom order. Rows are paginated in 100s
+// (load-more on scroll) so even a Liked list of thousands only ever mounts a
+// small window, keeping framer's <Reorder> snappy; the sort arrives with the
+// page (initialSort) so the list is right on first paint, never re-sorting
+// after load.
+function TrackList({ data, refId, kind, playUrl, initialSort }) {
     const isPlaylist = data.type === "playlist";
     const reorderable = !!data.reorderable; // owned custom playlists + liked songs
 
-    const [sort, setSort] = useState({ sortBy: "custom", sortDesc: false });
+    const [sort, setSort] = useState(initialSort || { sortBy: "custom", sortDesc: false });
     const [order, setOrder] = useState(data.tracks || []);
+    const [loaded, setLoaded] = useState(PAGE);
     const orderRef = useRef(order);
     orderRef.current = order;
 
-    // Mirror fresh data on load / navigation (unless we're the source of the change).
-    useEffect(() => { setOrder(data.tracks || []); }, [data.tracks]);
+    const listRef = useRef(null);
+    const { start: startAutoscroll, stop: stopAutoscroll } = useDragScroll(listRef);
 
-    // Load the user's saved sort for this playlist.
-    useEffect(() => {
-        if (!isPlaylist) return;
-        let stale = false;
-        fetch(`/api/library?view=sort&ref=${encodeURIComponent(refId)}`)
-            .then((r) => r.json())
-            .then((j) => { if (!stale) setSort({ sortBy: j.sortBy || "custom", sortDesc: !!j.sortDesc }); })
-            .catch(() => {});
-        return () => { stale = true; };
-    }, [isPlaylist, refId]);
+    // Mirror fresh data / sort on navigation; reset the page window.
+    useEffect(() => { setOrder(data.tracks || []); setLoaded(PAGE); }, [data.tracks]);
+    useEffect(() => { if (initialSort) setSort(initialSort); }, [initialSort]);
 
     const persistSort = (next) => {
         setSort(next);
+        setLoaded(PAGE);
         fetch("/api/library", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -138,31 +143,29 @@ function TrackList({ data, refId, kind, playUrl }) {
 
     const dragEnabled = reorderable && sort.sortBy === "custom";
     const displayed = dragEnabled ? order : sortTracks(order, sort.sortBy, sort.sortDesc);
+    const visible = displayed.slice(0, loaded);
 
-    // Native HTML5 drag-and-drop reorder. Only the picked-up row and the row
-    // under the cursor carry changing props, so with a memoized TrackRow a
-    // drag re-renders two rows, not thousands — the array shuffle + server
-    // commit happen once, on drop.
-    const [dragIdx, setDragIdx] = useState(-1);
-    const [overIdx, setOverIdx] = useState(-1);
-    const dragIdxRef = useRef(-1); dragIdxRef.current = dragIdx;
-    const overIdxRef = useRef(-1); overIdxRef.current = overIdx;
+    // Load the next 100 when scrolling near the bottom of the page scroller.
+    useEffect(() => {
+        const scroller = findScroller(listRef.current);
+        if (!scroller) return;
+        const onScroll = () => {
+            if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 700) {
+                setLoaded((l) => (l < displayed.length ? l + PAGE : l));
+            }
+        };
+        scroller.addEventListener("scroll", onScroll, { passive: true });
+        onScroll(); // fill the viewport if it's taller than the first page
+        return () => scroller.removeEventListener("scroll", onScroll);
+    }, [displayed.length]);
 
-    const startDrag = useCallback((i) => { setDragIdx(i); setOverIdx(i); }, []);
-    const enterRow = useCallback((i) => setOverIdx(i), []);
-    const endDrag = useCallback(() => {
-        const from = dragIdxRef.current;
-        const to = overIdxRef.current;
-        setDragIdx(-1);
-        setOverIdx(-1);
-        if (from < 0 || to < 0 || from === to) return;
+    // framer <Reorder> only ever reorders the loaded window; splice the result
+    // back onto the still-unloaded tail, then persist the full order on drop.
+    const onReorder = (newVisible) => setOrder([...newVisible, ...orderRef.current.slice(loaded)]);
 
-        const next = [...orderRef.current];
-        const [moved] = next.splice(from, 1);
-        next.splice(to, 0, moved);
-        setOrder(next);
-
-        const ids = next.map((t) => t.entryId).filter(Boolean);
+    const commitReorder = () => {
+        stopAutoscroll();
+        const ids = orderRef.current.map((t) => t.entryId).filter(Boolean);
         if (!ids.length) return;
         const body = data.liked
             ? { action: "reorder_liked", order: ids }
@@ -172,10 +175,9 @@ function TrackList({ data, refId, kind, playUrl }) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body)
         }).catch(() => {});
-    }, [data.liked, refId]);
+    };
 
-    // "Date added" only makes sense when the tracks actually carry add dates
-    // (owned playlists + imported liked songs).
+    // "Date added" only makes sense when the tracks actually carry add dates.
     const hasAddedDates = (data.tracks || []).some((t) => t.addedAt);
     const sortOptions = BASE_SORT_OPTIONS.filter((o) => o.id !== "added" || hasAddedDates);
 
@@ -203,17 +205,14 @@ function TrackList({ data, refId, kind, playUrl }) {
         );
     }
 
-    const rows = displayed.map((track, i) => (
+    const rows = visible.map((track, i) => (
         <TrackRow
             key={dragEnabled ? track.entryId : `${track.url}-${i}`}
             track={track}
             index={i + 1}
-            draggable={dragEnabled}
-            dragging={dragEnabled && i === dragIdx}
-            indicator={dragEnabled && overIdx === i && dragIdx !== -1 && dragIdx !== i}
-            onDragStart={startDrag}
-            onDragEnter={enterRow}
-            onDragEnd={endDrag}
+            dragValue={dragEnabled ? track : null}
+            onDragStart={startAutoscroll}
+            onDragEnd={commitReorder}
         />
     ));
 
@@ -240,7 +239,13 @@ function TrackList({ data, refId, kind, playUrl }) {
                 <span className="w-12 shrink-0 text-center">Time</span>
             </div>
 
-            <div className="flex flex-col gap-1">{rows}</div>
+            {dragEnabled ? (
+                <Reorder.Group ref={listRef} as="div" axis="y" values={visible} onReorder={onReorder} className="flex flex-col gap-1">
+                    {rows}
+                </Reorder.Group>
+            ) : (
+                <div ref={listRef} className="flex flex-col gap-1">{rows}</div>
+            )}
         </div>
     );
 }
@@ -249,17 +254,25 @@ export default function CollectionPage({ id }) {
     const { play, selected, notify, setPageArt, isSaved, toggleSaveEntity, removePlaylist } = useNifty();
     const modal = useModal();
     const [data, setData] = useState(null);
+    const [sortPref, setSortPref] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         let stale = false;
         setLoading(true);
         setData(null);
+        setSortPref(null);
         setPageArt(null);
-        fetch(`/api/browse?id=${encodeURIComponent(id)}`)
-            .then((r) => r.json())
-            .then((j) => {
+        // Fetch the tracks and the saved sort together so the list is ordered
+        // correctly on its first paint — no flash of custom order re-sorting
+        // once a later sort request lands.
+        Promise.all([
+            fetch(`/api/browse?id=${encodeURIComponent(id)}`).then((r) => r.json()),
+            fetch(`/api/library?view=sort&ref=${encodeURIComponent(id)}`).then((r) => r.json()).catch(() => null)
+        ])
+            .then(([j, s]) => {
                 if (stale) return;
+                setSortPref(s && s.sortBy ? { sortBy: s.sortBy, sortDesc: !!s.sortDesc } : { sortBy: "custom", sortDesc: false });
                 setData(j);
                 // Liked songs gets the accent-tinted backdrop matching its
                 // cover tile, never a track's artwork.
@@ -391,7 +404,7 @@ export default function CollectionPage({ id }) {
                         </div>
 
                         {/* tracks */}
-                        <TrackList data={data} refId={id} kind={kind} playUrl={playUrl} />
+                        <TrackList data={data} refId={id} kind={kind} playUrl={playUrl} initialSort={sortPref} />
                     </div>
         </motion.div>
     );
