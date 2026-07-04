@@ -50,14 +50,7 @@ export default function TrackRow({ track, index, dragValue = null, onDragStart, 
     const inner = (
         <>
             {index != null && (
-                <span className="hidden w-5 shrink-0 items-center justify-center text-center text-xs text-subtext sm:flex">
-                    {draggable ? (
-                        <>
-                            <span className="group-hover:hidden">{index}</span>
-                            <Icon name="grip" className="hidden h-3.5 w-3.5 cursor-grab text-subtext group-hover:block" />
-                        </>
-                    ) : index}
-                </span>
+                <span className="hidden w-5 shrink-0 text-center text-xs text-subtext sm:block">{index}</span>
             )}
 
             <div className="relative h-11 w-11 shrink-0">

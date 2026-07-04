@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/router";
 
 import { buildEntityId, parseEntityId } from "../sources/ids.js";
@@ -230,6 +230,12 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     const libraryRef = useRef(library);
     libraryRef.current = library;
 
+    // O(1) liked-URL lookup — rebuilt only when the liked set changes, not per
+    // row. Without this, isLiked() scanning a thousands-long array on every one
+    // of thousands of rows makes the Liked songs page O(n²) and freezes on drag.
+    const likedSetRef = useRef(new Set());
+    likedSetRef.current = useMemo(() => new Set(library.likedUrls), [library.likedUrls]);
+
     const refreshLibrary = useCallback(async () => {
         try {
             const [state, list] = await Promise.all([
@@ -250,7 +256,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
 
     const isLiked = useCallback((track) => {
         const url = track?.url || track?.songUrl;
-        return !!url && libraryRef.current.likedUrls.includes(url);
+        return !!url && likedSetRef.current.has(url);
     }, []);
 
     const toggleLike = useCallback(async (track) => {
