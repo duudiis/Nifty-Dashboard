@@ -6,7 +6,7 @@ import { parseEntityId } from "../../sources/ids.js";
 import Icon from "../Icon.js";
 import TrackRow from "./TrackRow.js";
 import ArtistLink from "./ArtistLink.js";
-import { AnimatePresence, motion, Reorder, EASE } from "../motion/index.js";
+import { motion, Reorder, EASE } from "../motion/index.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useModal } from "../modal/Modal.js";
 import { entityExternalUrl, recordCollectionQueued } from "./useEntityActions.js";
@@ -281,20 +281,16 @@ export default function CollectionPage({ id }) {
         length
     ].filter(Boolean);
 
+    if (loading) return <CollectionSkeleton />;
+    if (!data?.title) {
+        return <div className="p-8 text-center text-sm text-subtext">Couldn&apos;t load this {data?.type || "page"}.</div>;
+    }
+
     return (
-        <AnimatePresence mode="popLayout" initial={false}>
-            <motion.div
-                key={loading ? "skeleton" : "content"}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2, ease: EASE }}
-            >
-                {loading ? (
-                    <CollectionSkeleton />
-                ) : !data?.title ? (
-                    <div className="p-8 text-center text-sm text-subtext">Couldn&apos;t load this {data?.type || "page"}.</div>
-                ) : (
+        // One-shot fade-in only — no AnimatePresence / popLayout wrapping the
+        // track list, so framer never re-measures a thousands-long list during
+        // a drag (that layout pass, absent on the queue page, was the lag).
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2, ease: EASE }}>
                     <div className="flex flex-col">
                         {/* header — the artwork blur behind it is pinned by CenterContent */}
                         <div className="flex flex-col gap-6 px-6 pb-6 pt-14 sm:flex-row sm:items-end">
@@ -377,8 +373,6 @@ export default function CollectionPage({ id }) {
                         {/* tracks */}
                         <TrackList data={data} refId={id} kind={kind} playUrl={playUrl} />
                     </div>
-                )}
-            </motion.div>
-        </AnimatePresence>
+        </motion.div>
     );
 }
