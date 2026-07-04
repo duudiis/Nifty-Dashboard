@@ -118,17 +118,25 @@ export function ModalProvider({ children }) {
                         )}
                     </AnimatePresence>
                     <AnimatePresence>
-                        {stack.map((entry) => (
-                            <div key={entry.id} className="pointer-events-none fixed inset-0 z-[75] flex items-center justify-center p-4">
+                        {stack.map((entry, index) => {
+                            // Only the top-most entry is shown; lower ones stay
+                            // mounted (preserving their state) but hidden, so a
+                            // confirm opened over settings replaces it rather
+                            // than layering on top. Closing the top reveals the
+                            // one below again.
+                            const isTop = index === stack.length - 1;
+                            return (
+                            <div key={entry.id} className={`fixed inset-0 z-[75] flex items-center justify-center p-4 ${isTop ? "pointer-events-none" : "pointer-events-none"}`}>
                                 <motion.div
                                     role="dialog"
                                     aria-modal="true"
+                                    aria-hidden={!isTop}
                                     aria-label={entry.title || "Dialog"}
                                     initial={{ opacity: 0, scale: 0.92 }}
-                                    animate={{ opacity: 1, scale: 1 }}
+                                    animate={{ opacity: isTop ? 1 : 0, scale: isTop ? 1 : 0.96 }}
                                     exit={{ opacity: 0, scale: 0.94 }}
                                     transition={{ duration: 0.15, ease: EASE }}
-                                    className={`pointer-events-auto flex max-h-[85vh] w-full flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xl ${SIZES[entry.size] || SIZES.md}`}
+                                    className={`flex max-h-[85vh] w-full flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xl ${isTop ? "pointer-events-auto" : "pointer-events-none"} ${SIZES[entry.size] || SIZES.md}`}
                                 >
                                     {entry.confirm ? (
                                         /* minimal confirmation: title, message, buttons */
@@ -176,7 +184,8 @@ export function ModalProvider({ children }) {
                                     )}
                                 </motion.div>
                             </div>
-                        ))}
+                            );
+                        })}
                     </AnimatePresence>
                 </>,
                 document.body
