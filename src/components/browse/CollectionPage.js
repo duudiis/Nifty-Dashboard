@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
@@ -6,7 +6,7 @@ import { parseEntityId } from "../../sources/ids.js";
 import Icon from "../Icon.js";
 import TrackRow from "./TrackRow.js";
 import ArtistLink from "./ArtistLink.js";
-import { motion, Reorder, EASE } from "../motion/index.js";
+import { motion, EASE } from "../motion/index.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useModal } from "../modal/Modal.js";
 import { entityExternalUrl, recordCollectionQueued } from "./useEntityActions.js";
@@ -139,8 +139,30 @@ function TrackList({ data, refId, kind, playUrl }) {
     const dragEnabled = reorderable && sort.sortBy === "custom";
     const displayed = dragEnabled ? order : sortTracks(order, sort.sortBy, sort.sortDesc);
 
-    const commitReorder = () => {
-        const ids = orderRef.current.map((t) => t.entryId).filter(Boolean);
+    // Native HTML5 drag-and-drop reorder. Only the picked-up row and the row
+    // under the cursor carry changing props, so with a memoized TrackRow a
+    // drag re-renders two rows, not thousands — the array shuffle + server
+    // commit happen once, on drop.
+    const [dragIdx, setDragIdx] = useState(-1);
+    const [overIdx, setOverIdx] = useState(-1);
+    const dragIdxRef = useRef(-1); dragIdxRef.current = dragIdx;
+    const overIdxRef = useRef(-1); overIdxRef.current = overIdx;
+
+    const startDrag = useCallback((i) => { setDragIdx(i); setOverIdx(i); }, []);
+    const enterRow = useCallback((i) => setOverIdx(i), []);
+    const endDrag = useCallback(() => {
+        const from = dragIdxRef.current;
+        const to = overIdxRef.current;
+        setDragIdx(-1);
+        setOverIdx(-1);
+        if (from < 0 || to < 0 || from === to) return;
+
+        const next = [...orderRef.current];
+        const [moved] = next.splice(from, 1);
+        next.splice(to, 0, moved);
+        setOrder(next);
+
+        const ids = next.map((t) => t.entryId).filter(Boolean);
         if (!ids.length) return;
         const body = data.liked
             ? { action: "reorder_liked", order: ids }
@@ -150,7 +172,7 @@ function TrackList({ data, refId, kind, playUrl }) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body)
         }).catch(() => {});
-    };
+    }, [data.liked, refId]);
 
     // "Date added" only makes sense when the tracks actually carry add dates
     // (owned playlists + imported liked songs).
@@ -186,8 +208,12 @@ function TrackList({ data, refId, kind, playUrl }) {
             key={dragEnabled ? track.entryId : `${track.url}-${i}`}
             track={track}
             index={i + 1}
-            dragValue={dragEnabled ? track : null}
-            onDragCommit={commitReorder}
+            draggable={dragEnabled}
+            dragging={dragEnabled && i === dragIdx}
+            indicator={dragEnabled && overIdx === i && dragIdx !== -1 && dragIdx !== i}
+            onDragStart={startDrag}
+            onDragEnter={enterRow}
+            onDragEnd={endDrag}
         />
     ));
 
@@ -214,13 +240,7 @@ function TrackList({ data, refId, kind, playUrl }) {
                 <span className="w-12 shrink-0 text-center">Time</span>
             </div>
 
-            {dragEnabled ? (
-                <Reorder.Group as="div" axis="y" values={order} onReorder={setOrder} className="flex flex-col gap-1">
-                    {rows}
-                </Reorder.Group>
-            ) : (
-                <div className="flex flex-col gap-1">{rows}</div>
-            )}
+            <div className="flex flex-col gap-1">{rows}</div>
         </div>
     );
 }
