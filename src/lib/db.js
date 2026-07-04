@@ -2,16 +2,22 @@ import pg from "pg";
 
 // The shared Nifty PostgreSQL database — the source of truth for player and
 // queue state (the bot writes, we read). Connection details come from
-// DATABASE_URL (internal docker network, no TLS needed).
+// DATABASE_URL. When the server is remote it runs over TLS with a self-signed
+// cert (sslmode=require in the URL) — we encrypt but skip CA verification, so
+// enable ssl with rejectUnauthorized:false in that case. A local internal
+// connection (no sslmode) needs no TLS.
 //
 // The pool survives dev hot-reloads via globalThis so we never leak clients.
 
 const globalForDb = globalThis;
 
+const usesTls = /sslmode=require/i.test(process.env.DATABASE_URL || "");
+
 export const db =
     globalForDb.__niftyDbPool ??
     new pg.Pool({
         connectionString: process.env.DATABASE_URL,
+        ssl: usesTls ? { rejectUnauthorized: false } : false,
         max: 5,
         idleTimeoutMillis: 30_000,
         connectionTimeoutMillis: 5_000

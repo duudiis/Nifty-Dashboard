@@ -9,7 +9,6 @@ services:
       - "3000"
     networks:
       - traefik
-      - postgres
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
@@ -20,6 +19,4 @@ services:
 
 networks:
   traefik:
-    external: true
-  postgres:
     external: true
