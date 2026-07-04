@@ -42,7 +42,9 @@ function TrackRow({ track, index, dragValue = null, onDragStart, onDragEnd }) {
 
     const { onContextMenu, active } = useContextMenu(() => trackMenu(track, { source: "search", onAdd: queue }));
 
-    const base = `group flex items-center gap-3 rounded-md p-2 transition-colors hover:bg-elevated ${selected ? "cursor-pointer" : ""} ${active ? "bg-elevated" : ""}`;
+    // Fixed 60px height (border-box: 44px art + 8px padding each side) so the
+    // collection list can virtualize with an exact row pitch.
+    const base = `group flex h-[60px] items-center gap-3 rounded-md p-2 transition-colors hover:bg-elevated ${selected ? "cursor-pointer" : ""} ${active ? "bg-elevated" : ""}`;
 
     const inner = (
         <>

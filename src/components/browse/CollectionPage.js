@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
@@ -55,15 +55,9 @@ export function CollectionSkeleton({ round = false }) {
                 <div className="h-9 w-40 animate-pulse rounded-full bg-elevated" />
                 <div className="h-9 w-9 animate-pulse rounded-full bg-elevated" />
             </div>
-            <div className="flex flex-col gap-1 px-4 pb-6">
-                {Array.from({ length: 7 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-3 p-2">
-                        <div className="h-11 w-11 shrink-0 animate-pulse rounded bg-elevated" />
-                        <div className="flex flex-1 flex-col gap-1.5">
-                            <div className="h-3 animate-pulse rounded bg-elevated" style={{ width: `${52 - i * 4}%` }} />
-                            <div className="h-2.5 animate-pulse rounded bg-elevated" style={{ width: `${28 - i * 2}%` }} />
-                        </div>
-                    </div>
+            <div className="flex flex-col px-4 pb-6">
+                {Array.from({ length: 10 }).map((_, i) => (
+                    <SkeletonRow key={i} />
                 ))}
             </div>
         </div>
@@ -97,38 +91,94 @@ function sortTracks(tracks, sortBy, sortDesc) {
     });
 }
 
-// The track table: a queue-style column header (both albums and playlists),
-// plus — for playlists only — a persisted sort control and drag reordering of
-// owned collections while in custom order.
-const PAGE = 100;
+const ROW_H = 60;      // fixed row height (px); every track row is exactly h-[60px]
+const OVERSCAN = 12;   // rows rendered beyond the viewport on each side
 
-// The track table: a queue-style column header (both albums and playlists),
-// plus — for playlists only — a persisted sort control and drag reordering of
-// owned collections while in custom order. Rows are paginated in 100s
-// (load-more on scroll) so even a Liked list of thousands only ever mounts a
-// small window, keeping framer's <Reorder> snappy; the sort arrives with the
-// page (initialSort) so the list is right on first paint, never re-sorting
-// after load.
+function SkeletonRow() {
+    return (
+        <div className="flex items-center gap-3 p-2" style={{ height: ROW_H }}>
+            <span className="hidden w-5 shrink-0 sm:block" />
+            <div className="h-11 w-11 shrink-0 animate-pulse rounded bg-elevated" />
+            <div className="flex flex-1 flex-col gap-2">
+                <div className="h-3 w-1/3 animate-pulse rounded bg-elevated" />
+                <div className="h-2.5 w-1/5 animate-pulse rounded bg-elevated" />
+            </div>
+            <div className="h-2.5 w-8 shrink-0 animate-pulse rounded bg-elevated" />
+        </div>
+    );
+}
+
+// Virtualized track table: only the rows near the viewport are mounted; the
+// rest are represented by top/bottom spacers. A Liked list of thousands keeps
+// a small, constant DOM/framer footprint no matter how far you scroll. framer's
+// <Reorder> runs on that window; during a drag the window may only grow (never
+// evict) so items stay mounted while you auto-scroll. The sort arrives with the
+// page (initialSort), so the list is ordered on its first paint.
 function TrackList({ data, refId, kind, playUrl, initialSort }) {
     const isPlaylist = data.type === "playlist";
-    const reorderable = !!data.reorderable; // owned custom playlists + liked songs
+    const reorderable = !!data.reorderable;
 
     const [sort, setSort] = useState(initialSort || { sortBy: "custom", sortDesc: false });
     const [order, setOrder] = useState(data.tracks || []);
-    const [loaded, setLoaded] = useState(PAGE);
-    const orderRef = useRef(order);
-    orderRef.current = order;
+    const orderRef = useRef(order); orderRef.current = order;
 
-    const listRef = useRef(null);
-    const { start: startAutoscroll, stop: stopAutoscroll } = useDragScroll(listRef);
+    const wrapRef = useRef(null);          // spacers + rows; its top = logical row 0
+    const scrollerRef = useRef(null);
+    const draggingRef = useRef(false);
+    const { start: startAutoscroll, stop: stopAutoscroll } = useDragScroll(wrapRef);
 
-    // Mirror fresh data / sort on navigation; reset the page window.
-    useEffect(() => { setOrder(data.tracks || []); setLoaded(PAGE); }, [data.tracks]);
+    const dragEnabled = reorderable && sort.sortBy === "custom";
+    const displayed = dragEnabled ? order : sortTracks(order, sort.sortBy, sort.sortDesc);
+    const total = displayed.length;
+
+    const [range, setRange] = useState({ start: 0, end: 30 });
+    const rangeRef = useRef(range); rangeRef.current = range;
+
+    const recompute = useCallback(() => {
+        const wrap = wrapRef.current;
+        const scroller = scrollerRef.current || findScroller(wrap);
+        scrollerRef.current = scroller;
+        if (!wrap || !scroller) return;
+        const sc = scroller.getBoundingClientRect();
+        const rect = wrap.getBoundingClientRect();
+        const past = sc.top - rect.top;             // px of the list scrolled above the viewport
+        const n = orderRef.current.length;
+        let start = Math.max(0, Math.floor(past / ROW_H) - OVERSCAN);
+        let end = Math.min(n, Math.ceil((past + sc.height) / ROW_H) + OVERSCAN);
+        if (end <= start) end = Math.min(n, start + 1);
+        const prev = rangeRef.current;
+        if (draggingRef.current) {                  // never evict mid-drag
+            start = Math.min(prev.start, start);
+            end = Math.max(prev.end, end);
+        }
+        if (prev.start !== start || prev.end !== end) setRange({ start, end });
+    }, []);
+
+    // Reset the window on data / sort change, then measure.
+    useEffect(() => { setOrder(data.tracks || []); }, [data.tracks]);
     useEffect(() => { if (initialSort) setSort(initialSort); }, [initialSort]);
+    useEffect(() => {
+        setRange({ start: 0, end: 30 });
+        const id = requestAnimationFrame(recompute);
+        return () => cancelAnimationFrame(id);
+    }, [total, sort.sortBy, recompute]);
+
+    // Follow the page scroller.
+    useEffect(() => {
+        const scroller = findScroller(wrapRef.current);
+        scrollerRef.current = scroller;
+        if (!scroller) return;
+        recompute();
+        scroller.addEventListener("scroll", recompute, { passive: true });
+        window.addEventListener("resize", recompute);
+        return () => {
+            scroller.removeEventListener("scroll", recompute);
+            window.removeEventListener("resize", recompute);
+        };
+    }, [recompute]);
 
     const persistSort = (next) => {
         setSort(next);
-        setLoaded(PAGE);
         fetch("/api/library", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -141,43 +191,27 @@ function TrackList({ data, refId, kind, playUrl, initialSort }) {
         else persistSort({ sortBy, sortDesc: false });
     };
 
-    const dragEnabled = reorderable && sort.sortBy === "custom";
-    const displayed = dragEnabled ? order : sortTracks(order, sort.sortBy, sort.sortDesc);
-    const visible = displayed.slice(0, loaded);
-
-    // Load the next 100 when scrolling near the bottom of the page scroller.
-    useEffect(() => {
-        const scroller = findScroller(listRef.current);
-        if (!scroller) return;
-        const onScroll = () => {
-            if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 700) {
-                setLoaded((l) => (l < displayed.length ? l + PAGE : l));
-            }
-        };
-        scroller.addEventListener("scroll", onScroll, { passive: true });
-        onScroll(); // fill the viewport if it's taller than the first page
-        return () => scroller.removeEventListener("scroll", onScroll);
-    }, [displayed.length]);
-
-    // framer <Reorder> only ever reorders the loaded window; splice the result
-    // back onto the still-unloaded tail, then persist the full order on drop.
-    const onReorder = (newVisible) => setOrder([...newVisible, ...orderRef.current.slice(loaded)]);
-
-    const commitReorder = () => {
-        stopAutoscroll();
-        const ids = orderRef.current.map((t) => t.entryId).filter(Boolean);
-        if (!ids.length) return;
-        const body = data.liked
-            ? { action: "reorder_liked", order: ids }
-            : { action: "reorder_playlist", playlistId: parseEntityId(refId)?.id, order: ids };
-        fetch("/api/library", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body)
-        }).catch(() => {});
+    // framer <Reorder> reorders only the mounted window; splice it back into
+    // the full order around the window bounds.
+    const onReorder = (winRows) => {
+        const { start, end } = rangeRef.current;
+        setOrder([...orderRef.current.slice(0, start), ...winRows, ...orderRef.current.slice(end)]);
     };
 
-    // "Date added" only makes sense when the tracks actually carry add dates.
+    const onRowDragStart = () => { draggingRef.current = true; startAutoscroll(); };
+    const onRowDragEnd = () => {
+        draggingRef.current = false;
+        stopAutoscroll();
+        const ids = orderRef.current.map((t) => t.entryId).filter(Boolean);
+        if (ids.length) {
+            const body = data.liked
+                ? { action: "reorder_liked", order: ids }
+                : { action: "reorder_playlist", playlistId: parseEntityId(refId)?.id, order: ids };
+            fetch("/api/library", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => {});
+        }
+        requestAnimationFrame(recompute); // collapse the grown window back to the viewport
+    };
+
     const hasAddedDates = (data.tracks || []).some((t) => t.addedAt);
     const sortOptions = BASE_SORT_OPTIONS.filter((o) => o.id !== "added" || hasAddedDates);
 
@@ -193,59 +227,65 @@ function TrackList({ data, refId, kind, playUrl, initialSort }) {
 
     const currentSortLabel = BASE_SORT_OPTIONS.find((o) => o.id === sort.sortBy)?.label || "Custom order";
 
-    if (displayed.length === 0) {
+    const header = (
+        <div className="flex items-center gap-3 border-b border-border/60 px-2 pb-2 text-[10px] font-bold uppercase tracking-wide text-subtext">
+            <span className="hidden w-5 shrink-0 text-center sm:block">#</span>
+            <span className="w-11 shrink-0" />
+            <span className="min-w-0 flex-1">Title</span>
+            {isPlaylist && (
+                <button onClick={openSortMenu} title="Sort" className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-subtext transition-colors hover:bg-elevated hover:text-maintext">
+                    <Icon name="list" className="h-3.5 w-3.5" />
+                    {currentSortLabel}
+                    {sort.sortBy !== "custom" && <Icon name="chevron-down" className={`h-3 w-3 transition-transform ${sort.sortDesc ? "" : "rotate-180"}`} />}
+                </button>
+            )}
+            <span className="w-12 shrink-0 text-center">Time</span>
+        </div>
+    );
+
+    if (total === 0) {
         return (
-            <div className="px-6 py-8 text-sm text-subtext">
-                {playUrl
-                    ? `Track list unavailable for this ${kind} — Play still queues the whole thing.`
-                    : data.liked
-                        ? "Songs you save with the heart will show up here."
-                        : "This playlist is empty — right-click any track and pick “Add to playlist”."}
+            <div className="flex flex-col px-4 pb-6">
+                {header}
+                <div className="px-2 py-8 text-sm text-subtext">
+                    {playUrl
+                        ? `Track list unavailable for this ${kind} — Play still queues the whole thing.`
+                        : data.liked
+                            ? "Songs you save with the heart will show up here."
+                            : "This playlist is empty — right-click any track and pick “Add to playlist”."}
+                </div>
             </div>
         );
     }
 
-    const rows = visible.map((track, i) => (
+    const winRows = displayed.slice(range.start, range.end);
+    const rowEls = winRows.map((track, i) => (
         <TrackRow
-            key={dragEnabled ? track.entryId : `${track.url}-${i}`}
+            key={dragEnabled ? track.entryId : `${track.url}-${range.start + i}`}
             track={track}
-            index={i + 1}
+            index={range.start + i + 1}
             dragValue={dragEnabled ? track : null}
-            onDragStart={startAutoscroll}
-            onDragEnd={commitReorder}
+            onDragStart={onRowDragStart}
+            onDragEnd={onRowDragEnd}
         />
     ));
+    const topPad = range.start * ROW_H;
+    const botPad = Math.max(0, (total - range.end) * ROW_H);
 
     return (
-        <div className="flex flex-col gap-1 px-4 pb-6">
-            {/* column header */}
-            <div className="flex items-center gap-3 border-b border-border/60 px-2 pb-2 text-[10px] font-bold uppercase tracking-wide text-subtext">
-                <span className="hidden w-5 shrink-0 text-center sm:block">#</span>
-                <span className="w-11 shrink-0" />
-                <span className="min-w-0 flex-1">Title</span>
-                {isPlaylist && (
-                    <button
-                        onClick={openSortMenu}
-                        title="Sort"
-                        className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-subtext transition-colors hover:bg-elevated hover:text-maintext"
-                    >
-                        <Icon name="list" className="h-3.5 w-3.5" />
-                        {currentSortLabel}
-                        {sort.sortBy !== "custom" && (
-                            <Icon name="chevron-down" className={`h-3 w-3 transition-transform ${sort.sortDesc ? "" : "rotate-180"}`} />
-                        )}
-                    </button>
+        <div className="flex flex-col px-4 pb-6">
+            {header}
+            <div ref={wrapRef} className="flex flex-col">
+                {topPad > 0 && <div style={{ height: topPad }} aria-hidden />}
+                {dragEnabled ? (
+                    <Reorder.Group as="div" axis="y" values={winRows} onReorder={onReorder} className="flex flex-col">
+                        {rowEls}
+                    </Reorder.Group>
+                ) : (
+                    <div className="flex flex-col">{rowEls}</div>
                 )}
-                <span className="w-12 shrink-0 text-center">Time</span>
+                {botPad > 0 && <div style={{ height: botPad }} aria-hidden />}
             </div>
-
-            {dragEnabled ? (
-                <Reorder.Group ref={listRef} as="div" axis="y" values={visible} onReorder={onReorder} className="flex flex-col gap-1">
-                    {rows}
-                </Reorder.Group>
-            ) : (
-                <div ref={listRef} className="flex flex-col gap-1">{rows}</div>
-            )}
         </div>
     );
 }
