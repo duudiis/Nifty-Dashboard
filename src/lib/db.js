@@ -11,12 +11,17 @@ import pg from "pg";
 
 const globalForDb = globalThis;
 
-const usesTls = /sslmode=require/i.test(process.env.DATABASE_URL || "");
+// Newer node-postgres treats sslmode=require in the URL as strict CA
+// verification, which rejects our self-signed cert. Strip sslmode and drive
+// TLS entirely through the ssl option: encrypt, but skip CA verification.
+const rawUrl = process.env.DATABASE_URL || "";
+const usesTls = /[?&]sslmode=require/i.test(rawUrl);
+const connectionString = rawUrl.replace(/[?&]sslmode=require/i, "");
 
 export const db =
     globalForDb.__niftyDbPool ??
     new pg.Pool({
-        connectionString: process.env.DATABASE_URL,
+        connectionString,
         ssl: usesTls ? { rejectUnauthorized: false } : false,
         max: 5,
         idleTimeoutMillis: 30_000,
