@@ -38,8 +38,47 @@ export async function listConnections(userId) {
     }));
 }
 
-export async function deleteConnection(userId, provider) {
-    await db.query(`DELETE FROM music_connections WHERE user_id = $1 AND provider = $2`, [userId, provider]);
+/**
+ * Disconnects a provider and removes every liked song imported from it,
+ * leaving natively-liked songs (imported_from IS NULL) and those imported
+ * from other still-connected accounts untouched. Returns how many were
+ * removed. Remaining liked positions are renumbered contiguous.
+ */
+export async function disconnectProvider(userId, provider) {
+    const client = await db.connect();
+    try {
+        await client.query("BEGIN");
+
+        const { rowCount: removed } = await client.query(
+            `DELETE FROM liked_tracks WHERE user_id = $1 AND imported_from = $2`,
+            [userId, provider]
+        );
+
+        if (removed > 0) {
+            await client.query(
+                `WITH ranked AS (
+                     SELECT track_id, row_number() OVER (ORDER BY position) - 1 AS newpos
+                     FROM liked_tracks WHERE user_id = $1
+                 )
+                 UPDATE liked_tracks lt SET position = ranked.newpos
+                 FROM ranked WHERE lt.track_id = ranked.track_id AND lt.user_id = $1`,
+                [userId]
+            );
+        }
+
+        await client.query(
+            `DELETE FROM music_connections WHERE user_id = $1 AND provider = $2`,
+            [userId, provider]
+        );
+
+        await client.query("COMMIT");
+        return { removed };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
 }
 
 // Returns a usable access token, refreshing (and persisting) it first if it's
@@ -154,10 +193,10 @@ export async function importLikedFromProvider(userId, providerId) {
                 if (t.isrc && likedIsrcs.has(t.isrc)) continue;           // same song on another platform
 
                 await client.query(
-                    `INSERT INTO liked_tracks (user_id, track_id, position, added_at)
-                     VALUES ($1, $2, $3, $4)
+                    `INSERT INTO liked_tracks (user_id, track_id, position, added_at, imported_from)
+                     VALUES ($1, $2, $3, $4, $5)
                      ON CONFLICT (user_id, track_id) DO NOTHING`,
-                    [userId, trackId, position, t.addedAt || new Date().toISOString()]
+                    [userId, trackId, position, t.addedAt || new Date().toISOString(), providerId]
                 );
                 likedIds.add(String(trackId));
                 if (t.isrc) likedIsrcs.add(t.isrc);

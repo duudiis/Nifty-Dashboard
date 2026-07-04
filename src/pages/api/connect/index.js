@@ -2,7 +2,7 @@ import { parse } from "cookie";
 
 import { verifySession } from "../../../lib/jwt.js";
 import { listProviders } from "../../../connect/providers.js";
-import { listConnections, deleteConnection, importLikedFromProvider } from "../../../lib/connections.js";
+import { listConnections, disconnectProvider, importLikedFromProvider } from "../../../lib/connections.js";
 
 // Connection status + management for the settings Connections tab.
 //
@@ -24,8 +24,8 @@ export default async function handler(req, res) {
         const { action, provider } = req.body || {};
 
         if (action === "disconnect") {
-            await deleteConnection(user.id, provider);
-            return res.status(200).json({ ok: true });
+            const { removed } = await disconnectProvider(user.id, provider);
+            return res.status(200).json({ ok: true, removed });
         }
 
         if (action === "sync") {

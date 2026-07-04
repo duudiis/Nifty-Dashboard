@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { useNifty, THEME_GROUPS, normalizeCustomTheme } from "../../context/NiftyContext.js";
 import Icon from "../Icon.js";
 import { AnimatePresence, motion, EASE } from "../motion/index.js";
+import { useModal } from "./Modal.js";
 
 const GROUPS = [
     {
@@ -335,6 +336,7 @@ function timeAgo(iso) {
 
 function ConnectionsSettings() {
     const { notify, refreshLibrary } = useNifty();
+    const modal = useModal();
     const [state, setState] = useState(null); // { providers, connections }
     const [busy, setBusy] = useState(null);    // provider id mid-action
 
@@ -369,15 +371,33 @@ function ConnectionsSettings() {
     };
 
     const disconnect = async (id) => {
+        const name = PLATFORM_META[id].name;
+        const conn = connectionFor(id);
+        const count = conn?.likedCount || 0;
+        const sure = await modal.confirm({
+            title: `Disconnect ${name}?`,
+            message: `The ${count > 0 ? count + " " : ""}liked song${count === 1 ? "" : "s"} imported from ${name} will be removed from your Liked songs. Songs you liked here, or that came from another connected account, stay. You can reconnect and re-import any time.`,
+            confirmLabel: "Disconnect & remove",
+            danger: true
+        });
+        if (!sure) return;
+
         setBusy(id);
         try {
-            await fetch("/api/connect", {
+            const res = await fetch("/api/connect", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ action: "disconnect", provider: id })
             });
-            notify(`Disconnected ${PLATFORM_META[id].name}`);
+            const j = await res.json();
+            if (!res.ok) throw new Error(j.message);
+            notify(j.removed > 0
+                ? `Disconnected ${name} — removed ${j.removed} imported song${j.removed === 1 ? "" : "s"}`
+                : `Disconnected ${name}`);
+            refreshLibrary();
             await load();
+        } catch {
+            notify(`Couldn't disconnect ${name}`);
         } finally {
             setBusy(null);
         }
