@@ -24,7 +24,7 @@ import {
  *   { operation: "q_clear", botId, guildId, data: {} }
  *   { operation: "q_resync",botId, guildId, data: {} }
  *
- * The p_*/q_* deltas carry the actual change (never full state) and are fanned
+ * These delta events carry the actual change (never full state) and are fanned
  * out verbatim to the guild's browsers, which apply them to local state — a
  * dashboard far from the database never refetches per change. The legacy
  * refresh_player / refresh_queue payload pushes from older bot builds are
