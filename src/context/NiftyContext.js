@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, useCal
 import { useRouter } from "next/router";
 
 import { buildEntityId, parseEntityId } from "../sources/ids.js";
+import { trackRow } from "../lib/trackShape.js";
 
 const NiftyContext = createContext(null);
 
@@ -87,6 +88,13 @@ const OVERLAY_VIEWS = ["lyrics", "watch"];
 // Entity pages take a second path segment: /dashboard/<kind>/<id>.
 const ENTITY_VIEWS = ["album", "playlist", "artist"];
 const pathForView = (v) => (v === "home" ? "/dashboard" : `/dashboard/${v}`);
+
+// After any structural queue delta, a track's id is its array position (the
+// same contract as a full fetch). Rewrites track_id to match, preserving object
+// identity for rows that didn't move so memoized rows don't re-render.
+function reindexQueue(arr) {
+    return arr.map((t, i) => (t.track_id === i ? t : { ...t, track_id: i }));
+}
 
 export function NiftyProvider({ user, inviteUrl = null, children }) {
 
@@ -542,14 +550,99 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
                         break;
                     }
 
-                    // Something changed in the database — re-read the piece
-                    // that changed (state itself never travels on the socket).
+                    // Legacy nudges (older bot builds): state didn't travel, so
+                    // re-read the piece that changed from the database.
                     case "player_updated": {
                         fetchState("player");
                         break;
                     }
 
                     case "queue_updated": {
+                        fetchState("queue");
+                        break;
+                    }
+
+                    /* ---- granular deltas: the change rides on the socket, so we
+                       apply it to local state instead of refetching. Full fetches
+                       happen only on subscribe/reconnect, q_resync, queue-page
+                       open, or when a track change reveals we're out of sync. ---- */
+
+                    case "p_full": {
+                        const d = message.data;
+                        // No track loaded → the player is idle.
+                        if (!d || !d.track) { setPlayer(null); break; }
+                        const track = trackRow(d.track);
+                        const payload = {
+                            progress: d.progress || 0,
+                            playing: !!d.playing,
+                            shuffle: !!d.shuffle,
+                            loop: d.loop,
+                            volume: d.volume,
+                            speed: d.speed || 1,
+                            position: d.position,
+                            track
+                        };
+                        setPlayer({ ...payload, _anchor: { progress: payload.progress, at: Date.now() } });
+                        if (typeof d.position === "number") {
+                            setQueue((prev) => ({ ...prev, position: d.position }));
+                            // If the now-playing track isn't the one sitting at the
+                            // cursor locally, we missed a queue delta — resync it.
+                            const local = queueRef.current;
+                            if (local.tracks.length > 0) {
+                                const at = local.tracks[d.position];
+                                if (!at || at.songUrl !== track.songUrl) fetchState("queue");
+                            }
+                        }
+                        break;
+                    }
+
+                    case "q_add": {
+                        const { at, cursor, tracks } = message.data || {};
+                        if (!Array.isArray(tracks) || tracks.length === 0) break;
+                        const mapped = tracks.map((r) => ({
+                            track_id: r.position,
+                            ...(r.id != null ? { entry_id: String(r.id) } : {}),
+                            ...trackRow(r)
+                        }));
+                        setQueue((prev) => {
+                            const arr = [...prev.tracks];
+                            const idx = Math.min(Math.max(at ?? arr.length, 0), arr.length);
+                            arr.splice(idx, 0, ...mapped);
+                            return { tracks: reindexQueue(arr), position: typeof cursor === "number" ? cursor : prev.position };
+                        });
+                        break;
+                    }
+
+                    case "q_remove": {
+                        const { at, count, cursor } = message.data || {};
+                        setQueue((prev) => {
+                            const arr = [...prev.tracks];
+                            arr.splice(at, count || 1);
+                            return { tracks: reindexQueue(arr), position: typeof cursor === "number" ? cursor : prev.position };
+                        });
+                        break;
+                    }
+
+                    case "q_move": {
+                        const { from, to, cursor } = message.data || {};
+                        setQueue((prev) => {
+                            const arr = [...prev.tracks];
+                            if (from < 0 || from >= arr.length) return prev;
+                            const [moved] = arr.splice(from, 1);
+                            const dest = Math.min(Math.max(to, 0), arr.length);
+                            arr.splice(dest, 0, moved);
+                            return { tracks: reindexQueue(arr), position: typeof cursor === "number" ? cursor : prev.position };
+                        });
+                        break;
+                    }
+
+                    case "q_clear": {
+                        setQueue({ tracks: [], position: 0 });
+                        break;
+                    }
+
+                    // Too many changes at once (shuffle / range edit) — refetch.
+                    case "q_resync": {
                         fetchState("queue");
                         break;
                     }
@@ -591,8 +684,16 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         };
     }, [user, fetchState]);
 
-    // Everything is event-driven: the bot nudges on change and this client
-    // re-reads the database; sessions arrive on first connect
+    // Opening the queue page does a one-off full fetch as a safety net: local
+    // state is kept live by deltas, but this reconciles anything a missed delta
+    // could have drifted right when the user looks at the full list.
+    useEffect(() => {
+        if (view === "queue") fetchState("queue");
+    }, [view, fetchState]);
+
+    // Live state now rides on the socket as granular deltas (p_full + q_*); this
+    // client applies them locally and only full-fetches on subscribe/reconnect,
+    // q_resync, or queue-page open. Sessions arrive on first connect
     // (identify_success) + voice changes. The Connect panel polls sessions
     // while it's open (see ConnectPanel) via this helper.
     const refreshSessions = useCallback(() => send("sessions_request"), [send]);

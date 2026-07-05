@@ -15,11 +15,20 @@ import {
  *
  * Inbound bot envelopes:
  *   { operation: "sessions",       data: { userId, sessions } }
- *   { operation: "player_updated", botId, guildId }
- *   { operation: "queue_updated",  botId, guildId }
+ *   { operation: "player_updated", botId, guildId }              (legacy nudge)
+ *   { operation: "queue_updated",  botId, guildId }              (legacy nudge)
+ *   { operation: "p_full",  botId, guildId, data: {...} }        (player snapshot)
+ *   { operation: "q_add",   botId, guildId, data: { at, tracks, cursor } }
+ *   { operation: "q_remove",botId, guildId, data: { at, count, cursor } }
+ *   { operation: "q_move",  botId, guildId, data: { from, to, cursor } }
+ *   { operation: "q_clear", botId, guildId, data: {} }
+ *   { operation: "q_resync",botId, guildId, data: {} }
  *
- * The legacy refresh_player / refresh_queue payload pushes from older bot
- * builds are translated into nudges (their payloads are ignored).
+ * The p_*/q_* deltas carry the actual change (never full state) and are fanned
+ * out verbatim to the guild's browsers, which apply them to local state — a
+ * dashboard far from the database never refetches per change. The legacy
+ * refresh_player / refresh_queue payload pushes from older bot builds are
+ * translated into nudges (their payloads are ignored).
  */
 export default class BotSocket {
 
@@ -52,6 +61,18 @@ export default class BotSocket {
         });
     }
 
+    // Fans a data-carrying change delta out to the guild's browsers verbatim.
+    relayDelta(operation, message) {
+        const guildId = message.guildId;
+        if (!guildId) return;
+        setGuildOwner(guildId, this);
+        emitToGuild(this.botId, guildId, operation, {
+            botId: this.botId,
+            guildId: String(guildId),
+            ...(message.data || {})
+        });
+    }
+
     onMessage(message) {
         if (!message?.operation) return;
 
@@ -79,6 +100,15 @@ export default class BotSocket {
 
             case "queue_updated":
                 return this.nudge("queue_updated", message.guildId);
+
+            // Granular, data-carrying deltas — relayed straight to the browsers.
+            case "p_full":
+            case "q_add":
+            case "q_remove":
+            case "q_move":
+            case "q_clear":
+            case "q_resync":
+                return this.relayDelta(message.operation, message);
 
             // Older bot builds push full state; treat them as nudges.
             case "refresh_player":

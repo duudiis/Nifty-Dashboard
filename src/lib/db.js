@@ -1,5 +1,7 @@
 import pg from "pg";
 
+import { trackRow } from "./trackShape.js";
+
 // The shared Nifty PostgreSQL database — the source of truth for player and
 // queue state (the bot writes, we read). Connection details come from
 // DATABASE_URL. When the server is remote it runs over TLS with a self-signed
@@ -42,32 +44,6 @@ function makePool() {
 export const db = globalForDb.__niftyDbPool ?? makePool();
 
 if (!globalForDb.__niftyDbPool) globalForDb.__niftyDbPool = db;
-
-/**
- * Splits a raw "Artist - Title" string the same way the bot's dashboard
- * payloads used to, so titles keep rendering as title + artist.
- */
-function splitTitle(title, artist) {
-    if (title && title.includes(" - ")) {
-        const [left, right] = title.split(/-(.+)/, 2).map((s) => s.trim());
-        return { title: right || title, artist: left || artist };
-    }
-    return { title, artist };
-}
-
-function trackRow(row) {
-    const { title, artist } = splitTitle(row.title, row.artist);
-    return {
-        title,
-        artist,
-        artwork: row.artwork_url || null,
-        songUrl: row.url || null,
-        duration: row.duration_ms != null ? Number(row.duration_ms) : 0,
-        added_by_id: row.queued_by != null ? String(row.queued_by) : "0",
-        added_by: row.added_by || (row.queued_by != null ? String(row.queued_by) : "?"),
-        ...(row.added_by_avatar ? { added_by_avatar: row.added_by_avatar } : {})
-    };
-}
 
 /**
  * Reads a guild's live player state (players row + the current track) for one
