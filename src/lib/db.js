@@ -18,15 +18,28 @@ const rawUrl = process.env.DATABASE_URL || "";
 const usesTls = /[?&]sslmode=require/i.test(rawUrl);
 const connectionString = rawUrl.replace(/[?&]sslmode=require/i, "");
 
-export const db =
-    globalForDb.__niftyDbPool ??
-    new pg.Pool({
+// The DB is now remote over TLS: a cold connection costs ~1.3s (handshake +
+// SCRAM over the internet), so keep connections warm and pooled rather than
+// re-establishing per burst, and allow more of them for the many concurrent
+// reads a page load fires. keepAlive stops NAT from silently dropping idles.
+function makePool() {
+    const pool = new pg.Pool({
         connectionString,
         ssl: usesTls ? { rejectUnauthorized: false } : false,
-        max: 5,
-        idleTimeoutMillis: 30_000,
-        connectionTimeoutMillis: 5_000
+        max: 20,
+        idleTimeoutMillis: 300_000,        // 5 min — reuse warm connections across bursts
+        connectionTimeoutMillis: 15_000,   // tolerate the ~1.3s cold handshake under contention
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10_000
     });
+    // Never let a stuck query hold a pooled connection forever.
+    pool.on("connect", (client) => client.query("SET statement_timeout = 20000").catch(() => {}));
+    // A background client error shouldn't crash the server.
+    pool.on("error", (err) => console.error("[Dashboard] pg pool error:", err.message));
+    return pool;
+}
+
+export const db = globalForDb.__niftyDbPool ?? makePool();
 
 if (!globalForDb.__niftyDbPool) globalForDb.__niftyDbPool = db;
 
