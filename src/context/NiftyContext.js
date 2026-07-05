@@ -81,7 +81,7 @@ function loadSettings() {
 }
 
 // Center pages that have a real URL under /dashboard. "home" is the bare path.
-const VIEWS = ["queue", "search", "lyrics", "watch"];
+const VIEWS = ["queue", "search", "lyrics", "watch", "history"];
 // Full-surface overlays (toggled from the player bar); closing one returns to
 // the last regular page instead of navigating somewhere new.
 const OVERLAY_VIEWS = ["lyrics", "watch"];
@@ -151,7 +151,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     useEffect(() => {
         if (typeof document === "undefined") return;
         const track = player?.track;
-        const LABELS = { queue: "Queue", search: "Search", lyrics: "Lyrics", watch: "Watch", album: "Album", playlist: "Playlist", artist: "Artist" };
+        const LABELS = { queue: "Queue", search: "Search", lyrics: "Lyrics", watch: "Watch", history: "History", album: "Album", playlist: "Playlist", artist: "Artist" };
         if (track?.title) {
             document.title = track.artist ? `${track.title} — ${track.artist}` : track.title;
         } else {

@@ -16,7 +16,7 @@ import ConnectionOverlay from "../../components/ConnectionOverlay.js";
 
 // Real, refresh-safe URLs for each page. Everything under /dashboard renders
 // this same component; the active view is read from the path by the context.
-const VIEWS = ["queue", "search", "lyrics", "watch"];
+const VIEWS = ["queue", "search", "lyrics", "watch", "history"];
 const ENTITY_VIEWS = ["album", "playlist", "artist"]; // /dashboard/<kind>/<id>
 
 export async function getServerSideProps({ req, params }) {

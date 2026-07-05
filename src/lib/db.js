@@ -195,6 +195,164 @@ export async function getRecentItems(userId, limit = 10) {
 
 }
 
+/* ===================== listening history ===================== */
+
+// The bot logs three nested layers of history, and the timeline reads all of
+// them for one user, newest first:
+//   queue_sessions     — one voice-channel sitting (started/ended)
+//   track_plays        — each track that actually played inside a session
+//   listening_segments — the spans THIS user was present for within a play
+//                        (a play splits into several when they pause/leave)
+//
+// "How long you listened" is the wall-clock sum of your segments — but a
+// segment can never sensibly outlast (a) its own recorded end, (b) the play it
+// belongs to, (c) the track's own duration, or (d) the present moment. Clamping
+// against all four means an unclosed segment on an orphaned session can't run to
+// now() and report hours of phantom listening. This SEG_END/SEG_MS pair is the
+// single source of that clamp; it references ls, tp and t, so every query that
+// uses it must have those three in scope.
+const SEG_END = `LEAST(
+    COALESCE(ls.ended_at, now()),
+    COALESCE(tp.ended_at, now()),
+    ls.started_at + make_interval(secs => COALESCE(NULLIF(t.duration_ms, 0), 2147483647)::double precision / 1000.0),
+    now()
+)`;
+const SEG_MS = `GREATEST(EXTRACT(EPOCH FROM (${SEG_END} - ls.started_at)) * 1000, 0)`;
+
+/**
+ * One page of the user's listening sessions, newest first. Keyset-paginated on
+ * (started_at, id) so it stays stable as new sessions are written. Pass the
+ * previous page's `cursor` ("<iso>|<id>") to get the next; omit for page one.
+ * Returns { sessions, nextCursor }. `lastListen` is the clamped end of the last
+ * span, which the client uses to tell a genuinely live session from an orphan.
+ */
+export async function getListeningSessions(userId, { cursor = null, limit = 12 } = {}) {
+    const [beforeAt, beforeId] = cursor ? splitCursor(cursor) : [null, null];
+
+    const { rows } = await db.query(
+        `SELECT s.id, s.bot_id, s.guild_id, s.voice_channel_id, s.started_at, s.ended_at,
+                count(DISTINCT tp.id)::int        AS plays,
+                count(ls.id)::int                 AS segments,
+                count(DISTINCT tp.track_id)::int  AS distinct_tracks,
+                COALESCE(sum(${SEG_MS}), 0)::bigint AS listened_ms,
+                max(${SEG_END}) AS last_listen
+         FROM queue_sessions s
+         JOIN track_plays tp ON tp.session_id = s.id
+         JOIN tracks t ON t.id = tp.track_id
+         JOIN listening_segments ls ON ls.play_id = tp.id AND ls.user_id = $1
+         WHERE ($2::timestamptz IS NULL OR (s.started_at, s.id) < ($2, $3::bigint))
+         GROUP BY s.id
+         ORDER BY s.started_at DESC, s.id DESC
+         LIMIT $4`,
+        [userId, beforeAt, beforeId, limit + 1]
+    );
+
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const last = page[page.length - 1];
+    const nextCursor = hasMore && last
+        ? `${new Date(last.started_at).toISOString()}|${last.id}`
+        : null;
+
+    return {
+        sessions: page.map((r) => ({
+            id: String(r.id),
+            botId: String(r.bot_id),
+            guildId: String(r.guild_id),
+            voiceChannelId: r.voice_channel_id != null ? String(r.voice_channel_id) : null,
+            startedAt: r.started_at,
+            endedAt: r.ended_at,
+            plays: r.plays,
+            segments: r.segments,
+            distinctTracks: r.distinct_tracks,
+            listenedMs: Number(r.listened_ms),
+            lastListen: r.last_listen
+        })),
+        nextCursor
+    };
+}
+
+/**
+ * Every play the user listened to in one session, newest first, each with its
+ * track, who queued it (and how, via queue_history), the play's own timing/end
+ * reason, and the user's own listening segments broken out.
+ */
+export async function getSessionPlays(userId, sessionId) {
+    const [plays, segments] = await Promise.all([
+        db.query(
+            `SELECT tp.id, tp.track_id, tp.started_at, tp.ended_at, tp.played_ms, tp.end_reason,
+                    tp.queued_by, u.display_name AS queued_by_name, u.avatar_url AS queued_by_avatar,
+                    t.title, t.artist, t.artwork_url, t.url, t.duration_ms, t.source,
+                    (SELECT COALESCE(sum(${SEG_MS}), 0)::bigint
+                     FROM listening_segments ls WHERE ls.play_id = tp.id AND ls.user_id = $1) AS listened_ms,
+                    (SELECT qh.via FROM queue_history qh
+                     WHERE qh.session_id = tp.session_id AND qh.track_id = tp.track_id
+                     ORDER BY qh.queued_at DESC LIMIT 1) AS via
+             FROM track_plays tp
+             JOIN tracks t ON t.id = tp.track_id
+             LEFT JOIN users u ON u.id = tp.queued_by
+             WHERE tp.session_id = $2
+               AND EXISTS (SELECT 1 FROM listening_segments ls
+                           WHERE ls.play_id = tp.id AND ls.user_id = $1)
+             ORDER BY tp.started_at DESC, tp.id DESC`,
+            [userId, sessionId]
+        ),
+        db.query(
+            `SELECT ls.id, ls.play_id, ls.started_at, ls.ended_at, ls.start_reason, ls.end_reason
+             FROM listening_segments ls
+             JOIN track_plays tp ON tp.id = ls.play_id
+             WHERE tp.session_id = $2 AND ls.user_id = $1
+             ORDER BY ls.started_at ASC`,
+            [userId, sessionId]
+        )
+    ]);
+
+    const segsByPlay = new Map();
+    for (const s of segments.rows) {
+        const key = String(s.play_id);
+        if (!segsByPlay.has(key)) segsByPlay.set(key, []);
+        segsByPlay.get(key).push({
+            id: String(s.id),
+            startedAt: s.started_at,
+            endedAt: s.ended_at,
+            startReason: s.start_reason,
+            endReason: s.end_reason
+        });
+    }
+
+    return plays.rows.map((r) => ({
+        id: String(r.id),
+        startedAt: r.started_at,
+        endedAt: r.ended_at,
+        playedMs: r.played_ms != null ? Number(r.played_ms) : null,
+        listenedMs: r.listened_ms != null ? Number(r.listened_ms) : 0,
+        endReason: r.end_reason,
+        via: r.via,
+        queuedBy: r.queued_by
+            ? { id: String(r.queued_by), name: r.queued_by_name, avatar: r.queued_by_avatar }
+            : null,
+        track: {
+            title: r.title,
+            artist: r.artist,
+            artwork: r.artwork_url,
+            url: r.url,
+            durationMs: r.duration_ms != null ? Number(r.duration_ms) : null,
+            source: r.source
+        },
+        segments: segsByPlay.get(String(r.id)) || []
+    }));
+}
+
+// Cursor is "<iso timestamp>|<session id>"; anything malformed pages from the top.
+function splitCursor(cursor) {
+    const idx = String(cursor).lastIndexOf("|");
+    if (idx === -1) return [null, null];
+    const at = cursor.slice(0, idx);
+    const id = cursor.slice(idx + 1);
+    if (!at || !id || Number.isNaN(Date.parse(at))) return [null, null];
+    return [at, id];
+}
+
 /** Records a whole-collection enqueue for the recents feed. */
 export async function recordQueuedCollection(userId, entity) {
     await db.query(

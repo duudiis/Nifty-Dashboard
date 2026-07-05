@@ -8,7 +8,7 @@ import { useModal } from "../modal/Modal.js";
 import SettingsPanel from "../modal/SettingsModal.js";
 
 export default function Account() {
-    const { user, logout, notify } = useNifty();
+    const { user, logout, notify, setView } = useNifty();
     const modal = useModal();
     const router = useRouter();
     const [open, setOpen] = useState(false);
@@ -79,8 +79,15 @@ export default function Account() {
                         exit={{ opacity: 0, scale: 0.96, y: -6 }}
                         transition={{ duration: 0.14, ease: EASE }}
                         style={{ transformOrigin: "top right" }}
-                        className="absolute right-0 z-50 mt-2 w-40 overflow-hidden rounded-lg border border-border bg-elevated p-1 shadow-2xl"
+                        className="absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-lg border border-border bg-elevated p-1 shadow-2xl"
                     >
+                        <button
+                            onClick={() => { setOpen(false); setView("history"); }}
+                            className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[12px] font-medium text-maintext transition hover:bg-surface"
+                        >
+                            <Icon name="history" className="h-3.5 w-3.5" />
+                            Listening history
+                        </button>
                         <button
                             onClick={() => { setOpen(false); openSettings("appearance"); }}
                             className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[12px] font-medium text-maintext transition hover:bg-surface"

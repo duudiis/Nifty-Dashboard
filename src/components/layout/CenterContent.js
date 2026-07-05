@@ -9,6 +9,7 @@ import SearchResults from "../search/SearchResults.js";
 import QueueList from "../queue/QueueList.js";
 import LyricsView from "../lyrics/LyricsView.js";
 import WatchView from "../watch/WatchView.js";
+import HistoryView from "../history/HistoryView.js";
 import ArtBackdrop from "../ArtBackdrop.js";
 import Backdrop from "../browse/Backdrop.js";
 import CollectionPage from "../browse/CollectionPage.js";
@@ -123,6 +124,8 @@ export default function CenterContent() {
                     <div className="p-6">
                         <SearchResults />
                     </div>
+                ) : view === "history" ? (
+                    <HistoryView />
                 ) : (
                     <Home />
                 )}
