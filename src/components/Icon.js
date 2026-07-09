@@ -75,6 +75,20 @@ const ICONS = {
             </>
         )
     },
+    // Autoplay toggle (endless play).
+    infinity: {
+        body: <path d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4Zm0 0c2 2.67 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.33-6 4Z" />
+    },
+    // Recommended-by-autoplay glyph on queue rows.
+    sparkles: {
+        body: (
+            <>
+                <path d="m12 3-1.9 5.8a2 2 0 0 1-1.29 1.29L3 12l5.8 1.9a2 2 0 0 1 1.29 1.29L12 21l1.9-5.8a2 2 0 0 1 1.29-1.29L21 12l-5.8-1.9a2 2 0 0 1-1.29-1.29Z" />
+                <path d="M19 3v4" />
+                <path d="M17 5h4" />
+            </>
+        )
+    },
 
     // --- volume ---
     volume: {

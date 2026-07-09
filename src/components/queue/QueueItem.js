@@ -11,10 +11,14 @@ import { Reorder } from "../motion/index.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
 
-export default function QueueItem({ track, index, isCurrent, dense, onDragStart, onDragEnd }) {
-    const { control, player, jump, removeTrack, isLiked, toggleLike } = useNifty();
+// `autoplay` rows are the bot's recommendations ("Next from: Autoplay"):
+// same look, but addressed by auto_id — clicking promotes the track into the
+// real queue and plays it, the trash removes the suggestion (negative
+// feedback), and the added-by slot shows the autoplay glyph instead of a user.
+export default function QueueItem({ track, index, isCurrent, dense, autoplay = false, onDragStart, onDragEnd }) {
+    const { control, player, jump, removeTrack, isLiked, toggleLike, autoplayPlay, autoplayRemove } = useNifty();
     const trackMenu = useTrackMenu();
-    const { onContextMenu, active } = useContextMenu(() => trackMenu(track, { source: "queue" }));
+    const { onContextMenu, active } = useContextMenu(() => trackMenu(track, { source: autoplay ? "autoplay" : "queue" }));
 
     const playing = isCurrent && player?.playing;
 
@@ -43,7 +47,8 @@ export default function QueueItem({ track, index, isCurrent, dense, onDragStart,
     const activate = (e) => {
         e?.stopPropagation?.();
         if (draggedRef.current) return;
-        if (isCurrent) control("togglePause");
+        if (autoplay) autoplayPlay(track.auto_id);
+        else if (isCurrent) control("togglePause");
         else jump(track.track_id);
     };
 
@@ -51,7 +56,8 @@ export default function QueueItem({ track, index, isCurrent, dense, onDragStart,
 
     const remove = (e) => {
         e.stopPropagation();
-        removeTrack(track.track_id);
+        if (autoplay) autoplayRemove(track.auto_id);
+        else removeTrack(track.track_id);
     };
 
     const liked = isLiked(track);
@@ -81,7 +87,9 @@ export default function QueueItem({ track, index, isCurrent, dense, onDragStart,
             {!dense && (
                 <div className="flex w-6 shrink-0 items-center justify-center">
                     <span className={`flex items-center justify-center text-xs transition-colors duration-300 ${isCurrent ? "text-accent" : "text-subtext"} group-hover:hidden`}>
-                        {isCurrent ? <Equalizer playing={playing} className="h-3.5 w-3.5" /> : index + 1}
+                        {isCurrent ? <Equalizer playing={playing} className="h-3.5 w-3.5" />
+                            : autoplay ? <Icon name="sparkles" className="h-3.5 w-3.5" />
+                            : index + 1}
                     </span>
                     <button onClick={activate} className="hidden text-maintext group-hover:block" title={playPauseTitle}>
                         <Icon name={playing ? "pause" : "play"} className="h-4 w-4" />
@@ -132,14 +140,26 @@ export default function QueueItem({ track, index, isCurrent, dense, onDragStart,
             )}
 
             {/* added by — name + avatar on the main page, avatar only in the
-                dense sidebar (sits just left of the duration) */}
-            {!dense && (
+                dense sidebar (sits just left of the duration). Autoplay rows
+                have no user: they show the autoplay glyph instead. */}
+            {!dense && (autoplay ? (
+                <span
+                    title="Recommended by Autoplay"
+                    className="hidden w-28 shrink-0 items-center gap-1.5 text-[11px] text-subtext lg:flex"
+                >
+                    <Icon name="sparkles" className="h-3.5 w-3.5" /> Autoplay
+                </span>
+            ) : (
                 <AddedBy track={track} size={18} className="hidden w-28 shrink-0 text-[11px] text-subtext lg:flex" />
-            )}
+            ))}
             {dense && (
                 <div className="-mr-1.5 flex shrink-0 items-center">
-                    <span className={liked ? "hidden" : "group-hover:hidden"}>
-                        <AddedBy track={track} size={16} showName={false} />
+                    <span className={liked ? "hidden" : "group-hover:hidden"} title={autoplay ? "Recommended by Autoplay" : undefined}>
+                        {autoplay ? (
+                            <Icon name="sparkles" className="h-4 w-4 text-subtext/70" />
+                        ) : (
+                            <AddedBy track={track} size={16} showName={false} />
+                        )}
                     </span>
                     <button
                         onClick={like}
@@ -156,7 +176,7 @@ export default function QueueItem({ track, index, isCurrent, dense, onDragStart,
                 <span className="text-[11px] text-subtext group-hover:hidden">{msToClock(track.duration)}</span>
                 <button
                     onClick={remove}
-                    title="Remove"
+                    title={autoplay ? "Remove suggestion" : "Remove"}
                     className="hidden text-subtext transition-colors hover:text-red-400 group-hover:block"
                 >
                     <Icon name="trash" className="h-4 w-4" />

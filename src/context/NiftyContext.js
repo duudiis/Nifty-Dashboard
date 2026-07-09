@@ -96,6 +96,12 @@ function reindexQueue(arr) {
     return arr.map((t, i) => (t.track_id === i ? t : { ...t, track_id: i }));
 }
 
+// The autoplay section: the bot's recommendation buffer ("Next from:
+// Autoplay") plus whether autoplay is on. Rides inside the queue state so a
+// session switch resets both together.
+const EMPTY_AUTOPLAY = { enabled: false, tracks: [] };
+const EMPTY_QUEUE = { tracks: [], position: 0, autoplay: EMPTY_AUTOPLAY };
+
 export function NiftyProvider({ user, inviteUrl = null, children }) {
 
     const router = useRouter();
@@ -106,7 +112,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     const [sessions, setSessions] = useState([]);     // aggregated across bots
     const [selected, setSelected] = useState(null);   // { botName, guildId, ... }
     const [player, setPlayer] = useState(null);        // null = nothing playing
-    const [queue, setQueue] = useState({ tracks: [], position: 0 });
+    const [queue, setQueue] = useState(EMPTY_QUEUE);
     const [notifications, setNotifications] = useState([]); // transient toasts
 
     // The active page is derived from the URL (refresh-safe); setView navigates.
@@ -210,7 +216,11 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
                 if (res.ok) {
                     const json = await res.json();
                     if (stillCurrent()) {
-                        setQueue({ tracks: json?.tracks || [], position: json?.position ?? 0 });
+                        setQueue({
+                            tracks: json?.tracks || [],
+                            position: json?.position ?? 0,
+                            autoplay: json?.autoplay || EMPTY_AUTOPLAY
+                        });
                     }
                 }
             }
@@ -637,13 +647,27 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
                     }
 
                     case "q_clear": {
-                        setQueue({ tracks: [], position: 0 });
+                        // The autoplay section has its own lifecycle (a_full).
+                        setQueue((prev) => ({ ...EMPTY_QUEUE, autoplay: prev.autoplay }));
                         break;
                     }
 
                     // Too many changes at once (shuffle / range edit) — refetch.
                     case "q_resync": {
                         fetchState("queue");
+                        break;
+                    }
+
+                    // The autoplay section whole: enabled flag + the bot's
+                    // recommendation buffer. Small (≤20 rows), so it always
+                    // travels as one snapshot.
+                    case "a_full": {
+                        const d = message.data || {};
+                        const tracks = (d.tracks || []).map((r) => ({
+                            auto_id: String(r.id),
+                            ...trackRow(r)
+                        }));
+                        setQueue((prev) => ({ ...prev, autoplay: { enabled: !!d.enabled, tracks } }));
                         break;
                     }
 
@@ -723,7 +747,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     const selectSession = useCallback((session, { switchView = true } = {}) => {
         setSelected(session);
         setPlayer(null);
-        setQueue({ tracks: [], position: 0 });
+        setQueue(EMPTY_QUEUE);
         if (session?.guildId) {
             send("subscribe", { botId: session.botId, guildId: session.guildId });
             // selectedRef updates on re-render; point it at the new session now
@@ -744,7 +768,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
             if (selectedRef.current) {
                 setSelected(null);
                 setPlayer(null);
-                setQueue({ tracks: [], position: 0 });
+                setQueue(EMPTY_QUEUE);
             }
             return;
         }
@@ -801,6 +825,22 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         const entry = (queueRef.current?.tracks || []).find((t) => t.track_id === trackId);
         return entry?.entry_id ? { trackId, entryId: entry.entry_id } : { trackId };
     }, []);
+
+    /* ---- autoplay: the "Next from: Autoplay" section ----
+       Entries are addressed by their stable auto_id (the autoplay_tracks row
+       id), so no action can hit the wrong suggestion while the buffer moves. */
+
+    // Flip autoplay on/off. The bot answers with a_full (and p_full when it
+    // had to turn loop off), so no optimistic state is needed.
+    const toggleAutoplay = useCallback(() => control("toggleAutoplay"), [control]);
+    // Remove a suggestion — recorded bot-side as negative feedback.
+    const autoplayRemove = useCallback((autoId) => control("autoplayRemove", { autoId }), [control]);
+    // Drag-reorder within the autoplay section.
+    const autoplayMove = useCallback((autoId, toIndex) => control("autoplayMove", { autoId, toIndex }), [control]);
+    // Promote a suggestion into the real queue (attributed to this user).
+    const autoplayPlay = useCallback((autoId) => control("autoplayPlay", { autoId }), [control]);
+    const autoplayPlayNext = useCallback((autoId) => control("autoplayPlayNext", { autoId }), [control]);
+    const autoplayQueue = useCallback((autoId) => control("autoplayQueue", { autoId }), [control]);
 
     const jump = useCallback((trackId) => control("jump", addressEntry(trackId)), [control, addressEntry]);
     // Play now: bot moves the entry to right after the current track, then jumps.
@@ -883,6 +923,12 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         moveToLast,
         moveTrack,
         removeTrack,
+        toggleAutoplay,
+        autoplayRemove,
+        autoplayMove,
+        autoplayPlay,
+        autoplayPlayNext,
+        autoplayQueue,
         pageArt, setPageArt,
         library,
         refreshLibrary,

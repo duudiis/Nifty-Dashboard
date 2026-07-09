@@ -50,8 +50,9 @@ function IconButton({ onClick, active, title, large, disabled, className = "", c
 }
 
 function Controls({ playing, onPlayPause, sideDisabled, playDisabled }) {
-    const { player, control } = useNifty();
+    const { player, control, queue, toggleAutoplay } = useNifty();
     const loopActive = player?.loop && player.loop !== "disabled";
+    const autoplayOn = queue.autoplay?.enabled ?? false;
 
     // First press restarts the current track; press again near the start to go to
     // the previous track (Spotify-style ~3s threshold).
@@ -80,6 +81,12 @@ function Controls({ playing, onPlayPause, sideDisabled, playDisabled }) {
 
             <IconButton onClick={() => control("loop")} active={loopActive} disabled={sideDisabled} title={`Loop: ${player?.loop || "off"}`} className="ml-2">
                 <Icon name={player?.loop === "track" ? "loop-one" : "loop"} className="h-[17px] w-[17px]" />
+            </IconButton>
+
+            {/* Autoplay stays clickable while "ended" — flipping it on is
+                exactly how you keep the music going from there. */}
+            <IconButton onClick={toggleAutoplay} active={autoplayOn} title={autoplayOn ? "Autoplay: on" : "Autoplay: off"}>
+                <Icon name="infinity" className="h-[18px] w-[18px]" />
             </IconButton>
         </div>
     );

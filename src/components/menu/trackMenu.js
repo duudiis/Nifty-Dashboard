@@ -44,7 +44,8 @@ async function copyLink(url) {
 export function useTrackMenu() {
     const {
         selected, queue, player, play, playNow, playNextTrack, moveToLast, removeTrack,
-        control, notify, library, isLiked, toggleLike, addToPlaylist, createPlaylist
+        control, notify, library, isLiked, toggleLike, addToPlaylist, createPlaylist,
+        autoplayPlay, autoplayPlayNext, autoplayQueue, autoplayRemove
     } = useNifty();
 
     return useCallback(
@@ -162,6 +163,44 @@ export function useTrackMenu() {
                 ];
             }
 
+            // Autoplay suggestions ("Next from: Autoplay") — addressed by their
+            // stable auto_id. Playing/queueing promotes the track into the real
+            // queue as this user's pick; Remove is negative feedback the
+            // recommender learns from.
+            if (source === "autoplay") {
+                const autoId = track.auto_id;
+                return [
+                    {
+                        label: "Play now",
+                        icon: "play-now",
+                        onClick: () => { autoplayPlay(autoId); notify(`Now playing ${label}`); },
+                        disabled: !selected
+                    },
+                    {
+                        label: "Play next",
+                        icon: "play-next",
+                        onClick: () => { autoplayPlayNext(autoId); notify(`Playing ${label} next`); },
+                        disabled: !selected
+                    },
+                    {
+                        label: "Add to queue",
+                        icon: "enqueue",
+                        onClick: () => { autoplayQueue(autoId); notify(`Added ${label} to the queue`); },
+                        disabled: !selected
+                    },
+                    ...libraryItems,
+                    ...linkItems,
+                    { separator: true },
+                    {
+                        label: "Remove suggestion",
+                        icon: "trash",
+                        danger: true,
+                        onClick: () => { autoplayRemove(autoId); notify(`Removed ${label} from Autoplay`); },
+                        disabled: !selected
+                    }
+                ];
+            }
+
             // search results / browse rows (not yet in the queue)
             return [
                 { label: "Play now", icon: "play-now", onClick: () => play(queueRef, "now", title), disabled: !selected },
@@ -180,6 +219,7 @@ export function useTrackMenu() {
         },
         [selected, queue.position, player?.track, player?.playing, play, playNow, playNextTrack,
          moveToLast, removeTrack, control, notify, library.playlists, library.likedUrls,
-         isLiked, toggleLike, addToPlaylist, createPlaylist]
+         isLiked, toggleLike, addToPlaylist, createPlaylist,
+         autoplayPlay, autoplayPlayNext, autoplayQueue, autoplayRemove]
     );
 }

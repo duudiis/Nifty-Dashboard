@@ -23,6 +23,7 @@ import {
  *   { operation: "q_move",  botId, guildId, data: { from, to, cursor } }
  *   { operation: "q_clear", botId, guildId, data: {} }
  *   { operation: "q_resync",botId, guildId, data: {} }
+ *   { operation: "a_full",  botId, guildId, data: { enabled, tracks } }  (autoplay section)
  *
  * These delta events carry the actual change (never full state) and are fanned
  * out verbatim to the guild's browsers, which apply them to local state — a
@@ -108,6 +109,7 @@ export default class BotSocket {
             case "q_move":
             case "q_clear":
             case "q_resync":
+            case "a_full":
                 return this.relayDelta(message.operation, message);
 
             // Older bot builds push full state; treat them as nudges.

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, forwardRef } from "react";
 
 import QueueItem from "./QueueItem.js";
+import AutoplaySection from "./AutoplaySection.js";
 import { useNifty } from "../../context/NiftyContext.js";
 import Icon from "../Icon.js";
 import { Reorder, motion, EASE } from "../motion/index.js";
@@ -284,7 +285,12 @@ export default function QueueList({ dense = false }) {
     }
 
     if (order.length === 0) {
-        return <EmptyState icon="queue" title="The queue is empty" hint="Search above to add a track and get the party started." />;
+        return (
+            <div className="flex flex-1 flex-col">
+                <EmptyState icon="queue" title="The queue is empty" hint="Search above to add a track and get the party started." />
+                <AutoplaySection dense={dense} />
+            </div>
+        );
     }
 
     const item = (track, i) => (
@@ -299,7 +305,8 @@ export default function QueueList({ dense = false }) {
         />
     );
 
-    // Main queue page: flat, drag-reorderable table.
+    // Main queue page: flat, drag-reorderable table, with the autoplay
+    // section underneath.
     if (!dense) {
         return (
             <div className="flex flex-col gap-1">
@@ -307,6 +314,7 @@ export default function QueueList({ dense = false }) {
                 <Reorder.Group ref={listRef} as="div" axis="y" values={order} onReorder={setOrder} className="flex flex-col">
                     {order.map(item)}
                 </Reorder.Group>
+                <AutoplaySection />
             </div>
         );
     }
@@ -332,10 +340,13 @@ export default function QueueList({ dense = false }) {
     });
 
     return (
-        <Reorder.Group ref={listRef} as="div" axis="y" values={order} onReorder={setOrder} className="flex flex-col">
-            {rows}
+        <div className="flex flex-col">
+            <Reorder.Group ref={listRef} as="div" axis="y" values={order} onReorder={setOrder} className="flex flex-col">
+                {rows}
+            </Reorder.Group>
+            <AutoplaySection dense />
             {/* room below so even the last track can sit at the very top */}
             <div className="h-[80vh] shrink-0" aria-hidden />
-        </Reorder.Group>
+        </div>
     );
 }

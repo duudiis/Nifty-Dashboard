@@ -95,10 +95,14 @@ export async function getPlayerState(botId, guildId) {
  * Reads a guild's full queue for one bot instance, oldest position first.
  * Each entry's track_id is its queue position — the id the control actions
  * (jump/move/remove) address.
+ *
+ * Also carries the autoplay section: the enabled flag from the players row
+ * plus the bot's recommendation buffer ("Next from: Autoplay"), addressed by
+ * the stable auto_id.
  */
 export async function getQueue(botId, guildId) {
 
-    const [{ rows }, { rows: playerRows }] = await Promise.all([
+    const [{ rows }, { rows: playerRows }, { rows: autoplayRows }] = await Promise.all([
         db.query(
             `SELECT qt.id, qt.position, qt.queued_by,
                     t.title, t.artist, t.artwork_url, t.url, t.duration_ms,
@@ -111,14 +115,26 @@ export async function getQueue(botId, guildId) {
             [botId, guildId]
         ),
         db.query(
-            `SELECT queue_position FROM players WHERE bot_id = $1 AND guild_id = $2`,
+            `SELECT queue_position, autoplay FROM players WHERE bot_id = $1 AND guild_id = $2`,
+            [botId, guildId]
+        ),
+        db.query(
+            `SELECT at.id, t.title, t.artist, t.artwork_url, t.url, t.duration_ms
+             FROM autoplay_tracks at
+             JOIN tracks t ON t.id = at.track_id
+             WHERE at.bot_id = $1 AND at.guild_id = $2
+             ORDER BY at.position ASC`,
             [botId, guildId]
         )
     ]);
 
     return {
         position: playerRows[0]?.queue_position ?? 0,
-        tracks: rows.map((row) => ({ track_id: row.position, entry_id: String(row.id), ...trackRow(row) }))
+        tracks: rows.map((row) => ({ track_id: row.position, entry_id: String(row.id), ...trackRow(row) })),
+        autoplay: {
+            enabled: playerRows[0]?.autoplay === "enabled",
+            tracks: autoplayRows.map((row) => ({ auto_id: String(row.id), ...trackRow(row) }))
+        }
     };
 
 }
