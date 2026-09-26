@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import Icon from "../Icon.js";
+import Loader from "../Loader.js";
 import SessionGroup from "./SessionGroup.js";
 import { dayKey, dayLabel } from "../../lib/format.js";
 
@@ -112,8 +113,8 @@ export default function HistoryView() {
                 )}
 
                 {loading && (
-                    <div className="flex items-center justify-center gap-2 py-6 text-xs text-subtext">
-                        <Icon name="spinner" className="h-4 w-4 animate-spin" /> Loading…
+                    <div className="flex items-center justify-center py-6">
+                        <Loader />
                     </div>
                 )}
 

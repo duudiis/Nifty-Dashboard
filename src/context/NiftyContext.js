@@ -119,9 +119,9 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     const [queue, setQueue] = useState(EMPTY_QUEUE);
     const [notifications, setNotifications] = useState([]); // transient toasts
 
-    // First-load progress. The dashboard shell paints immediately and fills its
-    // boxes with shimmering placeholders; these flip as each piece of the boot
-    // arrives, and `ready` (below) latches once the real content can be shown.
+    // First-load progress. The dashboard shell paints immediately with empty
+    // boxes; these flip as each piece of the boot arrives, and `ready` (below)
+    // latches once the real content can be shown.
     const [sessionsLoaded, setSessionsLoaded] = useState(false); // server list in
     const [stateLoaded, setStateLoaded] = useState(false);       // player+queue read once
 
@@ -294,7 +294,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
             });
         } catch {
             // Still mark it loaded: a failed read is no longer loading, and
-            // leaving the flag false would wash the shelf forever. The next
+            // leaving the flag false would keep the shelf empty forever. The next
             // mutation retries.
             setLibrary((prev) => ({ ...prev, loaded: true }));
         }
@@ -644,7 +644,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
                             const arr = [...prev.tracks];
                             const idx = Math.min(Math.max(at ?? arr.length, 0), arr.length);
                             arr.splice(idx, 0, ...mapped);
-                            return { tracks: reindexQueue(arr), position: typeof cursor === "number" ? cursor : prev.position };
+                            return { ...prev, tracks: reindexQueue(arr), position: typeof cursor === "number" ? cursor : prev.position };
                         });
                         break;
                     }
@@ -654,7 +654,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
                         setQueue((prev) => {
                             const arr = [...prev.tracks];
                             arr.splice(at, count || 1);
-                            return { tracks: reindexQueue(arr), position: typeof cursor === "number" ? cursor : prev.position };
+                            return { ...prev, tracks: reindexQueue(arr), position: typeof cursor === "number" ? cursor : prev.position };
                         });
                         break;
                     }
@@ -667,7 +667,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
                             const [moved] = arr.splice(from, 1);
                             const dest = Math.min(Math.max(to, 0), arr.length);
                             arr.splice(dest, 0, moved);
-                            return { tracks: reindexQueue(arr), position: typeof cursor === "number" ? cursor : prev.position };
+                            return { ...prev, tracks: reindexQueue(arr), position: typeof cursor === "number" ? cursor : prev.position };
                         });
                         break;
                     }
@@ -912,12 +912,12 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     }, [view, router.query.q, doSearch]);
 
     /* ---- boot latch ----
-       The shell paints straight away and fills each box with a shimmer; `ready`
-       flips once the first real state has landed and then stays true, so a
-       later reconnect refreshes the live content in place instead of blanking
-       the whole app back to placeholders. The timeout is the ceiling: if the
-       hub never answers we still give way to the real (empty / disconnected)
-       dashboard rather than shimmering forever. ---- */
+       The shell paints straight away with empty boxes (the centre shows a
+       loader); `ready` flips once the first real state has landed and then
+       stays true, so a later reconnect refreshes the live content in place
+       instead of blanking the whole app again. The timeout is the ceiling: if
+       the hub never answers we still give way to the real (empty /
+       disconnected) dashboard rather than loading forever. ---- */
 
     const [ready, setReady] = useState(false);
     // Deliberately does NOT wait on the library: the shelf clears itself on

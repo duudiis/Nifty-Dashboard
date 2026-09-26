@@ -104,7 +104,7 @@ export default function TheExchange({ home, loading }) {
     const reach = playable(home?.reach);
     const brought = playable(home?.brought);
 
-    // Gated on !loading so the wash still reserves the section's height; once
+    // Gated on !loading so loading still reserves the section's height; once
     // the payload lands with nothing in either half there is no section.
     if (!loading && reach.length === 0 && brought.length === 0) return null;
 

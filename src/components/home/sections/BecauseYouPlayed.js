@@ -54,7 +54,7 @@ export default function BecauseYouPlayed({ discover, loading }) {
     // reserved height and jolt everything below it upward.
     if (!loading && !anything) return null;
 
-    // The heading is the one thing that cannot flip. During the wash neither
+    // The heading is the one thing that cannot flip. While loading neither
     // branch is known yet, so it says the plain thing both of them mean rather
     // than showing "Charts right now" for a second and then renaming itself.
     const title = loading

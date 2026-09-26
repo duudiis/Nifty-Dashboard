@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
 import { getYouTubeVideoId, loadYouTubeIframeAPI } from "../../lib/youtube.js";
-import Spinner from "../Spinner.js";
+import Loader from "../Loader.js";
 import { AnimatePresence, motion, EASE } from "../motion/index.js";
 
 // The bot stays the single source of truth: the embed mirrors the player state
@@ -251,7 +251,7 @@ export default function WatchView() {
                 {/* Opaque loading cover: hides every boot-up flash of the embed
                     underneath, then fades away in one clean pass. */}
                 <div className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black transition-opacity duration-500 ${revealed ? "opacity-0" : "opacity-100"}`}>
-                    <Spinner className="h-9 w-9 text-white/70" />
+                    <Loader size="lg" className="text-white/70" />
                 </div>
             </div>
 

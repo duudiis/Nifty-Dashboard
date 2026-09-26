@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
 import Icon from "../Icon.js";
+import Loader from "../Loader.js";
 import { AnimatePresence, motion, EASE } from "../motion/index.js";
 
 // Interpolates a smooth, ~frame-accurate playback position between the 1s
@@ -34,23 +35,6 @@ function useSmoothProgress(player) {
     }, []);
 
     return [ms, seek];
-}
-
-// Placeholder lines that mirror the real lyric layout exactly (same wrapper
-// padding/spacing/line height), so content lands where the bars were.
-function LyricsSkeleton() {
-    const widths = ["70%", "52%", "84%", "61%", "45%", "76%", "58%", "68%"];
-    return (
-        <div className="space-y-9 px-8 pt-[42vh] sm:px-14">
-            {widths.map((w, i) => (
-                <div
-                    key={i}
-                    className="skeleton-shimmer h-9 rounded-md sm:h-10"
-                    style={{ width: w, animationDelay: `${i * 0.18}s` }}
-                />
-            ))}
-        </div>
-    );
 }
 
 // Words light up ~120ms before their timestamp so the highlight lands with,
@@ -209,11 +193,7 @@ export default function LyricsView() {
 
     let body;
     if (mode === "loading") {
-        body = (
-            <div className="flex-1 overflow-hidden">
-                <LyricsSkeleton />
-            </div>
-        );
+        body = <Centered><Loader size="lg" className="text-lyric/70" /></Centered>;
     } else if (mode === "synced") {
         body = (
             <>

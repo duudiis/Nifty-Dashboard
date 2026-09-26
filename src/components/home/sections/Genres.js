@@ -84,12 +84,12 @@ export default function Genres() {
                 {chips}
 
                 {loading ? (
-                    // The chips stay live while a shelf loads — the wash would
-                    // take them with it, and switching genres is the point.
+                    // The chips stay live while a shelf loads, with placeholder
+                    // tiles in the shelf's place — switching genres is the point.
                     <Stagger className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6" gap={0.03}>
                         {Array.from({ length: 6 }).map((_, i) => (
                             <StaggerItem key={i}>
-                                <div className="aspect-square w-full animate-pulse rounded-md bg-elevated" />
+                                <div className="aspect-square w-full rounded-md bg-elevated" />
                             </StaggerItem>
                         ))}
                     </Stagger>

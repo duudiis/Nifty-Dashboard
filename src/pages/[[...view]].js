@@ -7,9 +7,7 @@ import { ContextMenuProvider } from "../components/menu/ContextMenu.js";
 import { ModalProvider } from "../components/modal/Modal.js";
 
 import TopBar from "../components/layout/TopBar.js";
-import LeftSidebar from "../components/layout/LeftSidebar.js";
-import CenterContent from "../components/layout/CenterContent.js";
-import RightSidebar from "../components/layout/RightSidebar.js";
+import Panels from "../components/layout/Panels.js";
 import Player from "../components/player/Player.js";
 import NotificationStack from "../components/NotificationStack.js";
 import ReloadCurtain from "../components/ReloadCurtain.js";
@@ -79,11 +77,7 @@ export default function Dashboard({ user, inviteUrl }) {
                     <TopBar />
 
                     <div className="flex min-h-0 flex-1 flex-col gap-2 p-2 pt-0">
-                        <div className="flex min-h-0 flex-1 gap-2">
-                            <LeftSidebar />
-                            <CenterContent />
-                            <RightSidebar />
-                        </div>
+                        <Panels />
 
                         <div className="relative shrink-0">
                             <NotificationStack />

@@ -412,7 +412,7 @@ function ConnectionsSettings() {
             {state === null ? (
                 <div className="flex flex-col gap-2">
                     {Object.keys(PLATFORM_META).map((k) => (
-                        <div key={k} className="h-[4.5rem] animate-pulse rounded-xl bg-elevated/60" />
+                        <div key={k} className="h-[4.5rem] rounded-xl bg-elevated/60" />
                     ))}
                 </div>
             ) : (

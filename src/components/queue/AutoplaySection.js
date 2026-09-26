@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import QueueItem from "./QueueItem.js";
 import { useNifty } from "../../context/NiftyContext.js";
-import Icon from "../Icon.js";
+import Loader from "../Loader.js";
 import { Reorder } from "../motion/index.js";
 
 // The "Next from: Autoplay" queue section: the bot's rolling recommendation
@@ -30,11 +30,16 @@ function Switch({ on, onClick, title }) {
     );
 }
 
+// One shared empty list. `tracks` feeds the mirror effect below, so a fresh
+// `[]` per render would re-fire it every render — an endless update loop that
+// also starves the page transitions, freezing the centre view.
+const NO_TRACKS = [];
+
 export default function AutoplaySection({ dense = false }) {
     const { queue, toggleAutoplay, autoplayMove } = useNifty();
 
     const enabled = queue.autoplay?.enabled ?? false;
-    const tracks = queue.autoplay?.tracks || [];
+    const tracks = queue.autoplay?.tracks ?? NO_TRACKS;
 
     // Local drag-reorderable mirror of the buffer, same contract as the main
     // queue list: the bot owns the order, we only diverge mid-drag.
@@ -94,8 +99,8 @@ export default function AutoplaySection({ dense = false }) {
         <div className="flex flex-col">
             {header}
             {order.length === 0 ? (
-                <div className="flex items-center gap-2 px-2 py-1.5 text-[12px] text-subtext">
-                    <Icon name="spinner" className="h-3.5 w-3.5 animate-spin" />
+                <div className="flex items-center gap-2.5 px-2 py-1.5 text-[12px] text-subtext">
+                    <Loader size="sm" delay={0} className="text-current" />
                     Finding recommendations…
                 </div>
             ) : (

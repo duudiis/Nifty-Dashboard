@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { FadeIn } from "../motion/index.js";
+import { PageLoader } from "../Loader.js";
 
 import Hero from "./sections/Hero.js";
 import RoomsRail from "./sections/RoomsRail.js";
@@ -34,12 +35,12 @@ const EMPTY_DISCOVER = { personalized: false, seeds: [], bundles: [], releases: 
 /**
  * The home screen.
  *
- * Three loading states, never one. The shell's own boot wash (CenterContent's
- * LoadingWash, gated on `ready`) decides whether this mounts at all; then the
- * database half and the recommendation half wash independently, because Deezer
- * is a third party and a slow minute there must not hold up a page built from
- * the user's own history. The library is a fourth, already loaded by the
- * context.
+ * Loads in two halves. The page waits (behind one quiet loader) only for the
+ * database half — the user's own history, usually a few hundred ms — and then
+ * reveals everything at once. The recommendation half fills its sections in
+ * afterwards, because Deezer is a third party and a slow minute there must not
+ * hold up a page built from the user's own history. The library is already
+ * loaded by the context.
  *
  * No intervals. The page fetches once per mount; everything live on it — the
  * player, the queue, the room list — arrives on the WebSocket deltas the
@@ -94,12 +95,15 @@ export default function HomeView() {
     // to someone who just arrived is worse than showing them how to start.
     const starting = homeLoaded && home.totals.plays < 10;
 
+    // First visit only; a refresh keeps the page up and refills it in place.
+    if (!homeLoaded && home === EMPTY_HOME) return <PageLoader />;
+
     const band = (i, node) => (
         <FadeIn key={i} delay={Math.min(i * 0.04, 0.4)} y={10}>{node}</FadeIn>
     );
 
     const sections = [
-        <Hero home={home} loading={!homeLoaded} />,
+        <Hero home={home} />,
         <RoomsRail />,
         <PulseStrip home={home} loading={!homeLoaded} onRefresh={refresh} />
     ];

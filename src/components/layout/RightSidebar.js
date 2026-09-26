@@ -1,6 +1,5 @@
 import { useNifty } from "../../context/NiftyContext.js";
 import { SlideTransition, motion, entrance } from "../motion/index.js";
-import LoadingWash from "../skeleton/index.js";
 
 import QueueList from "../queue/QueueList.js";
 import NowPlayingPanel, { NowPlayingBackdrop } from "../NowPlayingPanel.js";
@@ -48,11 +47,11 @@ export default function RightSidebar() {
     const close = () => updateSettings({ rightPanel: "nowplaying" });
 
     return (
-        <motion.aside {...entrance(0.1)} className="relative hidden w-[340px] shrink-0 flex-col overflow-hidden rounded-lg bg-surface lg:flex">
-            {/* Same slide primitive as the centre view, so panels enter/leave with
-                identical timing. mode="wait" (inside SlideTransition) fully drops
-                the old panel before mounting the new one, so the Queue panel's
-                Reorder subtree can't leave a ghost over the incoming panel.
+        <motion.aside {...entrance(0.1)} data-panel="right" className="relative hidden w-[var(--right-w)] shrink-0 flex-col overflow-hidden rounded-lg bg-surface lg:flex">
+            {/* Same slide primitive as the centre view, so panels enter with
+                identical timing. The panel is keyed, so the old one (and the
+                Queue panel's Reorder subtree) is gone before the new one paints.
+                Until the first state lands the box simply stays empty.
                 Now playing hands its cover-art gradient to the pinned backdrop, so
                 the slide never exposes the bare surface above it.
                 The inner (sliding) layer is the scroll container:
@@ -60,8 +59,6 @@ export default function RightSidebar() {
                     drag, so a dragged track isn't left behind on auto-scroll.
                   • overflow-anchor:none — disable Chrome scroll anchoring, which
                     would otherwise fight framer's layout slide (scrollTop flicker). */}
-            <LoadingWash show={!ready} sweep="narrow" />
-
             {ready && (
             <SlideTransition
                 transitionKey={panel}

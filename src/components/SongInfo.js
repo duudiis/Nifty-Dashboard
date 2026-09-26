@@ -12,7 +12,7 @@ const fade = {
 // Placeholder that mirrors the loaded "About" layout (facts grid + artist blurb).
 function InfoSkeleton() {
     return (
-        <div className="flex animate-pulse flex-col gap-4 border-t border-border/60 pt-4">
+        <div className="flex flex-col gap-4 border-t border-border/60 pt-4">
             <div className="flex flex-col gap-2.5">
                 <div className="h-2.5 w-24 rounded bg-elevated" />
                 <div className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-2.5">

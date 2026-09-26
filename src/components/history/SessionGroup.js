@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import Icon from "../Icon.js";
+import Loader from "../Loader.js";
 import PlayItem from "./PlayItem.js";
 import { AnimatePresence, motion, EASE } from "../motion/index.js";
 import { formatTime, humanDuration } from "../../lib/format.js";
@@ -81,8 +82,8 @@ export default function SessionGroup({ session, defaultOpen = false }) {
                     >
                         <div className="px-3 pb-3">
                             {loading && (
-                                <div className="flex items-center gap-2 px-2 py-4 text-xs text-subtext">
-                                    <Icon name="spinner" className="h-4 w-4 animate-spin" /> Loading tracks…
+                                <div className="flex items-center px-2 py-4">
+                                    <Loader size="sm" />
                                 </div>
                             )}
                             {error && (

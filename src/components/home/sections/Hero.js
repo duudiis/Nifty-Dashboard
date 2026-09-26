@@ -275,7 +275,7 @@ function Standby({ tier, home }) {
     );
 }
 
-export default function Hero({ home, loading }) {
+export default function Hero({ home }) {
     const { user, sessions, player, queue } = useNifty();
 
     const rooms = sessions || [];
@@ -297,9 +297,9 @@ export default function Hero({ home, loading }) {
     const name = user?.display_name || user?.username || "";
     const greeting = greetingFor(new Date().getHours());
 
-    // Section's wash is deliberately not wired to `loading`. The live card is
-    // socket state that lands long before /api/home does, and washing the hero
-    // would hide a player that is already playing. Only the mirror waits.
+    // Section's `loading` is deliberately not wired up: the live card is socket
+    // state, and blanking the hero during a refresh would hide a player that
+    // is already playing. The mirror line keeps its last sentence meanwhile.
     return (
         <Section id="hero" minHeight={150}>
             <div className="flex flex-col items-start gap-6 lg:flex-row lg:justify-between">
@@ -308,11 +308,7 @@ export default function Hero({ home, loading }) {
                         {name ? `${greeting}, ${name}` : greeting}
                     </h1>
 
-                    {loading ? (
-                        <div className="h-4 w-64 animate-pulse rounded bg-elevated" />
-                    ) : (
-                        <p className="text-sm text-subtext">{mirrorSentence(home)}</p>
-                    )}
+                    <p className="text-sm text-subtext">{mirrorSentence(home)}</p>
 
                     <StatusLine liveRooms={liveRooms} queued={tracks.length} />
                 </div>

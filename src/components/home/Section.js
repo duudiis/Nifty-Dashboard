@@ -1,14 +1,14 @@
 import Icon from "../Icon.js";
-import LoadingWash from "../skeleton/index.js";
+import { motion, entrance } from "../motion/index.js";
 
 // The frame every home section sits in: a heading, an optional action on the
-// right, and its own loading wash.
+// right, and its body — which stays empty while loading and fades in once the
+// data lands.
 //
-// `minHeight` is not decoration. LoadingWash is an absolute overlay over a box
-// that renders nothing while loading, and an empty div has no height — without
-// a reserved one the washes would be invisible slivers and the page would jolt
-// downward as each section landed. Every caller passes the height its real
-// content will occupy, so nothing moves when the data arrives.
+// `minHeight` is not decoration. An empty body has no height; without a
+// reserved one the page would jolt downward as each section landed. Every
+// caller passes the height its real content will occupy, so nothing moves when
+// the data arrives.
 export default function Section({
     id,
     title,
@@ -34,8 +34,11 @@ export default function Section({
                 </div>
             )}
 
-            <LoadingWash show={loading} className="rounded-xl" />
-            {!loading && children}
+            {!loading && (
+                <motion.div {...entrance(0)} className="flex flex-col gap-3">
+                    {children}
+                </motion.div>
+            )}
         </section>
     );
 }

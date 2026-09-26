@@ -4,7 +4,6 @@ import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
 import Icon from "../Icon.js";
 import { AnimatePresence, motion, Reorder, entrance, EASE } from "../motion/index.js";
-import LoadingWash from "../skeleton/index.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useEntityMenu } from "../menu/entityMenu.js";
 
@@ -160,7 +159,7 @@ export default function LeftSidebar() {
     };
 
     return (
-        <motion.aside {...entrance(0)} className="hidden w-[300px] shrink-0 flex-col gap-2 md:flex">
+        <motion.aside {...entrance(0)} data-panel="left" className="hidden w-[var(--left-w)] shrink-0 flex-col gap-2 md:flex">
 
             {/* Nav card */}
             <nav className="rounded-lg bg-surface p-2">
@@ -184,10 +183,8 @@ export default function LeftSidebar() {
                 />
             </nav>
 
-            {/* Library — the whole card washes until the shelf lands */}
+            {/* Library — the card stays empty until the shelf lands, then fades it in */}
             <div className="relative flex min-h-0 flex-1 flex-col rounded-lg bg-surface">
-                <LoadingWash show={!library.loaded} sweep="narrow" />
-
                 {library.loaded && (
                 <motion.div {...entrance(0)} className="flex min-h-0 flex-1 flex-col">
                 <div className="flex items-center gap-3 px-4 pb-2 pt-4 text-xs font-bold text-subtext">

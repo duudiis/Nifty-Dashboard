@@ -8,7 +8,6 @@ import AddedBy from "../AddedBy.js";
 import ArtistLink from "../browse/ArtistLink.js";
 import Marquee from "../Marquee.js";
 import { AnimatePresence, motion, entrance, EASE } from "../motion/index.js";
-import LoadingWash from "../skeleton/index.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
 import ProgressBar from "./ProgressBar.js";
@@ -131,10 +130,10 @@ function Song({ track }) {
 function SongSkeleton() {
     return (
         <div className="-mx-2 flex min-w-0 items-center gap-3 px-2 py-1">
-            <div className="h-14 w-14 shrink-0 animate-pulse rounded-md bg-elevated" />
+            <div className="h-14 w-14 shrink-0 rounded-md bg-elevated" />
             <div className="flex min-w-0 max-w-[14rem] flex-col gap-2">
-                <div className="h-3 w-32 animate-pulse rounded bg-elevated" />
-                <div className="h-2.5 w-20 animate-pulse rounded bg-elevated" />
+                <div className="h-3 w-32 rounded bg-elevated" />
+                <div className="h-2.5 w-20 rounded bg-elevated" />
             </div>
         </div>
     );
@@ -346,11 +345,9 @@ export default function Player() {
     const showSkeleton = ended && endedLoading;
 
     return (
-        // The bar fades in just behind the boxes above it, and shimmers in
-        // place until the first player state lands.
+        // The bar fades in just behind the boxes above it, and stays empty
+        // until the first player state lands.
         <motion.div {...entrance(0.15)} className="relative h-20 shrink-0">
-            <LoadingWash show={!ready} sweep="wide" />
-
             {ready && (
             // No initial={false}: this subtree mounts when the player state
             // lands, so the first render is the reveal and should fade in.

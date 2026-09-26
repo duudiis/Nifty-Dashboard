@@ -28,7 +28,7 @@ export default function LikedUnheard({ home, loading }) {
     if (!loading && total === 0) return null;
 
     // The count is the headline, but it is zero until the payload lands — so
-    // the wash gets the sentence without the number rather than a confident
+    // loading gets the sentence without the number rather than a confident
     // "0 liked songs" that flips a second later.
     const title = loading
         ? "Liked songs you've never played here"

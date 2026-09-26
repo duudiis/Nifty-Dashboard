@@ -102,9 +102,12 @@ const SectionHeader = forwardRef(({ children, innerRef, padTop = "pt-5", id, ...
     </motion.div>
 ));
 
+// Stable fallback: `tracks` is an effect dependency (see AutoplaySection).
+const NO_TRACKS = [];
+
 export default function QueueList({ dense = false }) {
     const { queue, player, selected, moveTrack } = useNifty();
-    const tracks = queue.tracks || [];
+    const tracks = queue.tracks ?? NO_TRACKS;
     const position = queue.position ?? 0;
 
     // Local, drag-reorderable copy of the queue. The bot stays the source of

@@ -4,6 +4,7 @@ import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
 import { parseEntityId } from "../../sources/ids.js";
 import Icon from "../Icon.js";
+import { PageLoader } from "../Loader.js";
 import TrackRow from "./TrackRow.js";
 import ArtistLink from "./ArtistLink.js";
 import { motion, Reorder, EASE } from "../motion/index.js";
@@ -38,32 +39,6 @@ function releaseYear(date) {
     return /^\d{4}$/.test(year) ? year : null;
 }
 
-// Mirrors the real header + actions + rows, so load -> loaded barely shifts.
-export function CollectionSkeleton({ round = false }) {
-    return (
-        <div className="flex flex-col">
-            <div className="flex items-end gap-6 px-6 pb-6 pt-14">
-                <div className={`h-48 w-48 shrink-0 animate-pulse bg-elevated ${round ? "rounded-full" : "rounded-md"}`} />
-                <div className="flex min-w-0 flex-1 flex-col gap-3 pb-1">
-                    <div className="h-3 w-16 animate-pulse rounded bg-elevated" />
-                    <div className="h-11 w-2/3 animate-pulse rounded bg-elevated" />
-                    <div className="h-3 w-40 animate-pulse rounded bg-elevated" />
-                </div>
-            </div>
-            <div className="flex items-center gap-3 px-6 py-4">
-                <div className="h-9 w-24 animate-pulse rounded-full bg-elevated" />
-                <div className="h-9 w-40 animate-pulse rounded-full bg-elevated" />
-                <div className="h-9 w-9 animate-pulse rounded-full bg-elevated" />
-            </div>
-            <div className="flex flex-col px-4 pb-6">
-                {Array.from({ length: 10 }).map((_, i) => (
-                    <SkeletonRow key={i} />
-                ))}
-            </div>
-        </div>
-    );
-}
-
 const BASE_SORT_OPTIONS = [
     { id: "custom", label: "Custom order" },
     { id: "added", label: "Date added" },
@@ -93,20 +68,6 @@ function sortTracks(tracks, sortBy, sortDesc) {
 
 const ROW_H = 60;      // fixed row height (px); every track row is exactly h-[60px]
 const OVERSCAN = 12;   // rows rendered beyond the viewport on each side
-
-function SkeletonRow() {
-    return (
-        <div className="flex items-center gap-3 p-2" style={{ height: ROW_H }}>
-            <span className="hidden w-5 shrink-0 sm:block" />
-            <div className="h-11 w-11 shrink-0 animate-pulse rounded bg-elevated" />
-            <div className="flex flex-1 flex-col gap-2">
-                <div className="h-3 w-1/3 animate-pulse rounded bg-elevated" />
-                <div className="h-2.5 w-1/5 animate-pulse rounded bg-elevated" />
-            </div>
-            <div className="h-2.5 w-8 shrink-0 animate-pulse rounded bg-elevated" />
-        </div>
-    );
-}
 
 // Virtualized track table: only the rows near the viewport are mounted; the
 // rest are represented by top/bottom spacers. A Liked list of thousands keeps
@@ -354,7 +315,7 @@ export default function CollectionPage({ id }) {
         length
     ].filter(Boolean);
 
-    if (loading) return <CollectionSkeleton />;
+    if (loading) return <PageLoader />;
     if (!data?.title) {
         return <div className="p-8 text-center text-sm text-subtext">Couldn&apos;t load this {data?.type || "page"}.</div>;
     }

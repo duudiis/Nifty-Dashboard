@@ -90,10 +90,10 @@ function rank(query, sections) {
 function SkeletonRows() {
     return Array.from({ length: 4 }).map((_, i) => (
         <div key={i} className="flex items-center gap-3 p-2">
-            <div className="h-9 w-9 shrink-0 animate-pulse rounded bg-elevated" />
+            <div className="h-9 w-9 shrink-0 rounded bg-elevated" />
             <div className="flex flex-1 flex-col gap-1.5">
-                <div className="h-2.5 animate-pulse rounded bg-elevated" style={{ width: `${55 - i * 7}%` }} />
-                <div className="h-2 animate-pulse rounded bg-elevated" style={{ width: `${30 - i * 3}%` }} />
+                <div className="h-2.5 rounded bg-elevated" style={{ width: `${55 - i * 7}%` }} />
+                <div className="h-2 rounded bg-elevated" style={{ width: `${30 - i * 3}%` }} />
             </div>
         </div>
     ));

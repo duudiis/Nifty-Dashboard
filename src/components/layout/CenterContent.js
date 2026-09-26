@@ -4,7 +4,7 @@ import { useNifty } from "../../context/NiftyContext.js";
 import Icon from "../Icon.js";
 import { totalDuration } from "../../lib/format.js";
 import { SlideTransition, motion, entrance } from "../motion/index.js";
-import LoadingWash from "../skeleton/index.js";
+import { PageLoader } from "../Loader.js";
 
 import SearchResults from "../search/SearchResults.js";
 import QueueList from "../queue/QueueList.js";
@@ -58,8 +58,8 @@ export default function CenterContent() {
     const isEntity = view === "album" || view === "playlist" || view === "artist";
 
     return (
-        <motion.main ref={scrollRef} {...entrance(0.05)} layoutScroll className={`relative min-h-0 flex-1 rounded-lg bg-surface ${isOverlay ? "overflow-hidden" : "overflow-auto"}`}>
-            <LoadingWash show={!ready} />
+        <motion.main ref={scrollRef} {...entrance(0.05)} layoutScroll className={`relative min-h-0 min-w-0 flex-1 rounded-lg bg-surface ${isOverlay ? "overflow-hidden" : "overflow-auto"}`}>
+            {!ready && <PageLoader className="absolute inset-0" />}
 
             {/* The view mounts only once there is state to render it from, and
                 sits directly in the box — nothing wraps it, so its own slide
@@ -67,8 +67,10 @@ export default function CenterContent() {
             {ready && (
             <SlideTransition
                 transitionKey={`${view}:${entityId || ""}`}
-                className={isOverlay ? "h-full" : undefined}
-                contentClassName={isOverlay ? "h-full" : undefined}
+                // Regular pages grow downward from a full-height column, so a
+                // page that is still loading can centre its loader in the box.
+                className={isOverlay ? "h-full" : "flex min-h-full flex-col"}
+                contentClassName={isOverlay ? "h-full" : "flex flex-1 flex-col"}
                 backdrop={
                     // lyrics get the drifting cover-art lights; watch gets plain
                     // black so the video's letterboxing blends into the page;
