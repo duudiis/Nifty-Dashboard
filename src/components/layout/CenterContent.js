@@ -1,9 +1,10 @@
+import { useEffect, useRef } from "react";
+
 import { useNifty } from "../../context/NiftyContext.js";
 import Icon from "../Icon.js";
-import { totalDuration, artworkOrFallback } from "../../lib/format.js";
-import { SlideTransition, motion } from "../motion/index.js";
-import { useContextMenu } from "../menu/ContextMenu.js";
-import { useTrackMenu } from "../menu/trackMenu.js";
+import { totalDuration } from "../../lib/format.js";
+import { SlideTransition, motion, entrance } from "../motion/index.js";
+import LoadingWash from "../skeleton/index.js";
 
 import SearchResults from "../search/SearchResults.js";
 import QueueList from "../queue/QueueList.js";
@@ -14,6 +15,8 @@ import ArtBackdrop from "../ArtBackdrop.js";
 import Backdrop from "../browse/Backdrop.js";
 import CollectionPage from "../browse/CollectionPage.js";
 import ArtistPage from "../browse/ArtistPage.js";
+import HomeView from "../home/HomeView.js";
+import Aurora from "../home/Aurora.js";
 
 function QueueHeader() {
     const { queue, selected } = useNifty();
@@ -38,58 +41,30 @@ function QueueHeader() {
     );
 }
 
-function Home() {
-    const { selected, player, setView } = useNifty();
-    const trackMenu = useTrackMenu();
-    const track = player?.track || null;
-    const { onContextMenu, active } = useContextMenu(() => (track ? trackMenu(track, { source: "player" }) : []));
-
-    return (
-        <div className="flex flex-col gap-6 p-6">
-            <h1 className="text-3xl font-bold">
-                {selected ? <>Now in <span className="text-accent">{selected.guildName}</span></> : "Welcome to Nifty"}
-            </h1>
-
-            {!selected ? (
-                <p className="max-w-md text-sm text-subtext">
-                    Select a server from the top bar or your library to start controlling playback.
-                </p>
-            ) : track ? (
-                <div onContextMenu={onContextMenu} className={`flex items-center gap-5 rounded-xl p-5 transition ${active ? "bg-elevated" : "bg-elevated/60"}`}>
-                    <img
-                        src={artworkOrFallback(track.artwork)}
-                        onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
-                        className="h-28 w-28 rounded-lg object-cover shadow-lg"
-                        alt=""
-                    />
-                    <div className="flex flex-col gap-1">
-                        <span className="text-xs font-bold uppercase tracking-wide text-subtext">Now playing</span>
-                        <span className="text-2xl font-bold">{track.title}</span>
-                        <span className="text-sm text-subtext">{track.artist}</span>
-                        <button
-                            onClick={() => setView("queue")}
-                            className="mt-2 w-fit rounded-full bg-accent px-4 py-1.5 text-xs font-bold text-canvas transition hover:brightness-110"
-                        >
-                            View queue
-                        </button>
-                    </div>
-                </div>
-            ) : (
-                <p className="text-sm text-subtext">Nothing is playing. Search above to queue a track.</p>
-            )}
-        </div>
-    );
-}
-
 export default function CenterContent() {
-    const { view, entityId, pageArt } = useNifty();
+    const { view, entityId, pageArt, ready, player } = useNifty();
+    const scrollRef = useRef(null);
+
+    // This box is the scroll container and is never remounted across view
+    // changes, so without this, leaving a scrolled page and coming back to a
+    // long one (the home screen runs to several thousand pixels) lands you
+    // halfway down it.
+    useEffect(() => {
+        scrollRef.current?.scrollTo({ top: 0 });
+    }, [view, entityId]);
     // Full-surface overlays (lyrics, watch): fixed height, pinned art backdrop,
     // the view manages its own scrolling.
     const isOverlay = view === "lyrics" || view === "watch";
     const isEntity = view === "album" || view === "playlist" || view === "artist";
 
     return (
-        <motion.main layoutScroll className={`min-h-0 flex-1 rounded-lg bg-surface ${isOverlay ? "overflow-hidden" : "overflow-auto"}`}>
+        <motion.main ref={scrollRef} {...entrance(0.05)} layoutScroll className={`relative min-h-0 flex-1 rounded-lg bg-surface ${isOverlay ? "overflow-hidden" : "overflow-auto"}`}>
+            <LoadingWash show={!ready} />
+
+            {/* The view mounts only once there is state to render it from, and
+                sits directly in the box — nothing wraps it, so its own slide
+                transition stays in charge of swapping pages. */}
+            {ready && (
             <SlideTransition
                 transitionKey={`${view}:${entityId || ""}`}
                 className={isOverlay ? "h-full" : undefined}
@@ -102,6 +77,9 @@ export default function CenterContent() {
                     view === "lyrics" ? <ArtBackdrop />
                         : isOverlay ? <div className="absolute inset-0 bg-black" />
                         : isEntity ? <Backdrop artwork={pageArt} />
+                        // Home gets an aurora in the colours of whatever is
+                        // playing, falling back to the theme's accent.
+                        : view === "home" ? <Aurora artwork={player?.track?.artwork} height={360} />
                         : null
                 }
             >
@@ -127,9 +105,10 @@ export default function CenterContent() {
                 ) : view === "history" ? (
                     <HistoryView />
                 ) : (
-                    <Home />
+                    <HomeView />
                 )}
             </SlideTransition>
+            )}
         </motion.main>
     );
 }

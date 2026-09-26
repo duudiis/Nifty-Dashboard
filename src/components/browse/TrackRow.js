@@ -16,7 +16,13 @@ import Icon from "../Icon.js";
 // When `dragValue` is set the row is a framer <Reorder.Item> — the parent
 // paginates so only ~100 rows are ever mounted, keeping the reorder snappy.
 // Memoized so a reorder re-renders only the rows whose props actually change.
-function TrackRow({ track, index, dragValue = null, onDragStart, onDragEnd }) {
+//
+// `badge` replaces the index column and `meta` replaces the duration, so the
+// home screen can hang a play count or a timestamp off a row without forking
+// the heart / artist-link / menu / queue-glyph behaviour into a second copy.
+// Height stays locked at 60px either way: CollectionPage virtualizes against
+// an exact row pitch.
+function TrackRow({ track, index, badge = null, meta = null, dragValue = null, onDragStart, onDragEnd }) {
     const { play, selected, isLiked, toggleLike } = useNifty();
     const trackMenu = useTrackMenu();
     const [done, setDone] = useState(false);
@@ -48,9 +54,11 @@ function TrackRow({ track, index, dragValue = null, onDragStart, onDragEnd }) {
 
     const inner = (
         <>
-            {index != null && (
+            {badge != null ? (
+                <span className="hidden w-5 shrink-0 items-center justify-center sm:flex">{badge}</span>
+            ) : index != null ? (
                 <span className="hidden w-5 shrink-0 text-center text-xs text-subtext sm:block">{index}</span>
-            )}
+            ) : null}
 
             <div className="relative h-11 w-11 shrink-0">
                 <img
@@ -80,9 +88,11 @@ function TrackRow({ track, index, dragValue = null, onDragStart, onDragEnd }) {
                 </button>
             </div>
 
-            {track.duration && (
+            {meta != null ? (
+                <span className="shrink-0 text-right text-[11px] text-subtext">{meta}</span>
+            ) : track.duration ? (
                 <span className="w-12 shrink-0 text-center text-[11px] text-subtext">{track.duration}</span>
-            )}
+            ) : null}
         </>
     );
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
 import { getYouTubeVideoId, loadYouTubeIframeAPI } from "../../lib/youtube.js";
+import Spinner from "../Spinner.js";
 import { AnimatePresence, motion, EASE } from "../motion/index.js";
 
 // The bot stays the single source of truth: the embed mirrors the player state
@@ -226,7 +227,7 @@ export default function WatchView() {
     }, [progress, ready, failed, syncNow]);
 
     // If nothing confirms playback shortly after the player is ready (autoplay
-    // hiccup, very slow buffer), drop the cover anyway rather than shimmering
+    // hiccup, very slow buffer), drop the cover anyway rather than spinning
     // forever over a working player.
     useEffect(() => {
         if (!ready || revealed) return;
@@ -249,8 +250,8 @@ export default function WatchView() {
                 <div ref={hostRef} className="absolute inset-0 [&>iframe]:h-full [&>iframe]:w-full" />
                 {/* Opaque loading cover: hides every boot-up flash of the embed
                     underneath, then fades away in one clean pass. */}
-                <div className={`pointer-events-none absolute inset-0 z-10 bg-black transition-opacity duration-500 ${revealed ? "opacity-0" : "opacity-100"}`}>
-                    <div className="skeleton-shimmer absolute inset-0" />
+                <div className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black transition-opacity duration-500 ${revealed ? "opacity-0" : "opacity-100"}`}>
+                    <Spinner className="h-9 w-9 text-white/70" />
                 </div>
             </div>
 

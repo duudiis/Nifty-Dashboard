@@ -9,8 +9,14 @@ import { buildEntityId } from "../ids.js";
 const ID = "deezer";
 const API = "https://api.deezer.com";
 
-async function api(path) {
-    const res = await fetch(`${API}${path}`, { headers: { "User-Agent": "Nifty-Dashboard" } });
+// Accept-Language pins the LABELS to English. Deezer localises text by request
+// IP, and from this host the genre list comes back as "Todos" / "Música
+// Religiosa" / "Rap/Funk Brasileiro". The header changes wording only — the
+// catalog and its geo-ranking are untouched.
+export async function api(path) {
+    const res = await fetch(`${API}${path}`, {
+        headers: { "User-Agent": "Nifty-Dashboard", "Accept-Language": "en" }
+    });
     if (!res.ok) throw new Error(`Deezer ${path} -> ${res.status}`);
     const json = await res.json();
     // Deezer signals errors in-body with HTTP 200 (e.g. quota, bad id).
@@ -54,8 +60,11 @@ function link(kind, id, fallbackUrl) {
 }
 
 /* ------------------------------------------------------------ normalizers */
+/* Exported so other routes (the home screen's recommendations) can emit items
+   that are byte-identical to search results, rather than reimplementing the
+   shapes and drifting from them. */
 
-function track(t) {
+export function track(t) {
     const url = link("track", t.id, t.link);
     return {
         title: t.title_short || t.title,
@@ -69,7 +78,7 @@ function track(t) {
     };
 }
 
-function albumItem(a) {
+export function albumItem(a) {
     return {
         kind: "album",
         title: a.title,
@@ -79,7 +88,7 @@ function albumItem(a) {
     };
 }
 
-function artistItem(a) {
+export function artistItem(a) {
     return {
         kind: "artist",
         title: a.name,
@@ -89,7 +98,7 @@ function artistItem(a) {
     };
 }
 
-function playlistItem(p) {
+export function playlistItem(p) {
     return {
         kind: "playlist",
         title: p.title,

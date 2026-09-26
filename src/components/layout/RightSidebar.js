@@ -1,5 +1,6 @@
 import { useNifty } from "../../context/NiftyContext.js";
-import { SlideTransition } from "../motion/index.js";
+import { SlideTransition, motion, entrance } from "../motion/index.js";
+import LoadingWash from "../skeleton/index.js";
 
 import QueueList from "../queue/QueueList.js";
 import NowPlayingPanel, { NowPlayingBackdrop } from "../NowPlayingPanel.js";
@@ -42,12 +43,12 @@ function PanelBody({ panel, onClose }) {
 }
 
 export default function RightSidebar() {
-    const { settings, updateSettings } = useNifty();
+    const { settings, updateSettings, ready } = useNifty();
     const panel = settings.rightPanel;
     const close = () => updateSettings({ rightPanel: "nowplaying" });
 
     return (
-        <aside className="hidden w-[340px] shrink-0 flex-col overflow-hidden rounded-lg bg-surface lg:flex">
+        <motion.aside {...entrance(0.1)} className="relative hidden w-[340px] shrink-0 flex-col overflow-hidden rounded-lg bg-surface lg:flex">
             {/* Same slide primitive as the centre view, so panels enter/leave with
                 identical timing. mode="wait" (inside SlideTransition) fully drops
                 the old panel before mounting the new one, so the Queue panel's
@@ -59,6 +60,9 @@ export default function RightSidebar() {
                     drag, so a dragged track isn't left behind on auto-scroll.
                   • overflow-anchor:none — disable Chrome scroll anchoring, which
                     would otherwise fight framer's layout slide (scrollTop flicker). */}
+            <LoadingWash show={!ready} sweep="narrow" />
+
+            {ready && (
             <SlideTransition
                 transitionKey={panel}
                 layoutScroll
@@ -68,6 +72,7 @@ export default function RightSidebar() {
             >
                 <PanelBody panel={panel} onClose={close} />
             </SlideTransition>
-        </aside>
+            )}
+        </motion.aside>
     );
 }

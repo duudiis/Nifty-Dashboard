@@ -17,7 +17,7 @@ export default async function handler(req, res) {
     const provider = getProvider(providerId);
 
     const done = (status) =>
-        res.redirect(302, `/dashboard?settings=connections&connect=${providerId}:${status}`);
+        res.redirect(302, `/?settings=connections&connect=${providerId}:${status}`);
 
     // Clear the state cookie no matter what.
     res.setHeader("Set-Cookie", serialize("nifty_oauth_state", "", { path: "/", maxAge: 0 }));

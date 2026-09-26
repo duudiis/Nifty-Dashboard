@@ -7,7 +7,8 @@ import Icon from "../Icon.js";
 import AddedBy from "../AddedBy.js";
 import ArtistLink from "../browse/ArtistLink.js";
 import Marquee from "../Marquee.js";
-import { AnimatePresence, motion, EASE, DUR } from "../motion/index.js";
+import { AnimatePresence, motion, entrance, EASE } from "../motion/index.js";
+import LoadingWash from "../skeleton/index.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
 import ProgressBar from "./ProgressBar.js";
@@ -300,7 +301,7 @@ function Prompt({ mode }) {
 /* ---- player bar ---- */
 
 export default function Player() {
-    const { player, queue, selected, sessions, control, jump } = useNifty();
+    const { player, queue, selected, sessions, control, jump, ready } = useNifty();
     const track = player?.track || null;
     const tracks = queue.tracks || [];
     const hasQueue = tracks.length > 0;
@@ -324,7 +325,8 @@ export default function Player() {
         ? () => jump(tracks[0]?.track_id ?? 0)
         : () => control("togglePause");
 
-    // Brief skeleton when the queue stops, in case the bot is still settling.
+    // Brief placeholder when the queue stops, in case the bot is still
+    // settling — just long enough to swallow the gap, not a real wait.
     const [prevTrigger, setPrevTrigger] = useState({ mode, url: tracks[0]?.songUrl });
     const [endedLoading, setEndedLoading] = useState(false);
 
@@ -336,7 +338,7 @@ export default function Player() {
 
     useEffect(() => {
         if (endedLoading) {
-            const t = setTimeout(() => setEndedLoading(false), 2000);
+            const t = setTimeout(() => setEndedLoading(false), 600);
             return () => clearTimeout(t);
         }
     }, [endedLoading]);
@@ -344,13 +346,15 @@ export default function Player() {
     const showSkeleton = ended && endedLoading;
 
     return (
-        <motion.div
-            initial={{ y: 24, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: DUR.slow, ease: EASE }}
-            className="relative h-20 shrink-0"
-        >
-            <AnimatePresence initial={false}>
+        // The bar fades in just behind the boxes above it, and shimmers in
+        // place until the first player state lands.
+        <motion.div {...entrance(0.15)} className="relative h-20 shrink-0">
+            <LoadingWash show={!ready} sweep="wide" />
+
+            {ready && (
+            // No initial={false}: this subtree mounts when the player state
+            // lands, so the first render is the reveal and should fade in.
+            <AnimatePresence>
                 <motion.div
                     // playing and ended share one key so starting playback from
                     // the stopped state is seamless (no crossfade blink).
@@ -417,6 +421,7 @@ export default function Player() {
                     )}
                 </motion.div>
             </AnimatePresence>
+            )}
         </motion.div>
     );
 }

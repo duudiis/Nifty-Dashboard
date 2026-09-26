@@ -1,11 +1,11 @@
 // The Nifty mark. Stroke-based; inherits color via `currentColor`, so set the
 // text color on it (e.g. text-white / text-accent).
-export default function Logo({ className = "w-8 h-8", draw = false }) {
+export default function Logo({ className = "w-8 h-8" }) {
     return (
         <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 827 827"
-            className={`${draw ? "logo-draw" : ""} ${className}`}
+            className={className}
             stroke="currentColor"
             strokeLinecap="round"
             fill="none"

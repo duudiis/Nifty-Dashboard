@@ -1,6 +1,6 @@
 import pg from "pg";
 
-import { trackRow } from "./trackShape.js";
+import { trackRow, splitTitle } from "./trackShape.js";
 
 // The shared Nifty PostgreSQL database — the source of truth for player and
 // queue state (the bot writes, we read). Connection details come from
@@ -186,15 +186,20 @@ export async function getRecentItems(userId, limit = 10) {
     ]);
 
     const items = [
-        ...tracks.rows.map((r) => ({
-            queuedAt: r.queued_at,
-            kind: r.source === "youtube" && !r.artist ? "video" : "song",
-            title: r.title,
-            artist: r.artist,
-            artwork: r.artwork_url,
-            url: r.url,
-            playQuery: r.url
-        })),
+        ...tracks.rows.map((r) => {
+            // Same split every other surface applies, so a track doesn't read
+            // "Nightcore - Lush Life" here and "Lush Life · Nightcore" next to it.
+            const { title, artist } = splitTitle(r.title, r.artist);
+            return {
+                queuedAt: r.queued_at,
+                kind: r.source === "youtube" && !artist ? "video" : "song",
+                title,
+                artist,
+                artwork: r.artwork_url,
+                url: r.url,
+                playQuery: r.url
+            };
+        }),
         ...collections.rows.map((r) => ({
             queuedAt: r.queued_at,
             kind: r.kind,
@@ -227,13 +232,25 @@ export async function getRecentItems(userId, limit = 10) {
 // now() and report hours of phantom listening. This SEG_END/SEG_MS pair is the
 // single source of that clamp; it references ls, tp and t, so every query that
 // uses it must have those three in scope.
-const SEG_END = `LEAST(
+export const SEG_END = `LEAST(
     COALESCE(ls.ended_at, now()),
     COALESCE(tp.ended_at, now()),
     ls.started_at + make_interval(secs => COALESCE(NULLIF(t.duration_ms, 0), 2147483647)::double precision / 1000.0),
     now()
 )`;
-const SEG_MS = `GREATEST(EXTRACT(EPOCH FROM (${SEG_END} - ls.started_at)) * 1000, 0)`;
+export const SEG_MS = `GREATEST(EXTRACT(EPOCH FROM (${SEG_END} - ls.started_at)) * 1000, 0)`;
+
+/* The UI splits a raw "Artist - Title" catalog title client-side (splitTitle in
+   trackShape.js), so aggregates that GROUP BY the raw columns rank a different
+   set of artists than the rows they sit next to render. These fragments do the
+   same split in SQL — including splitTitle's quirk of cutting at the FIRST
+   hyphen once " - " is present — so a top-artists shelf and the track rows
+   beneath it agree. */
+export const DISPLAY_ARTIST = `CASE WHEN t.title LIKE '% - %'
+    THEN btrim(split_part(t.title, '-', 1)) ELSE t.artist END`;
+export const DISPLAY_TITLE = `CASE WHEN t.title LIKE '% - %'
+    THEN COALESCE(NULLIF(btrim(substr(t.title, position('-' in t.title) + 1)), ''), t.title)
+    ELSE t.title END`;
 
 /**
  * One page of the user's listening sessions, newest first. Keyset-paginated on
@@ -370,6 +387,223 @@ function splitCursor(cursor) {
 }
 
 /** Records a whole-collection enqueue for the recents feed. */
+/* ===================== home screen ===================== */
+
+// Everything the home screen needs from the database, in ONE statement.
+//
+// The database is remote: a round trip costs ~170ms whatever the query does,
+// and a cold pooled connection costs ~1.3s of TLS + SCRAM. Firing the fifteen
+// aggregates below as separate queries would claim several connections and pay
+// that floor several times, so they share one statement, one connection and
+// one `seg` scan. Every duration goes through SEG_MS — skipping the clamp
+// inflates all-time totals by orders of magnitude wherever the bot left a
+// segment unclosed on an orphaned session.
+//
+//   tz        IANA zone, already validated by the caller — decides what
+//             "today", "this hour" and each heatmap cell mean
+//   guildIds  optional filter; always intersected with the guilds this user
+//             has provably taken part in, so a guessed snowflake reads nothing
+export async function getHomeData(userId, { tz = "UTC", guildIds = [] } = {}) {
+
+    const ids = Array.isArray(guildIds) && guildIds.length ? guildIds : null;
+
+    const { rows } = await db.query(
+        `WITH scope AS (
+            SELECT g FROM (
+                SELECT DISTINCT qh.guild_id AS g FROM queue_history qh WHERE qh.user_id = $1
+                UNION
+                SELECT DISTINCT tp.guild_id FROM track_plays tp
+                  JOIN listening_segments ls ON ls.play_id = tp.id
+                 WHERE ls.user_id = $1
+            ) mine
+            WHERE $3::bigint[] IS NULL OR g = ANY($3::bigint[])
+        ),
+        seg AS (
+            SELECT ls.started_at                AS seg_start,
+                   tp.id                        AS play_id,
+                   tp.session_id, tp.guild_id, tp.track_id, tp.queued_by,
+                   tp.started_at                AS play_start,
+                   t.source, t.url, t.artwork_url, t.duration_ms, t.title, t.artist,
+                   ${DISPLAY_TITLE}             AS d_title,
+                   ${DISPLAY_ARTIST}            AS d_artist,
+                   ${SEG_MS}                    AS seg_ms
+              FROM listening_segments ls
+              JOIN track_plays tp ON tp.id = ls.play_id
+              JOIN tracks t ON t.id = tp.track_id
+             WHERE ls.user_id = $1
+        ),
+        heard AS (SELECT DISTINCT track_id FROM seg),
+        totals AS (
+            SELECT COALESCE(sum(seg_ms) FILTER (
+                       WHERE (seg_start AT TIME ZONE $2)::date = (now() AT TIME ZONE $2)::date), 0)::bigint AS today_ms,
+                   COALESCE(sum(seg_ms) FILTER (WHERE seg_start >= now() - interval '7 days'), 0)::bigint   AS week_ms,
+                   COALESCE(sum(seg_ms) FILTER (
+                       WHERE seg_start >= now() - interval '14 days'
+                         AND seg_start <  now() - interval '7 days'), 0)::bigint                            AS prev_week_ms,
+                   COALESCE(sum(seg_ms), 0)::bigint          AS all_ms,
+                   count(DISTINCT play_id)::int              AS plays,
+                   count(DISTINCT track_id)::int             AS distinct_tracks,
+                   count(DISTINCT session_id)::int           AS sessions
+              FROM seg
+        ),
+        top_artists AS (
+            SELECT btrim(split_part(COALESCE(d_artist, ''), ',', 1)) AS name,
+                   sum(seg_ms)::bigint                              AS ms,
+                   count(DISTINCT play_id)::int                     AS plays,
+                   (array_agg(artwork_url ORDER BY seg_start DESC) FILTER (WHERE artwork_url IS NOT NULL))[1] AS artwork
+              FROM seg
+             WHERE btrim(COALESCE(d_artist, '')) <> ''
+             GROUP BY 1 ORDER BY 2 DESC LIMIT 14
+        ),
+        on_repeat_30 AS (
+            SELECT * FROM (
+                SELECT track_id, count(DISTINCT play_id)::int AS plays, sum(seg_ms)::bigint AS ms,
+                       min(d_title) AS d_title, min(d_artist) AS d_artist, min(url) AS url,
+                       min(artwork_url) AS artwork_url, min(duration_ms) AS duration_ms, min(source) AS source
+                  FROM seg WHERE seg_start >= now() - interval '30 days'
+                 GROUP BY track_id
+            ) r WHERE plays >= 2 ORDER BY plays DESC, ms DESC LIMIT 12
+        ),
+        on_repeat_all AS (
+            SELECT track_id, count(DISTINCT play_id)::int AS plays, sum(seg_ms)::bigint AS ms,
+                   min(d_title) AS d_title, min(d_artist) AS d_artist, min(url) AS url,
+                   min(artwork_url) AS artwork_url, min(duration_ms) AS duration_ms, min(source) AS source
+              FROM seg GROUP BY track_id ORDER BY plays DESC, ms DESC LIMIT 12
+        ),
+        recent_heard AS (
+            SELECT * FROM (
+                SELECT DISTINCT ON (track_id)
+                       track_id, seg_start, d_title, d_artist, url, artwork_url, duration_ms, source, guild_id
+                  FROM seg ORDER BY track_id, seg_start DESC
+            ) h ORDER BY seg_start DESC LIMIT 16
+        ),
+        recent_queued AS (
+            SELECT * FROM (
+                SELECT DISTINCT ON (qh.track_id)
+                       qh.queued_at, qh.track_id, t.url, t.artwork_url, t.duration_ms, t.source,
+                       ${DISPLAY_TITLE} AS d_title, ${DISPLAY_ARTIST} AS d_artist
+                  FROM queue_history qh
+                  JOIN tracks t ON t.id = qh.track_id
+                 WHERE qh.user_id = $1
+                 ORDER BY qh.track_id, qh.queued_at DESC
+            ) q ORDER BY queued_at DESC LIMIT 16
+        ),
+        clock AS (
+            SELECT EXTRACT(HOUR FROM (seg_start AT TIME ZONE $2))::int AS h,
+                   sum(seg_ms)::bigint AS ms
+              FROM seg GROUP BY 1
+        ),
+        days AS (
+            SELECT (seg_start AT TIME ZONE $2)::date AS d, sum(seg_ms)::bigint AS ms,
+                   count(DISTINCT play_id)::int AS plays
+              FROM seg
+             WHERE seg_start >= now() - interval '91 days'
+             GROUP BY 1 ORDER BY 1
+        ),
+        last_track AS (
+            SELECT d_title, d_artist, url, artwork_url, duration_ms, source, seg_start
+              FROM seg ORDER BY seg_start DESC LIMIT 1
+        ),
+        liked_unheard AS (
+            SELECT t.title, t.artist, t.url, t.artwork_url, t.duration_ms, t.source, lt.added_at,
+                   ${DISPLAY_TITLE} AS d_title, ${DISPLAY_ARTIST} AS d_artist
+              FROM liked_tracks lt
+              JOIN tracks t ON t.id = lt.track_id
+             WHERE lt.user_id = $1 AND lt.track_id NOT IN (SELECT track_id FROM heard)
+             ORDER BY lt.added_at DESC LIMIT 14
+        ),
+        liked_unheard_total AS (
+            SELECT count(*)::int AS n FROM liked_tracks lt
+             WHERE lt.user_id = $1 AND lt.track_id NOT IN (SELECT track_id FROM heard)
+        ),
+        on_this_day AS (
+            SELECT t.title, t.artist, t.url, t.artwork_url, t.duration_ms, t.source, lt.added_at,
+                   ${DISPLAY_TITLE} AS d_title, ${DISPLAY_ARTIST} AS d_artist,
+                   EXTRACT(YEAR FROM age(now(), lt.added_at))::int AS years_ago
+              FROM liked_tracks lt
+              JOIN tracks t ON t.id = lt.track_id
+             WHERE lt.user_id = $1
+               AND lt.added_at < date_trunc('year', now())
+               AND EXTRACT(MONTH FROM (lt.added_at AT TIME ZONE $2)) = EXTRACT(MONTH FROM (now() AT TIME ZONE $2))
+               AND EXTRACT(DAY   FROM (lt.added_at AT TIME ZONE $2)) = EXTRACT(DAY   FROM (now() AT TIME ZONE $2))
+             ORDER BY lt.added_at DESC LIMIT 8
+        ),
+        feed AS (
+            SELECT qh.queued_at, qh.via, qh.guild_id::text AS guild_id,
+                   u.id::text AS uid, u.display_name, u.username, u.avatar_url,
+                   t.title, t.artist, t.url, t.artwork_url, t.duration_ms, t.source,
+                   ${DISPLAY_TITLE} AS d_title, ${DISPLAY_ARTIST} AS d_artist,
+                   (qh.user_id = $1) AS is_you
+              FROM queue_history qh
+              JOIN tracks t ON t.id = qh.track_id
+              LEFT JOIN users u ON u.id = qh.user_id
+             WHERE qh.guild_id IN (SELECT g FROM scope)
+             ORDER BY qh.queued_at DESC LIMIT 24
+        ),
+        leaders AS (
+            SELECT u.id::text AS uid, COALESCE(u.display_name, u.username, 'Someone') AS name,
+                   u.avatar_url, count(*)::int AS queues,
+                   (array_agg(t.artwork_url ORDER BY qh.queued_at DESC) FILTER (WHERE t.artwork_url IS NOT NULL))[1] AS last_art,
+                   (array_agg(${DISPLAY_TITLE} ORDER BY qh.queued_at DESC))[1] AS last_title,
+                   (u.id = $1) AS is_you
+              FROM queue_history qh
+              JOIN tracks t ON t.id = qh.track_id
+              LEFT JOIN users u ON u.id = qh.user_id
+             WHERE qh.guild_id IN (SELECT g FROM scope)
+               AND qh.queued_at >= now() - interval '7 days'
+               AND u.id IS NOT NULL
+             GROUP BY u.id, u.display_name, u.username, u.avatar_url
+             ORDER BY queues DESC LIMIT 6
+        ),
+        reach AS (
+            SELECT tp.track_id,
+                   count(DISTINCT ls.user_id)::int AS listeners,
+                   count(DISTINCT tp.id)::int      AS plays,
+                   min(${DISPLAY_TITLE}) AS d_title, min(${DISPLAY_ARTIST}) AS d_artist,
+                   min(t.url) AS url, min(t.artwork_url) AS artwork_url,
+                   min(t.duration_ms) AS duration_ms, min(t.source) AS source
+              FROM track_plays tp
+              JOIN tracks t ON t.id = tp.track_id
+              JOIN listening_segments ls ON ls.play_id = tp.id AND ls.user_id <> $1
+             WHERE tp.queued_by = $1
+             GROUP BY tp.track_id
+             ORDER BY listeners DESC, plays DESC LIMIT 8
+        ),
+        brought AS (
+            SELECT s.track_id, count(DISTINCT s.play_id)::int AS plays,
+                   min(s.d_title) AS d_title, min(s.d_artist) AS d_artist, min(s.url) AS url,
+                   min(s.artwork_url) AS artwork_url, min(s.duration_ms) AS duration_ms, min(s.source) AS source,
+                   (array_agg(COALESCE(u.display_name, u.username, 'Someone') ORDER BY s.play_start DESC))[1] AS by_name,
+                   (array_agg(u.avatar_url ORDER BY s.play_start DESC))[1] AS by_avatar
+              FROM seg s
+              LEFT JOIN users u ON u.id = s.queued_by
+             WHERE s.queued_by IS NOT NULL AND s.queued_by <> $1
+             GROUP BY s.track_id
+             ORDER BY plays DESC LIMIT 8
+        )
+        SELECT (SELECT row_to_json(x) FROM totals x)                    AS totals,
+               (SELECT json_agg(x) FROM top_artists x)                  AS top_artists,
+               (SELECT json_agg(x) FROM on_repeat_30 x)                 AS on_repeat_30,
+               (SELECT json_agg(x) FROM on_repeat_all x)                AS on_repeat_all,
+               (SELECT json_agg(x) FROM recent_heard x)                 AS recent_heard,
+               (SELECT json_agg(x) FROM recent_queued x)                AS recent_queued,
+               (SELECT json_agg(x) FROM clock x)                        AS clock,
+               (SELECT json_agg(x) FROM days x)                         AS days,
+               (SELECT row_to_json(x) FROM last_track x)                AS last_track,
+               (SELECT json_agg(x) FROM liked_unheard x)                AS liked_unheard,
+               (SELECT n FROM liked_unheard_total)                      AS liked_unheard_total,
+               (SELECT json_agg(x) FROM on_this_day x)                  AS on_this_day,
+               (SELECT json_agg(x) FROM feed x)                         AS feed,
+               (SELECT json_agg(x) FROM leaders x)                      AS leaders,
+               (SELECT json_agg(x) FROM reach x)                        AS reach,
+               (SELECT json_agg(x) FROM brought x)                      AS brought,
+               (SELECT first_seen_at FROM users WHERE id = $1)          AS first_seen_at`,
+        [userId, tz, ids]
+    );
+
+    return rows[0] || {};
+}
+
 export async function recordQueuedCollection(userId, entity) {
     await db.query(
         `INSERT INTO queued_collections (user_id, kind, source, source_url, browse_ref, name, subtitle, artwork_url)

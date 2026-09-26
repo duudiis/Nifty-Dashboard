@@ -80,14 +80,14 @@ function loadSettings() {
     }
 }
 
-// Center pages that have a real URL under /dashboard. "home" is the bare path.
+// Center pages that have a real URL at the site root. "home" is the bare path.
 const VIEWS = ["queue", "search", "lyrics", "watch", "history"];
 // Full-surface overlays (toggled from the player bar); closing one returns to
 // the last regular page instead of navigating somewhere new.
 const OVERLAY_VIEWS = ["lyrics", "watch"];
-// Entity pages take a second path segment: /dashboard/<kind>/<id>.
+// Entity pages take a second path segment: /<kind>/<id>.
 const ENTITY_VIEWS = ["album", "playlist", "artist"];
-const pathForView = (v) => (v === "home" ? "/dashboard" : `/dashboard/${v}`);
+const pathForView = (v) => (v === "home" ? "/" : `/${v}`);
 
 // After any structural queue delta, a track's id is its array position (the
 // same contract as a full fetch). Rewrites track_id to match, preserving object
@@ -102,6 +102,10 @@ function reindexQueue(arr) {
 const EMPTY_AUTOPLAY = { enabled: false, tracks: [] };
 const EMPTY_QUEUE = { tracks: [], position: 0, autoplay: EMPTY_AUTOPLAY };
 
+// Longest the shell will sit on its loading placeholders before showing the
+// real (possibly empty) dashboard, however the boot went.
+const BOOT_TIMEOUT = 3000;
+
 export function NiftyProvider({ user, inviteUrl = null, children }) {
 
     const router = useRouter();
@@ -115,11 +119,27 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     const [queue, setQueue] = useState(EMPTY_QUEUE);
     const [notifications, setNotifications] = useState([]); // transient toasts
 
+    // First-load progress. The dashboard shell paints immediately and fills its
+    // boxes with shimmering placeholders; these flip as each piece of the boot
+    // arrives, and `ready` (below) latches once the real content can be shown.
+    const [sessionsLoaded, setSessionsLoaded] = useState(false); // server list in
+    const [stateLoaded, setStateLoaded] = useState(false);       // player+queue read once
+
     // The active page is derived from the URL (refresh-safe); setView navigates.
-    const segs = Array.isArray(router.query.view) ? router.query.view : [];
+    //
+    // Read from asPath rather than router.query.view: the page is an optional
+    // catch-all, and on a shallow push into one the parsed route params can
+    // still describe the previous URL for a render. asPath is the address bar,
+    // so the view can never disagree with it.
+    const segs = useMemo(() => {
+        const path = (router.asPath || "/").split(/[?#]/)[0];
+        return path.split("/").filter(Boolean).map((seg) => {
+            try { return decodeURIComponent(seg); } catch { return seg; }
+        });
+    }, [router.asPath]);
     const viewSeg = segs[0] || null;
     const view = VIEWS.includes(viewSeg) || ENTITY_VIEWS.includes(viewSeg) ? viewSeg : "home";
-    // Entity URLs are /dashboard/<kind>/<source>/<id>; the browse layer speaks
+    // Entity URLs are /<kind>/<source>/<id>; the browse layer speaks
     // namespaced ids, so rebuild one from the path (legacy 2-segment URLs
     // already carry it whole).
     const entityId = ENTITY_VIEWS.includes(viewSeg)
@@ -129,13 +149,13 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         (v) => { router.push(pathForView(v), undefined, { shallow: true }); },
         [router]
     );
-    // Open an album/playlist/artist page — pretty URLs: /dashboard/<kind>/<source>/<id>.
+    // Open an album/playlist/artist page — pretty URLs: /<kind>/<source>/<id>.
     const openEntity = useCallback(
         (kind, id) => {
             const parsed = parseEntityId(id);
             const path = parsed
-                ? `/dashboard/${kind}/${parsed.source}/${encodeURIComponent(parsed.id)}`
-                : `/dashboard/${kind}/${encodeURIComponent(id)}`;
+                ? `/${kind}/${parsed.source}/${encodeURIComponent(parsed.id)}`
+                : `/${kind}/${encodeURIComponent(id)}`;
             router.push(path, undefined, { shallow: true });
         },
         [router]
@@ -143,12 +163,12 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
 
     // Remember the last non-overlay location so closing an overlay view returns
     // there (album page, search results, queue, …) instead of always going home.
-    const prevPathRef = useRef("/dashboard");
+    const prevPathRef = useRef("/");
     useEffect(() => {
         if (!OVERLAY_VIEWS.includes(view)) prevPathRef.current = router.asPath;
     }, [view, router.asPath]);
     const closeOverlay = useCallback(
-        () => { router.push(prevPathRef.current || "/dashboard", undefined, { shallow: true }); },
+        () => { router.push(prevPathRef.current || "/", undefined, { shallow: true }); },
         [router]
     );
 
@@ -176,8 +196,8 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     const [settings, setSettings] = useState(DEFAULT_SETTINGS);
 
     const wsRef = useRef(null);
-    const heartbeatRef = useRef(null);
     const reconnectRef = useRef(null);
+    const retryRef = useRef(0);
     const selectedRef = useRef(null);
     selectedRef.current = selected;
     const notifyIdRef = useRef(0);
@@ -192,39 +212,44 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         const stillCurrent = () =>
             selectedRef.current?.guildId === sel.guildId && selectedRef.current?.botId === sel.botId;
 
-        try {
-            if (what !== "queue") {
-                const res = await fetch(`/api/player?${params}`, { cache: "no-store" });
-                if (res.ok) {
-                    const json = await res.json();
-                    if (stillCurrent()) {
-                        // Anchor the server-computed progress to the local clock:
-                        // displayed progress derives from this anchor instead of
-                        // accumulating ticks, so it can never drift.
-                        setPlayer(json?.track
-                            ? { ...json, _anchor: { progress: json.progress || 0, at: Date.now() } }
-                            : null);
-                        // The queue cursor rides along with the player row.
-                        if (json?.track && typeof json.position === "number") {
-                            setQueue((prev) => ({ ...prev, position: json.position }));
-                        }
-                    }
+        // Both reads go out at once. The database is remote, so awaiting them
+        // one after the other put a whole extra round trip on every boot.
+        // A failed read resolves to undefined and is simply skipped — the next
+        // nudge retries it.
+        const read = (path) => fetch(`${path}?${params}`, { cache: "no-store" })
+            .then((r) => (r.ok ? r.json() : undefined))
+            .catch(() => undefined);
+
+        const [playerJson, queueJson] = await Promise.all([
+            what !== "queue" ? read("/api/player") : undefined,
+            what !== "player" ? read("/api/queue") : undefined
+        ]);
+
+        if (stillCurrent()) {
+            if (playerJson !== undefined) {
+                // Anchor the server-computed progress to the local clock:
+                // displayed progress derives from this anchor instead of
+                // accumulating ticks, so it can never drift.
+                setPlayer(playerJson?.track
+                    ? { ...playerJson, _anchor: { progress: playerJson.progress || 0, at: Date.now() } }
+                    : null);
+                // The queue cursor rides along with the player row.
+                if (playerJson?.track && typeof playerJson.position === "number") {
+                    setQueue((prev) => ({ ...prev, position: playerJson.position }));
                 }
             }
-            if (what !== "player") {
-                const res = await fetch(`/api/queue?${params}`, { cache: "no-store" });
-                if (res.ok) {
-                    const json = await res.json();
-                    if (stillCurrent()) {
-                        setQueue({
-                            tracks: json?.tracks || [],
-                            position: json?.position ?? 0,
-                            autoplay: json?.autoplay || EMPTY_AUTOPLAY
-                        });
-                    }
-                }
+            if (queueJson !== undefined) {
+                setQueue({
+                    tracks: queueJson?.tracks || [],
+                    position: queueJson?.position ?? 0,
+                    autoplay: queueJson?.autoplay || EMPTY_AUTOPLAY
+                });
             }
-        } catch { /* transient — the next nudge retries */ }
+        }
+
+        // A read that failed is still no longer "loading" — the boxes give way
+        // either way, and the next nudge retries in the background.
+        setStateLoaded(true);
     }, []);
 
     /* ---- transient toast notifications (shown stacked above the player) ---- */
@@ -267,7 +292,12 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
                 playlists: state.playlists || [],
                 loaded: true
             });
-        } catch { /* next mutation retries */ }
+        } catch {
+            // Still mark it loaded: a failed read is no longer loading, and
+            // leaving the flag false would wash the shelf forever. The next
+            // mutation retries.
+            setLibrary((prev) => ({ ...prev, loaded: true }));
+        }
     }, []);
 
     useEffect(() => { if (user) refreshLibrary(); }, [user, refreshLibrary]);
@@ -502,19 +532,14 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
 
                 switch (message.operation) {
 
-                    case "hello": {
-                        const interval = message.data?.heartbeatInterval || 45000;
-                        clearInterval(heartbeatRef.current);
-                        heartbeatRef.current = setInterval(() => {
-                            if (ws.readyState === WebSocket.OPEN) {
-                                ws.send(JSON.stringify({ operation: "heartbeat" }));
-                            }
-                        }, interval);
-                        break;
-                    }
+                    // "hello" carries the heartbeat interval for peers that run
+                    // their own timer. The browser doesn't: the hub pings us and
+                    // the browser answers in its network stack, which keeps
+                    // working when a background tab's timers are throttled.
 
                     case "identify_success": {
                         setConnected(true);
+                        retryRef.current = 0;
                         // On every (re)connect, check whether a newer dashboard
                         // build has been deployed than the one this tab is running.
                         fetch("/api/version", { cache: "no-store" })
@@ -542,6 +567,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
                         const incoming = message.data?.sessions || [];
                         // The hub answering with no bot at all means none are
                         // online — drop everything, don't merge.
+                        setSessionsLoaded(true);
                         if (!botId && !botName) {
                             setSessions([]);
                             break;
@@ -689,10 +715,11 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
 
             ws.onclose = () => {
                 setConnected(false);
-                clearInterval(heartbeatRef.current);
-                if (!closed) {
-                    reconnectRef.current = setTimeout(connect, 2500);
-                }
+                if (closed) return;
+                // Retry almost immediately so a blip is invisible, backing off
+                // only if the hub really is down.
+                const delay = Math.min(300 * 2 ** retryRef.current++, 5000);
+                reconnectRef.current = setTimeout(connect, delay);
             };
 
             ws.onerror = () => { try { ws.close(); } catch {} };
@@ -702,7 +729,6 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
 
         return () => {
             closed = true;
-            clearInterval(heartbeatRef.current);
             clearTimeout(reconnectRef.current);
             try { wsRef.current?.close(); } catch {}
         };
@@ -874,7 +900,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     const runSearch = useCallback((query) => {
         if (!query?.trim()) return;
         const q = query.trim();
-        router.push(`/dashboard/search?q=${encodeURIComponent(q)}`, undefined, { shallow: true });
+        router.push(`/search?q=${encodeURIComponent(q)}`, undefined, { shallow: true });
         doSearch(q);
     }, [router, doSearch]);
 
@@ -885,6 +911,28 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         if (q && q !== initiatedRef.current) doSearch(q);
     }, [view, router.query.q, doSearch]);
 
+    /* ---- boot latch ----
+       The shell paints straight away and fills each box with a shimmer; `ready`
+       flips once the first real state has landed and then stays true, so a
+       later reconnect refreshes the live content in place instead of blanking
+       the whole app back to placeholders. The timeout is the ceiling: if the
+       hub never answers we still give way to the real (empty / disconnected)
+       dashboard rather than shimmering forever. ---- */
+
+    const [ready, setReady] = useState(false);
+    // Deliberately does NOT wait on the library: the shelf clears itself on
+    // library.loaded, so a slow library read can't hold up the rest of the app.
+    const booted = sessionsLoaded && (sessions.length === 0 || stateLoaded);
+
+    useEffect(() => {
+        if (booted) setReady(true);
+    }, [booted]);
+
+    useEffect(() => {
+        const t = setTimeout(() => setReady(true), BOOT_TIMEOUT);
+        return () => clearTimeout(t);
+    }, []);
+
     const logout = useCallback(async () => {
         try { await fetch("/api/auth/logout", { method: "POST" }); } catch {}
         window.location.href = "/login";
@@ -893,6 +941,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     const value = {
         user,
         connected,
+        ready,
         sessions,
         selected,
         player,
@@ -902,11 +951,11 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         refreshSessions,
         inviteUrl,
         summon,
-        // Show the loading screen, then reload — gives the overlay time to cover
-        // the page so the refresh is seamless (no double content animation).
+        // Fade the canvas over the app, then reload — just enough to cover the
+        // refresh, not enough to feel like a wait.
         reloadApp: () => {
             setReloading(true);
-            setTimeout(() => window.location.reload(), 450);
+            setTimeout(() => window.location.reload(), 180);
         },
         view, setView, closeOverlay,
         entityId, openEntity,

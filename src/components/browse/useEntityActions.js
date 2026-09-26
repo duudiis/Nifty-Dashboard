@@ -6,6 +6,7 @@
 import { useCallback } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
+import { useModal } from "../modal/Modal.js";
 import { parseEntityId } from "../../sources/ids.js";
 import { externalUrl } from "../../sources/links.js";
 
@@ -33,6 +34,43 @@ export function recordCollectionQueued(item, data = null) {
             })
         }).catch(() => {});
     } catch { /* recents are best-effort */ }
+}
+
+/**
+ * Queues a list of tracks in one go.
+ *
+ * The queue on a Discord bot is SHARED — dropping thirty tracks into a room
+ * that is mid-session is a rude thing to do silently, and the only way back is
+ * removing them one at a time. So a bulk add into a live room asks first, and
+ * the count always travels with the action: callers put it in the button label
+ * ("Queue 12 tracks", never "Shuffle all") and get one toast at the end rather
+ * than one per track.
+ *
+ * Lives here rather than in NiftyContext because the modal provider is mounted
+ * inside NiftyProvider, so the context itself cannot open a confirmation.
+ */
+export function useBulkQueue() {
+    const { play, notify, selected, queue } = useNifty();
+    const modal = useModal();
+
+    return useCallback(async (tracks, { label = null, confirmFrom = 5 } = {}) => {
+        const list = (tracks || []).filter((t) => t?.playQuery || t?.url);
+        if (!selected?.guildId || !list.length) return false;
+
+        const queued = queue?.tracks?.length || 0;
+        if (list.length >= confirmFrom && queued > 0) {
+            const ok = await modal.confirm({
+                title: `Add ${list.length} tracks?`,
+                message: `${selected.guildName || "This server"} already has ${queued} track${queued === 1 ? "" : "s"} queued. These go on the end.`,
+                confirmLabel: `Add ${list.length}`
+            });
+            if (!ok) return false;
+        }
+
+        list.forEach((t) => play(t.playQuery || t.url));
+        notify(label ? `Added ${label} to the queue` : `Added ${list.length} tracks to the queue`);
+        return true;
+    }, [play, notify, selected, queue, modal]);
 }
 
 export function useEntityActions() {

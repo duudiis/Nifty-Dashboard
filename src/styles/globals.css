@@ -250,48 +250,12 @@
         animation: pop-in 0.12s cubic-bezier(0.4, 0, 0.2, 1) forwards;
     }
 
-    /* Reconnecting/loading logo: strokes draw on, hold, then the whole mark fades
-       out as one group (so overlapping strokes fade evenly, not additively). */
-    .logo-draw {
-        animation: logo-fade 1.5s ease-in-out infinite;
+    /* Busy indicator (src/components/Spinner.js). */
+    @keyframes spinner-turn {
+        to { transform: rotate(360deg); }
     }
-    .logo-draw path {
-        stroke-dasharray: 1;
-        animation: logo-stroke 1.5s ease-in-out infinite;
-    }
-    @keyframes logo-stroke {
-        0%   { stroke-dashoffset: 1; } /* undrawn */
-        35%  { stroke-dashoffset: 0; } /* drawn */
-        85%  { stroke-dashoffset: 0; } /* stay drawn through the fade-out */
-        93%  { stroke-dashoffset: 1; } /* un-draw while already invisible */
-        100% { stroke-dashoffset: 1; }
-    }
-    @keyframes logo-fade {
-        0%   { opacity: 1; }
-        55%  { opacity: 1; } /* hold */
-        85%  { opacity: 0; } /* smooth fade-out over 55%-85% */
-        100% { opacity: 0; }
-    }
-
-    /* Shimmering label (LOADING / RECONNECTING). */
-    .text-shimmer {
-        background: linear-gradient(
-            90deg,
-            rgb(var(--c-subtext)) 0%,
-            rgb(var(--c-subtext)) 40%,
-            rgb(var(--c-text)) 50%,
-            rgb(var(--c-subtext)) 60%,
-            rgb(var(--c-subtext)) 100%
-        );
-        background-size: 200% 100%;
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
-        animation: text-shimmer 2.4s linear infinite;
-    }
-    @keyframes text-shimmer {
-        0%   { background-position: 200% 0; }
-        100% { background-position: -200% 0; }
+    .spinner-turn {
+        animation: spinner-turn 0.6s linear infinite;
     }
 
     /* Spotify-style "now playing" equalizer bars. */
@@ -307,27 +271,244 @@
         animation: eq 0.9s ease-in-out infinite;
     }
 
-    /* Shimmer for skeleton placeholders — a clearly visible sweeping highlight. */
-    @keyframes shimmer {
-        0%   { background-position: 200% 0; }
-        100% { background-position: -200% 0; }
+    /* Loading placeholders. The sweeping highlight is a child element that
+       slides across on a transform, not an animated background-position: a
+       background sweep spends most of its cycle parked off the element (the
+       endpoints have to sit fully outside it), which reads as a flash followed
+       by a dead pause. A translated band crosses at a constant, even pace. */
+    .skeleton-shimmer,
+    .box-shimmer {
+        position: relative;
+        overflow: hidden;
     }
+    .skeleton-shimmer::after,
+    .box-shimmer::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        transform: translateX(-85%) skewX(var(--shimmer-skew, 0deg));
+        animation: shimmer-sweep 0.5s linear infinite;
+    }
+    /* Stops just off each edge rather than a full element width out, so the
+       band spends its whole cycle crossing the box instead of waiting outside
+       it. The slant comes from the transform, not from angling the gradient:
+       an angled gradient's line length depends on the box's aspect ratio, so
+       the same declaration drew a narrow stripe across the player bar and a
+       broad diffuse wash down the sidebars. Skewing keeps the band the same
+       width and the same angle in every box. */
+    @keyframes shimmer-sweep {
+        0%   { transform: translateX(-85%) skewX(var(--shimmer-skew, 0deg)); }
+        100% { transform: translateX(85%) skewX(var(--shimmer-skew, 0deg)); }
+    }
+
+    /* The sweep travels a share of the element's own width, so the same
+       duration covers far more ground per second on a wide box than a narrow
+       one. Each width gets its own cycle so they all read at a similar pace.
+       Order matters: these carry the same specificity, so the variants must
+       follow the plain .box-shimmer rule to win. */
+    .box-shimmer::after {
+        animation-duration: 0.6s;  /* the centre view */
+    }
+    .box-shimmer-narrow::after {
+        animation-duration: 0.7s;  /* the sidebars */
+    }
+    .box-shimmer-wide::after {
+        animation-duration: 0.95s; /* the full-width player bar */
+    }
+
+    /* Stand-in for one specific element: a lyric line, a video frame. Solid
+       enough to read as "something goes here". */
     .skeleton-shimmer {
-        /* Constant base fill + a no-repeat sweeping highlight. Repeat would
-           tile the gradient, and the animation's endpoints then park a
-           highlight band exactly at the element's right edge (200% and -200%
-           are congruent mod the tile period) — glaring on wide boxes like the
-           watch view. With no-repeat the endpoints sit fully off-screen. */
-        background-color: rgb(255 255 255 / 0.06);
+        background-color: rgb(var(--c-text) / 0.07);
+    }
+    .skeleton-shimmer::after {
         background-image: linear-gradient(
             90deg,
-            transparent 25%,
-            rgb(255 255 255 / 0.09) 50%,
-            transparent 75%
+            transparent 15%,
+            rgb(var(--c-text) / 0.09) 50%,
+            transparent 85%
         );
-        background-size: 200% 100%;
-        background-repeat: no-repeat;
-        animation: shimmer 1.5s ease-in-out infinite;
+    }
+
+    /* Whole-box wash (src/components/skeleton). Deliberately paints no fill of
+       its own: whatever it sits on shows straight through — bg-surface inside
+       the sidebars and the centre view, the app frame (or a custom theme's
+       gradient) behind the player bar — so a loading box is exactly the box,
+       with only a soft accent-tinted band drifting across it. Any fill here,
+       however faint, reads as a slab that doesn't quite match its
+       surroundings. */
+    .box-shimmer {
+        background-color: transparent;
+        /* Slanted, so the band crosses each box as a diagonal rather than a
+           flat vertical wall. It still travels horizontally. */
+        --shimmer-skew: -14deg;
+    }
+    .box-shimmer::after {
+        background-image: linear-gradient(
+            90deg,
+            transparent 15%,
+            rgb(var(--c-text) / 0.06) 38%,
+            rgb(var(--c-accent) / 0.16) 50%,
+            rgb(var(--c-text) / 0.06) 62%,
+            transparent 85%
+        );
+    }
+
+    /* Aurora.
+       Curtains of colour sweeping right to left, on a seamless loop.
+
+       The colours are read off the cover art in JS (useArtworkPalette) — the
+       artwork itself never appears; a blurred, scaled-up cover still reads as
+       a picture of a cover, however far you push it.
+
+       The sweep is the marquee trick. Each curtain is twice the width of the
+       band, carrying its gradient tiled twice (background-size: 50%), and
+       travels exactly -50% — one whole tile — before repeating. The frame at
+       100% is pixel-identical to the frame at 0%, so it loops forever with no
+       seam and no easing pause: linear timing, never ease-in-out, or it would
+       visibly hesitate at the wrap.
+
+       Three curtains at different speeds give parallax; each one also drifts
+       vertically on its own longer cycle, from a wrapper, so the two transforms
+       never fight. Lobes underneath supply depth, and a few small points cross
+       faster than anything else — those are what the eye actually catches. */
+
+    /* --- the sweep: one tile of travel, linear, seamless --- */
+    @keyframes aurora-sweep {
+        from { transform: translate3d(0, 0, 0); }
+        to   { transform: translate3d(-50%, 0, 0); }
+    }
+    @keyframes aurora-bob-1 {
+        0%, 100% { transform: translate3d(0, -6%, 0); }
+        50%      { transform: translate3d(0, 7%, 0); }
+    }
+    @keyframes aurora-bob-2 {
+        0%, 100% { transform: translate3d(0, 8%, 0); }
+        50%      { transform: translate3d(0, -5%, 0); }
+    }
+    @keyframes aurora-bob-3 {
+        0%, 100% { transform: translate3d(0, -4%, 0); }
+        50%      { transform: translate3d(0, 9%, 0); }
+    }
+
+    /* --- the lobes: broad, slow colour underneath the curtains --- */
+    @keyframes aurora-1 {
+        0%, 100% { transform: translate3d(-14%, -12%, 0) scale(1.05); }
+        33%      { transform: translate3d(16%, 9%, 0) scale(1.32); }
+        66%      { transform: translate3d(-6%, 15%, 0) scale(1.14); }
+    }
+    @keyframes aurora-2 {
+        0%, 100% { transform: translate3d(18%, 11%, 0) scale(1.24); }
+        40%      { transform: translate3d(-15%, -14%, 0) scale(1.0); }
+        70%      { transform: translate3d(7%, -6%, 0) scale(1.36); }
+    }
+    @keyframes aurora-3 {
+        0%, 100% { transform: translate3d(-11%, 16%, 0) scale(1.26); }
+        45%      { transform: translate3d(19%, -13%, 0) scale(1.06); }
+    }
+
+    /* --- the light points: small, bright, quickest of all --- */
+    @keyframes aurora-point-1 {
+        0%   { transform: translate3d(160%, 22%, 0) scale(0.9);  opacity: 0; }
+        12%  { opacity: 0.85; }
+        88%  { opacity: 0.7; }
+        100% { transform: translate3d(-260%, -14%, 0) scale(1.25); opacity: 0; }
+    }
+    @keyframes aurora-point-2 {
+        0%   { transform: translate3d(190%, -18%, 0) scale(1.15); opacity: 0; }
+        15%  { opacity: 0.9; }
+        85%  { opacity: 0.6; }
+        100% { transform: translate3d(-300%, 20%, 0) scale(0.85); opacity: 0; }
+    }
+    @keyframes aurora-point-3 {
+        0%   { transform: translate3d(150%, 12%, 0) scale(1.0);  opacity: 0; }
+        18%  { opacity: 0.75; }
+        82%  { opacity: 0.8; }
+        100% { transform: translate3d(-240%, -20%, 0) scale(1.3); opacity: 0; }
+    }
+
+    .aurora {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+    }
+    /* A wash of the dominant colour under everything, so the band reads as a
+       lit field rather than pools of colour floating on the page. */
+    .aurora-base {
+        position: absolute;
+        inset: 0;
+        opacity: 0.55;
+    }
+
+    .aurora-curtain {
+        position: absolute;
+        left: 0;
+        width: 100%;
+        mix-blend-mode: screen;
+        will-change: transform;
+        /* Feathered top and bottom so a curtain reads as a band of light
+           rather than a rectangle of gradient. */
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 26%, #000 74%, transparent 100%);
+        mask-image: linear-gradient(to bottom, transparent 0%, #000 26%, #000 74%, transparent 100%);
+    }
+    .aurora-curtain > div {
+        position: absolute;
+        inset: 0;
+        width: 200%;
+        background-size: 50% 100%;
+        background-repeat: repeat-x;
+        filter: blur(44px);
+        will-change: transform;
+    }
+
+    .aurora-curtain-1 { top: -22%; height: 118%; opacity: 0.95; animation: aurora-bob-1 31s ease-in-out infinite; }
+    .aurora-curtain-2 { top: 2%;   height: 104%; opacity: 0.8;  animation: aurora-bob-2 43s ease-in-out infinite; }
+    .aurora-curtain-3 { top: -10%; height: 96%;  opacity: 0.7;  animation: aurora-bob-3 37s ease-in-out infinite; }
+    .aurora-curtain-1 > div { animation: aurora-sweep 19s linear infinite; }
+    .aurora-curtain-2 > div { animation: aurora-sweep 29s linear infinite; }
+    .aurora-curtain-3 > div { animation: aurora-sweep 41s linear infinite; }
+
+    .aurora-lobe {
+        position: absolute;
+        border-radius: 9999px;
+        mix-blend-mode: screen;
+        filter: blur(64px);
+        will-change: transform;
+    }
+    .aurora-lobe-1 { left: -15%; top: -60%; width: 60%; height: 190%; opacity: 0.8;  animation: aurora-1 29s ease-in-out infinite; }
+    .aurora-lobe-2 { left: 30%;  top: -25%; width: 52%; height: 165%; opacity: 0.75; animation: aurora-2 37s ease-in-out infinite; }
+    .aurora-lobe-3 { left: 62%;  top: -55%; width: 56%; height: 185%; opacity: 0.8;  animation: aurora-3 43s ease-in-out infinite; }
+
+    .aurora-point {
+        position: absolute;
+        border-radius: 9999px;
+        mix-blend-mode: screen;
+        /* Far less blur than a lobe: a point has to keep a bright core or its
+           travel is invisible. */
+        filter: blur(26px);
+        will-change: transform, opacity;
+    }
+    .aurora-point-1 { left: 40%; top: 8%;   width: 11%; height: 52%; animation: aurora-point-1 13s linear infinite; }
+    .aurora-point-2 { left: 40%; top: -6%;  width: 9%;  height: 46%; animation: aurora-point-2 17s linear infinite 4s; }
+    .aurora-point-3 { left: 40%; top: 20%;  width: 10%; height: 40%; animation: aurora-point-3 23s linear infinite 9s; }
+
+    /* Screen on a pale page just bleaches it; the light themes tint downward. */
+    [data-mode="light"] .aurora-curtain,
+    [data-mode="light"] .aurora-lobe,
+    [data-mode="light"] .aurora-point {
+        mix-blend-mode: multiply;
+        opacity: 0.3;
+    }
+    [data-mode="light"] .aurora-base {
+        opacity: 0.2;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .aurora-curtain,
+        .aurora-curtain > div,
+        .aurora-lobe,
+        .aurora-point { animation: none; }
+        .aurora-point { opacity: 0.6; }
     }
 
     /* Lyrics: slow-drifting cover-art "lights" behind the words. Each blob

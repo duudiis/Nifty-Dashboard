@@ -11,7 +11,7 @@ export async function getServerSideProps({ req }) {
     const user = await verifySession(cookies.session);
 
     if (user) {
-        return { redirect: { destination: "/dashboard", permanent: false } };
+        return { redirect: { destination: "/", permanent: false } };
     }
 
     return { props: { authorizeUrl: buildAuthorizeUrl() } };
@@ -37,7 +37,7 @@ export default function Login({ authorizeUrl }) {
                 });
 
                 if (res.ok) {
-                    window.location.href = "/dashboard";
+                    window.location.href = "/";
                     return;
                 }
 

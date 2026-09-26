@@ -3,7 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
 import Icon from "../Icon.js";
-import { AnimatePresence, motion, Reorder, EASE } from "../motion/index.js";
+import { AnimatePresence, motion, Reorder, entrance, EASE } from "../motion/index.js";
+import LoadingWash from "../skeleton/index.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useEntityMenu } from "../menu/entityMenu.js";
 
@@ -159,7 +160,7 @@ export default function LeftSidebar() {
     };
 
     return (
-        <aside className="hidden w-[300px] shrink-0 flex-col gap-2 md:flex">
+        <motion.aside {...entrance(0)} className="hidden w-[300px] shrink-0 flex-col gap-2 md:flex">
 
             {/* Nav card */}
             <nav className="rounded-lg bg-surface p-2">
@@ -183,8 +184,12 @@ export default function LeftSidebar() {
                 />
             </nav>
 
-            {/* Library */}
-            <div className="flex min-h-0 flex-1 flex-col rounded-lg bg-surface">
+            {/* Library — the whole card washes until the shelf lands */}
+            <div className="relative flex min-h-0 flex-1 flex-col rounded-lg bg-surface">
+                <LoadingWash show={!library.loaded} sweep="narrow" />
+
+                {library.loaded && (
+                <motion.div {...entrance(0)} className="flex min-h-0 flex-1 flex-col">
                 <div className="flex items-center gap-3 px-4 pb-2 pt-4 text-xs font-bold text-subtext">
                     <Icon name="library" className="h-5 w-5" />
                     Library
@@ -249,14 +254,16 @@ export default function LeftSidebar() {
                         </AnimatePresence>
                     )}
 
-                    {library.loaded && library.items.length === 0 && (
+                    {library.items.length === 0 && (
                         <div className="px-3 py-6 text-center text-[11px] leading-relaxed text-subtext">
                             Save albums, artists and playlists — or create your own — and
                             they&apos;ll live here.
                         </div>
                     )}
                 </div>
+                </motion.div>
+                )}
             </div>
-        </aside>
+        </motion.aside>
     );
 }

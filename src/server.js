@@ -34,6 +34,21 @@ app.prepare().then(() => {
 
     const nextUpgrade = app.getUpgradeHandler();
 
+    // Claim Next's one-shot websocket setup slot before it can use it.
+    //
+    // Next attaches an "upgrade" listener of its own the first time it serves a
+    // request — it reaches this server through req.socket.server — and routes
+    // every upgrade into its HMR handler, which destroys any path it doesn't
+    // recognise. Because Node snapshots the listener list when it emits, our
+    // handler below could not stop it: each browser socket connected, completed
+    // its handshake, and was torn down a few milliseconds later, so the
+    // dashboard reconnected in a loop and never finished loading.
+    //
+    // Calling it here with no server marks the setup done and attaches nothing,
+    // leaving ours the only upgrade listener. Nothing is lost: non-hub upgrades
+    // are handed to Next's own handler below.
+    app.setupWebSocketHandler();
+
     server.on("upgrade", (req, socket, head) => {
         const { pathname } = parse(req.url);
 

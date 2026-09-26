@@ -1,23 +1,23 @@
 import Head from "next/head";
 import { parse } from "cookie";
 
-import { verifySession } from "../../lib/jwt.js";
-import { NiftyProvider } from "../../context/NiftyContext.js";
-import { ContextMenuProvider } from "../../components/menu/ContextMenu.js";
-import { ModalProvider } from "../../components/modal/Modal.js";
+import { verifySession } from "../lib/jwt.js";
+import { NiftyProvider } from "../context/NiftyContext.js";
+import { ContextMenuProvider } from "../components/menu/ContextMenu.js";
+import { ModalProvider } from "../components/modal/Modal.js";
 
-import TopBar from "../../components/layout/TopBar.js";
-import LeftSidebar from "../../components/layout/LeftSidebar.js";
-import CenterContent from "../../components/layout/CenterContent.js";
-import RightSidebar from "../../components/layout/RightSidebar.js";
-import Player from "../../components/player/Player.js";
-import NotificationStack from "../../components/NotificationStack.js";
-import ConnectionOverlay from "../../components/ConnectionOverlay.js";
+import TopBar from "../components/layout/TopBar.js";
+import LeftSidebar from "../components/layout/LeftSidebar.js";
+import CenterContent from "../components/layout/CenterContent.js";
+import RightSidebar from "../components/layout/RightSidebar.js";
+import Player from "../components/player/Player.js";
+import NotificationStack from "../components/NotificationStack.js";
+import ReloadCurtain from "../components/ReloadCurtain.js";
 
-// Real, refresh-safe URLs for each page. Everything under /dashboard renders
-// this same component; the active view is read from the path by the context.
+// Real, refresh-safe URLs for each page. Every path renders this same
+// component; the active view is read from the path by the context.
 const VIEWS = ["queue", "search", "lyrics", "watch", "history"];
-const ENTITY_VIEWS = ["album", "playlist", "artist"]; // /dashboard/<kind>/<id>
+const ENTITY_VIEWS = ["album", "playlist", "artist"]; // /<kind>/<source>/<id>
 
 export async function getServerSideProps({ req, params }) {
     const cookies = parse(req.headers.cookie || "");
@@ -28,8 +28,8 @@ export async function getServerSideProps({ req, params }) {
     }
 
     // Keep the URL space tidy: anything that isn't a known page bounces home.
-    // Entity pages read /dashboard/<kind>/<source>/<id>; old encoded links
-    // (/dashboard/<kind>/<source>:<kind>:<id>) redirect to the pretty form.
+    // Entity pages read /<kind>/<source>/<id>; old encoded links
+    // (/<kind>/<source>:<kind>:<id>) redirect to the pretty form.
     const segs = params?.view;
     if (segs) {
         const [seg, sourceOrId, id] = segs;
@@ -42,13 +42,13 @@ export async function getServerSideProps({ req, params }) {
                 if (source && nativeId) {
                     return {
                         redirect: {
-                            destination: `/dashboard/${seg}/${source}/${encodeURIComponent(nativeId)}`,
+                            destination: `/${seg}/${source}/${encodeURIComponent(nativeId)}`,
                             permanent: false
                         }
                     };
                 }
             }
-            return { redirect: { destination: "/dashboard", permanent: false } };
+            return { redirect: { destination: "/", permanent: false } };
         }
     }
 
@@ -91,7 +91,7 @@ export default function Dashboard({ user, inviteUrl }) {
                         </div>
                     </div>
 
-                    <ConnectionOverlay />
+                    <ReloadCurtain />
                 </div>
             </ContextMenuProvider>
             </ModalProvider>

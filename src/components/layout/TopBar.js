@@ -5,12 +5,13 @@ import Logo from "../Logo.js";
 import Icon from "../Icon.js";
 import Account from "./Account.js";
 import SearchSuggest from "../search/SearchSuggest.js";
-import { motion, EASE } from "../motion/index.js";
+import ConnectionStatus from "../ConnectionStatus.js";
+import { AnimatePresence, motion, entrance, EASE } from "../motion/index.js";
 import { useNifty } from "../../context/NiftyContext.js";
 import { parseLink } from "../../sources/links.js";
 
 export default function TopBar() {
-    const { runSearch, setView, updateAvailable, reloadApp, openEntity, play, notify } = useNifty();
+    const { runSearch, setView, updateAvailable, reloadApp, openEntity, play, notify, ready, view } = useNifty();
     const router = useRouter();
     const [query, setQuery] = useState(() => (router.query.q ? String(router.query.q) : ""));
     const [suggestOpen, setSuggestOpen] = useState(false);
@@ -21,9 +22,8 @@ export default function TopBar() {
     // search page), but never overwrite what the user is actively typing.
     useEffect(() => {
         if (document.activeElement === inputRef.current) return;
-        const onSearch = router.query.view?.[0] === "search";
-        setQuery(onSearch && router.query.q ? String(router.query.q) : "");
-    }, [router.query.view, router.query.q]);
+        setQuery(view === "search" && router.query.q ? String(router.query.q) : "");
+    }, [view, router.query.q]);
 
     // Typing feeds the suggestion dropdown (it debounces internally). The full
     // search page only opens on Enter. An empty box keeps the dropdown open in
@@ -83,7 +83,8 @@ export default function TopBar() {
     }, [suggestOpen]);
 
     return (
-        <header className="flex h-16 shrink-0 items-center gap-4 bg-topbar px-4">
+        // The bar arrives as one piece — a single quick fade, no cascade.
+        <motion.header {...entrance()} className="flex h-16 shrink-0 items-center gap-4 bg-topbar px-4">
 
             {/* Brand (left third) */}
             <div className="flex min-w-0 flex-1 items-center justify-start">
@@ -96,8 +97,19 @@ export default function TopBar() {
                 </button>
             </div>
 
-            {/* Search (always centred) */}
-            <form ref={boxRef} onSubmit={submit} className="relative w-full max-w-md shrink">
+            {/* Search (always centred) — held back until there's something to
+                search against, then faded in on its own. */}
+            <AnimatePresence>
+                {ready && (
+                    <motion.form
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2, ease: EASE }}
+                        ref={boxRef}
+                        onSubmit={submit}
+                        className="relative w-full max-w-md shrink"
+                    >
                 <div className="flex w-full items-center gap-2 rounded-full bg-topbartext/10 px-4 py-2 ring-topbartext/0 transition focus-within:bg-topbartext/15 focus-within:ring-2 focus-within:ring-topbartext/20">
                     <Icon name="search" className="h-5 w-5 shrink-0 text-topbartext/60" />
                     <input
@@ -112,15 +124,18 @@ export default function TopBar() {
                     />
                 </div>
                 <SearchSuggest query={query} open={suggestOpen} onClose={closeSuggest} onPick={pickSuggest} />
-            </form>
+                    </motion.form>
+                )}
+            </AnimatePresence>
 
-            {/* Update prompt + account (right third) */}
+            {/* Connection + update prompt + account (right third) */}
             <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+                <ConnectionStatus />
                 {updateAvailable && (
                     <motion.button
                         initial={{ opacity: 0, scale: 0.85 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.25, ease: EASE }}
+                        transition={{ duration: 0.14, ease: EASE }}
                         onClick={reloadApp}
                         title="A new version is available — click to update"
                         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-topbartext/10 text-accent transition hover:bg-topbartext/15"
@@ -130,6 +145,6 @@ export default function TopBar() {
                 )}
                 <Account />
             </div>
-        </header>
+        </motion.header>
     );
 }
