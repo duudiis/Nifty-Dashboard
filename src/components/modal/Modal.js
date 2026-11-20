@@ -5,8 +5,10 @@
 //   const modal = useModal();
 //
 //   modal.open({ title, size, render })   custom content modal
-//       size    "sm" | "md" | "lg" (default "md")
-//       render  ({ close }) => JSX — the body; call close() to dismiss
+//       size       "sm" | "md" | "lg" | "settings" (default "md")
+//       render     ({ close }) => JSX — the body; call close() to dismiss
+//       frameless  true when the body draws its own header and close button
+//                  (the title then only names the dialog for screen readers)
 //       returns the modal id (modal.close(id) closes it programmatically)
 //
 //   await modal.confirm({ title, message, confirmLabel, cancelLabel, danger })
@@ -30,7 +32,7 @@ const SIZES = {
     sm: "max-w-sm",
     md: "max-w-lg",
     lg: "max-w-2xl",
-    xl: "max-w-6xl"
+    settings: "max-w-[1080px]"
 };
 
 export function ModalProvider({ children }) {
@@ -136,7 +138,7 @@ export function ModalProvider({ children }) {
                                     animate={{ opacity: isTop ? 1 : 0, scale: isTop ? 1 : 0.96 }}
                                     exit={{ opacity: 0, scale: 0.94 }}
                                     transition={{ duration: 0.15, ease: EASE }}
-                                    className={`flex max-h-[85vh] w-full flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xl ${isTop ? "pointer-events-auto" : "pointer-events-none"} ${SIZES[entry.size] || SIZES.md}`}
+                                    className={`flex w-full flex-col overflow-hidden border border-border bg-surface shadow-2xl ${entry.frameless ? "max-h-[calc(100dvh-2rem)] rounded-[15px]" : "max-h-[85vh] rounded-xl"} ${isTop ? "pointer-events-auto" : "pointer-events-none"} ${SIZES[entry.size] || SIZES.md}`}
                                 >
                                     {entry.confirm ? (
                                         /* minimal confirmation: title, message, buttons */
@@ -163,6 +165,8 @@ export function ModalProvider({ children }) {
                                                 </button>
                                             </div>
                                         </div>
+                                    ) : entry.frameless ? (
+                                        entry.render?.({ close: (answer = false) => close(entry.id, answer) })
                                     ) : (
                                         <>
                                             <div className="flex items-center gap-3 px-5 pb-1 pt-4">
@@ -177,7 +181,7 @@ export function ModalProvider({ children }) {
                                                     </button>
                                                 )}
                                             </div>
-                                            <div className={`min-h-0 flex-1 overflow-y-auto ${entry.bare ? "" : "px-5 py-4"}`}>
+                                            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
                                                 {entry.render?.({ close: (answer = false) => close(entry.id, answer) })}
                                             </div>
                                         </>

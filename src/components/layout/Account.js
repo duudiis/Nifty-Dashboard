@@ -5,7 +5,7 @@ import { useNifty } from "../../context/NiftyContext.js";
 import Icon from "../Icon.js";
 import { AnimatePresence, motion, EASE } from "../motion/index.js";
 import { useModal } from "../modal/Modal.js";
-import SettingsPanel from "../modal/SettingsModal.js";
+import { settingsModal } from "../settings/SettingsModal.js";
 
 export default function Account() {
     const { user, logout, notify, setView } = useNifty();
@@ -15,12 +15,7 @@ export default function Account() {
     const ref = useRef(null);
 
     const openSettings = (initial = "appearance") => {
-        modal.open({
-            title: "Settings",
-            size: "xl",
-            bare: true,
-            render: () => <SettingsPanel initial={initial} />
-        });
+        modal.open(settingsModal(initial));
     };
 
     useEffect(() => {
