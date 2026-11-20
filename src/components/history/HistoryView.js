@@ -1,22 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import Icon from "../Icon.js";
-import Loader from "../Loader.js";
+import Loader, { HistorySkeleton } from "../Loader.js";
+import { LoadingSwap } from "../motion/index.js";
 import SessionGroup from "./SessionGroup.js";
 import { dayKey, dayLabel } from "../../lib/format.js";
 
 // The user's full listening history: every session they were present for,
-// newest first, each expandable into a play-by-play timeline. Sessions are
+// newest first, with quiet session separators and playable song rows. Sessions are
 // keyset-paginated and fetched on demand as the user scrolls.
 export default function HistoryView() {
     const [sessions, setSessions] = useState([]);
     const [cursor, setCursor] = useState(null);
     const [hasMore, setHasMore] = useState(true);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
     const loadedOnce = useRef(false);
+    const fetching = useRef(false);
 
     const loadMore = useCallback(async () => {
+        if (fetching.current) return;
+        fetching.current = true;
         setLoading(true);
         setError(false);
         try {
@@ -24,12 +28,16 @@ export default function HistoryView() {
             const res = await fetch(`/api/history${qs}`, { cache: "no-store" });
             if (!res.ok) throw new Error();
             const json = await res.json();
-            setSessions((prev) => [...prev, ...(json.sessions || [])]);
+            setSessions((prev) => {
+                const known = new Set(prev.map((session) => session.id));
+                return [...prev, ...(json.sessions || []).filter((session) => !known.has(session.id))];
+            });
             setCursor(json.nextCursor);
             setHasMore(!!json.nextCursor);
         } catch {
             setError(true);
         } finally {
+            fetching.current = false;
             setLoading(false);
         }
     }, [cursor]);
@@ -59,26 +67,16 @@ export default function HistoryView() {
     let lastDay = null;
 
     return (
-        <div>
-            <div
-                className="flex items-end gap-6 px-6 pb-6 pt-10"
-                style={{ background: "linear-gradient(180deg, rgb(var(--c-accent) / 0.35) -40%, transparent 100%)" }}
-            >
-                <span className="flex h-32 w-32 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-accent to-accent/40 text-canvas shadow-2xl">
-                    <Icon name="history" className="h-14 w-14" />
-                </span>
-                <div className="flex flex-col gap-2">
-                    <span className="text-xs font-bold uppercase tracking-wide text-subtext">History</span>
-                    <h1 className="text-5xl font-bold">Listening history</h1>
-                    <span className="max-w-md text-xs text-subtext">
-                        Every track you've listened to, grouped by session — newest first.
-                    </span>
-                </div>
-            </div>
+        <div className="px-4 pb-12 pt-10 sm:px-7">
+            <header className="mb-9 flex flex-col gap-3">
+                <span className="text-xs font-medium text-subtext">Made of your music</span>
+                <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">Listening history</h1>
+                <p className="max-w-lg text-sm leading-relaxed text-subtext">Find a favorite, play it again, or add it to your queue.</p>
+            </header>
 
-            <div className="flex flex-col gap-3 px-6 pb-10">
+            <LoadingSwap loading={loading && sessions.length === 0} fallback={<HistorySkeleton />} contentClassName="flex flex-col">
                 {empty && (
-                    <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border py-16 text-center">
+                    <div className="flex flex-col items-center gap-3 py-20 text-center">
                         <Icon name="history" className="h-8 w-8 text-subtext" />
                         <p className="text-sm font-semibold text-maintext">No listening history yet</p>
                         <p className="max-w-xs text-xs text-subtext">
@@ -87,18 +85,18 @@ export default function HistoryView() {
                     </div>
                 )}
 
-                {sessions.map((session, i) => {
+                {sessions.map((session) => {
                     const key = dayKey(session.startedAt);
                     const showHeading = key !== lastDay;
                     lastDay = key;
                     return (
                         <div key={session.id}>
                             {showHeading && (
-                                <h2 className="mb-2 mt-3 px-1 text-xs font-bold uppercase tracking-wide text-subtext first:mt-0">
+                                <h2 className="mb-3 mt-5 px-2 text-lg font-bold tracking-tight text-maintext first:mt-0">
                                     {dayLabel(session.startedAt)}
                                 </h2>
                             )}
-                            <SessionGroup session={session} defaultOpen={i === 0} />
+                            <SessionGroup session={session} />
                         </div>
                     );
                 })}
@@ -112,7 +110,7 @@ export default function HistoryView() {
                     </button>
                 )}
 
-                {loading && (
+                {loading && sessions.length > 0 && (
                     <div className="flex items-center justify-center py-6">
                         <Loader />
                     </div>
@@ -120,7 +118,7 @@ export default function HistoryView() {
 
                 {/* Infinite-scroll trigger */}
                 {hasMore && !error && <div ref={sentinel} className="h-1" />}
-            </div>
+            </LoadingSwap>
         </div>
     );
 }

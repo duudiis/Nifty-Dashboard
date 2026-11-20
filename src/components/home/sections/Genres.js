@@ -1,107 +1,73 @@
 import { useEffect, useRef, useState } from "react";
 
-import Tile from "../../browse/Tile.js";
-import { Stagger, StaggerItem } from "../../motion/index.js";
+import Icon from "../../Icon.js";
+import { CardsSkeleton } from "../../Loader.js";
+import { LoadingSwap } from "../../motion/index.js";
+import { GENRES } from "../../../lib/genres.js";
 import Section, { Empty } from "../Section.js";
 import Rail from "../Rail.js";
+import Tile from "../../browse/Tile.js";
 
-/* Somewhere to go when nothing on the rest of the page is what you want.
-   The genre list is ours rather than Deezer's — theirs is localised by request
-   IP and reorders itself between calls — and each genre shows playlists and
-   albums, the two shelves that actually change with the genre. */
-
-const DEFAULT_GENRE = "132"; // Pop — the one shelf that is never thin
-
-export default function Genres() {
-    const [genres, setGenres] = useState([]);
-    const [picked, setPicked] = useState(DEFAULT_GENRE);
-    const [shelf, setShelf] = useState(null);
-    const [loading, setLoading] = useState(true);
-
-    // Genre shelves are cached for hours server-side, so a browsed genre stays
-    // instant on the way back to it.
-    const seen = useRef(new Map());
+export default function Genres({ initialShelf = null }) {
+    const [picked, setPicked] = useState("132");
+    const [shelf, setShelf] = useState(initialShelf);
+    const [loading, setLoading] = useState(!initialShelf);
+    const cache = useRef(new Map(initialShelf ? [["132", initialShelf]] : []));
 
     useEffect(() => {
-        let live = true;
-        fetch("/api/genres")
-            .then((r) => (r.ok ? r.json() : { genres: [] }))
-            .then((j) => { if (live) setGenres(j.genres || []); })
-            .catch(() => {});
-        return () => { live = false; };
-    }, []);
-
-    useEffect(() => {
-        let live = true;
-        const cached = seen.current.get(picked);
+        const controller = new AbortController();
+        const cached = cache.current.get(picked);
         if (cached) {
             setShelf(cached);
             setLoading(false);
-            return;
+            return () => controller.abort();
         }
-
         setLoading(true);
-        fetch(`/api/genres?id=${encodeURIComponent(picked)}`)
-            .then((r) => (r.ok ? r.json() : null))
-            .then((j) => {
-                if (!live || !j) return;
-                seen.current.set(picked, j);
-                setShelf(j);
+        setShelf(null);
+        fetch(`/api/genres?id=${encodeURIComponent(picked)}`, { signal: controller.signal })
+            .then((res) => res.ok ? res.json() : null)
+            .then((json) => {
+                if (controller.signal.aborted || !json) return;
+                cache.current.set(picked, json);
+                setShelf(json);
             })
             .catch(() => {})
-            .finally(() => { if (live) setLoading(false); });
-
-        return () => { live = false; };
+            .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+        return () => controller.abort();
     }, [picked]);
 
-    const items = [...(shelf?.playlists || []), ...(shelf?.albums || [])];
-
-    const chips = (
-        <div className="flex flex-wrap gap-1.5">
-            {genres.map((g) => (
-                <button
-                    key={g.id}
-                    type="button"
-                    onClick={() => setPicked(g.id)}
-                    className={`rounded-full px-3 py-1 text-xs font-bold transition ${
-                        picked === g.id ? "bg-maintext text-canvas" : "bg-elevated text-subtext hover:text-maintext"
-                    }`}
-                >
-                    {g.name}
-                </button>
-            ))}
-        </div>
-    );
-
+    const items = [...(shelf?.songs || []), ...(shelf?.albums || [])];
+    const name = GENRES.find((genre) => genre.id === picked)?.name;
     return (
-        <Section
-            id="genres"
-            title="Browse by genre"
-            subtitle={shelf?.name ? `Playlists and albums across ${shelf.name}` : "Somewhere else to start"}
-            minHeight={340}
-        >
-            <div className="flex flex-col gap-4">
-                {chips}
-
-                {loading ? (
-                    // The chips stay live while a shelf loads, with placeholder
-                    // tiles in the shelf's place — switching genres is the point.
-                    <Stagger className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6" gap={0.03}>
-                        {Array.from({ length: 6 }).map((_, i) => (
-                            <StaggerItem key={i}>
-                                <div className="aspect-square w-full rounded-md bg-elevated" />
-                            </StaggerItem>
-                        ))}
-                    </Stagger>
-                ) : items.length ? (
-                    <Rail itemClassName="w-[168px]">
-                        {items.map((item, i) => (
-                            <Tile key={item.browseId || i} item={item} />
-                        ))}
-                    </Rail>
-                ) : (
-                    <Empty>Nothing came back for that genre — try another.</Empty>
-                )}
+        <Section id="genres" title="Explore your next mood" subtitle="Find a new direction, or stay with a favorite">
+            <div className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(min(100%,144px),1fr))]" aria-label="Browse by genre">
+                {GENRES.map((genre) => (
+                    <button
+                        key={genre.id}
+                        type="button"
+                        onClick={() => {
+                            if (genre.id === picked) return;
+                            const cached = cache.current.get(genre.id);
+                            setShelf(cached || null);
+                            setLoading(!cached);
+                            setPicked(genre.id);
+                        }}
+                        aria-pressed={picked === genre.id}
+                        style={{ backgroundColor: genre.color }}
+                        className={`flex h-14 items-center gap-2.5 rounded-md border px-3 text-left text-xs font-bold text-white transition-[filter,border-color] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${picked === genre.id ? "border-white/80" : "border-transparent"}`}
+                    >
+                        <Icon name="music" className="h-4 w-4 shrink-0 text-white/75" />
+                        <span className="min-w-0 truncate">{genre.name}</span>
+                    </button>
+                ))}
+            </div>
+            <div className="mt-1" aria-busy={loading}>
+                <h3 className="mb-2 text-sm font-bold text-maintext">Discover {name}</h3>
+                <LoadingSwap loading={loading} fallback={<CardsSkeleton />} contentClassName="min-h-[216px] sm:min-h-[236px]">
+                    {items.length ? (
+                        <Rail>{items.map((item) => <Tile key={item.browseId || item.url} item={item} />)}</Rail>
+                    ) : <Empty>More music is on its way. Try another genre.</Empty>}
+                </LoadingSwap>
             </div>
         </Section>
     );

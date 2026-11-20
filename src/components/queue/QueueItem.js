@@ -1,187 +1,172 @@
-import { useRef, useState } from "react";
+import { forwardRef, useRef, useState } from "react";
+import { useReducedMotion } from "framer-motion";
 
 import { useNifty } from "../../context/NiftyContext.js";
-import { msToClock, artworkOrFallback } from "../../lib/format.js";
+import { msToClock, artworkOrFallback, addedByOf } from "../../lib/format.js";
 import Icon from "../Icon.js";
 import AddedBy from "../AddedBy.js";
-import ArtistLink from "../browse/ArtistLink.js";
+import { TRACK_ACTION_CLASS, TRACK_NUMBER_CLASS, TrackRowContent, trackRowClassName } from "../browse/trackTable.js";
 import Equalizer from "../Equalizer.js";
 import AlbumCell from "./AlbumCell.js";
-import { Reorder } from "../motion/index.js";
+import { Reorder, EASE, motion } from "../motion/index.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
 
-// `autoplay` rows are the bot's recommendations ("Next from: Autoplay"):
-// same look, but addressed by auto_id — clicking promotes the track into the
-// real queue and plays it, the trash removes the suggestion (negative
-// feedback), and the added-by slot shows the autoplay glyph instead of a user.
-export default function QueueItem({ track, index, isCurrent, dense, autoplay = false, onDragStart, onDragEnd }) {
+// All queue entries, including recommendations, share the collection row.
+// Stable values keep a drag alive as it crosses the autoplay boundary.
+const QueueItem = forwardRef(function QueueItem({ track, value = track, index, isCurrent, raised = false, dense, autoplay = false, reveal = true, onDragStart, onDragEnd }, ref) {
     const { control, player, jump, removeTrack, isLiked, toggleLike, autoplayPlay, autoplayRemove } = useNifty();
+    const reduceMotion = useReducedMotion();
+    // A loading result must keep its first-paint policy for this row's entire
+    // lifetime, including the next server update or playback cursor change.
+    const revealOnMount = useRef(reveal).current;
     const trackMenu = useTrackMenu();
-    const { onContextMenu, active } = useContextMenu(() => trackMenu(track, { source: autoplay ? "autoplay" : "queue" }));
-
+    const { onContextMenu, active } = useContextMenu(() => {
+        const addedBy = addedByOf(track).name;
+        return [
+            ...trackMenu(track, { source: autoplay ? "autoplay" : "queue" }),
+            { separator: true },
+            { label: <AlbumCell track={track} />, icon: "music", disabled: true },
+            (autoplay || addedBy) && { label: autoplay ? "Recommended by Autoplay" : `Added by ${addedBy}`, icon: autoplay ? "sparkles" : "user", disabled: true }
+        ].filter(Boolean);
+    });
     const playing = isCurrent && player?.playing;
-
-    // While held, keep a solid background (driven by state, not :hover, which
-    // flickers as rows swap underneath the cursor mid-drag).
     const [dragging, setDragging] = useState(false);
-    // A drag fires a trailing click on release; this flag makes activate() ignore
-    // it so reordering never plays/jumps to the track.
     const draggedRef = useRef(false);
 
-    const handleDragStart = () => {
+    const handleDragStart = (event) => {
         draggedRef.current = true;
         setDragging(true);
-        onDragStart?.(track);
+        onDragStart?.(value, event);
     };
-
     const handleDragEnd = () => {
         setDragging(false);
-        onDragEnd?.(track);
-        // Clear after the synthetic click that follows pointerup has fired.
+        onDragEnd?.(value);
         setTimeout(() => { draggedRef.current = false; }, 0);
     };
-
-    // Quick click anywhere plays/pauses; a drag never does (guarded above).
-    // stopPropagation on the dedicated controls avoids a double-toggle.
-    const activate = (e) => {
-        e?.stopPropagation?.();
+    const activate = (event) => {
+        event?.stopPropagation?.();
         if (draggedRef.current) return;
         if (autoplay) autoplayPlay(track.auto_id);
         else if (isCurrent) control("togglePause");
         else jump(track.track_id);
     };
-
-    const playPauseTitle = playing ? "Pause" : isCurrent ? "Resume" : "Play";
-
-    const remove = (e) => {
-        e.stopPropagation();
+    const remove = (event) => {
+        event.stopPropagation();
         if (autoplay) autoplayRemove(track.auto_id);
         else removeTrack(track.track_id);
     };
-
     const liked = isLiked(track);
-    const like = (e) => {
-        e.stopPropagation();
+    const like = (event) => {
+        event.stopPropagation();
         toggleLike(track);
     };
+    const playPauseTitle = playing ? "Pause" : isCurrent ? "Resume" : "Play";
 
     return (
         <Reorder.Item
+            ref={ref}
             as="div"
-            value={track}
+            value={value}
+            data-queue-key={typeof value === "string" ? value : undefined}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            initial={false}
+            layout="position"
+            transition={{ layout: { duration: reduceMotion ? 0 : 0.24, ease: EASE } }}
             whileDrag={{ boxShadow: "0 12px 28px rgb(0 0 0 / 0.45)", cursor: "grabbing" }}
             onClick={activate}
             onContextMenu={onContextMenu}
-            // transition-colors only — never `transition` (all), which would
-            // animate the transform framer uses to track the cursor and make
-            // dragging drift/stutter.
-            className={`group relative flex w-full cursor-pointer select-none items-center gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-elevated ${active || dragging ? "bg-elevated" : ""}`}
+            className={`relative w-full shrink-0 cursor-pointer select-none ${dense ? "h-12" : "h-14"} ${raised ? "!z-20" : ""}`}
         >
-            {/* main list keeps a number / play-pause column; the dense sidebar
-                drops it and puts the control over the cover instead */}
-            {!dense && (
-                <div className="flex w-6 shrink-0 items-center justify-center">
-                    <span className={`flex items-center justify-center text-xs transition-colors duration-300 ${isCurrent ? "text-accent" : "text-subtext"} group-hover:hidden`}>
-                        {isCurrent ? <Equalizer playing={playing} className="h-3.5 w-3.5" />
-                            : autoplay ? <Icon name="sparkles" className="h-3.5 w-3.5" />
-                            : index + 1}
+            {/* Layout projection owns the outer transform. Keeping reveals on
+                this inner row prevents it from resetting opacity at the end
+                of a reorder animation or immediately before an exit. */}
+            <motion.div
+                data-queue-row-content
+                initial={revealOnMount && !reduceMotion ? { opacity: 0, x: 8 } : false}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: reduceMotion ? 0 : -8, transition: { duration: reduceMotion ? 0 : 0.16, ease: EASE } }}
+                transition={{ opacity: { duration: reduceMotion ? 0 : 0.18, ease: EASE }, x: { duration: reduceMotion ? 0 : 0.24, ease: EASE } }}
+                className={`${active || dragging ? "" : "bg-surface"} ${trackRowClassName({ dense, active: active || dragging })}`}
+            >
+            <TrackRowContent
+                title={track.title}
+                artist={track.artist}
+                artistBrowseId={track.artistBrowseId}
+                current={isCurrent}
+                collection={!dense}
+                leading={!dense && (
+                    <span className={`relative ${TRACK_NUMBER_CLASS} ${isCurrent ? "text-accent" : "text-subtext"}`}>
+                        <span className="flex items-center justify-center group-hover:opacity-0">
+                            {isCurrent ? <Equalizer playing={playing} className="h-3.5 w-3.5" />
+                                : autoplay ? <Icon name="sparkles" className="h-3.5 w-3.5" />
+                                    : index + 1}
+                        </span>
+                        <Icon name="grip" className="absolute h-4 w-4 text-subtext opacity-0 group-hover:opacity-70" />
                     </span>
-                    <button onClick={activate} className="hidden text-maintext group-hover:block" title={playPauseTitle}>
-                        <Icon name={playing ? "pause" : "play"} className="h-4 w-4" />
-                    </button>
-                </div>
-            )}
-
-            {/* artwork (with an overlaid play/pause control, and a now-playing
-                equalizer in the dense sidebar) */}
-            <div className={`relative shrink-0 ${dense ? "h-9 w-9" : "h-10 w-10"}`}>
-                <img
-                    src={artworkOrFallback(track.artwork)}
-                    onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
-                    className="h-full w-full rounded object-cover"
-                    alt=""
-                />
-                {dense && (
-                    <button
-                        onClick={activate}
-                        title={playPauseTitle}
-                        className="absolute inset-0 flex items-center justify-center rounded bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100"
-                    >
-                        <Icon name={playing ? "pause" : "play"} className="h-4 w-4" />
-                    </button>
                 )}
-            </div>
-
-            {/* title / artist (+ always-on heart on the main list) */}
-            <div className="flex min-w-0 flex-1 items-center gap-3">
-                <div className="flex min-w-0 flex-col leading-tight">
-                    <span className={`truncate text-[13px] transition-colors duration-300 ${isCurrent ? "text-accent" : "text-maintext"}`}>{track.title}</span>
-                    <ArtistLink name={track.artist} className="text-[11px] text-subtext" />
-                </div>
-                {!dense && (
+                artwork={<button
+                    type="button"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={activate}
+                    title={playPauseTitle}
+                    aria-label={`${playPauseTitle} ${track.title}`}
+                    className={`relative shrink-0 overflow-hidden rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${dense ? "h-9 w-9" : "h-10 w-10"}`}
+                >
+                    <img src={artworkOrFallback(track.artwork)} onError={(event) => (event.currentTarget.src = artworkOrFallback(null))} className="h-full w-full object-cover" alt="" />
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                        <Icon name={playing ? "pause" : "play"} className={dense ? "h-4 w-4" : "h-5 w-5"} />
+                    </span>
+                </button>}
+                like={dense ? (
+                    <div className="relative flex h-8 w-5 shrink-0 items-center justify-center">
+                        <span className={liked ? "invisible" : "group-hover:invisible group-focus-within:invisible"} title={autoplay ? "Recommended by Autoplay" : addedByOf(track).name || undefined}>
+                            {autoplay ? <Icon name="sparkles" className="h-4 w-4 text-subtext/70" /> : <AddedBy track={track} size={16} showName={false} />}
+                        </span>
+                        <button
+                            type="button"
+                            onPointerDown={(event) => event.stopPropagation()}
+                            onClick={like}
+                            title={liked ? "Remove from Liked songs" : "Save to Liked songs"}
+                            className={`absolute inset-0 flex items-center justify-center transition-colors ${liked ? "text-accent" : "text-subtext opacity-0 hover:text-maintext group-hover:opacity-100 group-focus-within:opacity-100"}`}
+                        >
+                            <Icon name={liked ? "heart-filled" : "heart"} className="h-4 w-4" />
+                        </button>
+                    </div>
+                ) : (
                     <button
+                        type="button"
+                        onPointerDown={(event) => event.stopPropagation()}
                         onClick={like}
                         title={liked ? "Remove from Liked songs" : "Save to Liked songs"}
-                        className={`shrink-0 transition-colors ${liked ? "text-accent" : "text-subtext hover:text-maintext"}`}
+                        aria-label={liked ? `Remove ${track.title} from Liked songs` : `Save ${track.title} to Liked songs`}
+                        className={`${TRACK_ACTION_CLASS} ${liked ? "text-accent" : "text-subtext hover:text-maintext"}`}
                     >
                         <Icon name={liked ? "heart-filled" : "heart"} className="h-4 w-4" />
                     </button>
                 )}
-            </div>
-
-            {/* album */}
-            {!dense && (
-                <AlbumCell track={track} className="hidden w-64 shrink-0 truncate text-[11px] text-subtext xl:block" />
-            )}
-
-            {/* added by — name + avatar on the main page, avatar only in the
-                dense sidebar (sits just left of the duration). Autoplay rows
-                have no user: they show the autoplay glyph instead. */}
-            {!dense && (autoplay ? (
-                <span
-                    title="Recommended by Autoplay"
-                    className="hidden w-28 shrink-0 items-center gap-1.5 text-[11px] text-subtext lg:flex"
-                >
-                    <Icon name="sparkles" className="h-3.5 w-3.5" /> Autoplay
-                </span>
-            ) : (
-                <AddedBy track={track} size={18} className="hidden w-28 shrink-0 text-[11px] text-subtext lg:flex" />
-            ))}
-            {dense && (
-                <div className="-mr-1.5 flex shrink-0 items-center">
-                    <span className={liked ? "hidden" : "group-hover:hidden"} title={autoplay ? "Recommended by Autoplay" : undefined}>
-                        {autoplay ? (
-                            <Icon name="sparkles" className="h-4 w-4 text-subtext/70" />
-                        ) : (
-                            <AddedBy track={track} size={16} showName={false} />
-                        )}
-                    </span>
-                    <button
-                        onClick={like}
-                        title={liked ? "Remove from Liked songs" : "Save to Liked songs"}
-                        className={`transition-colors ${liked ? "block text-accent" : "hidden text-subtext hover:text-maintext group-hover:block"}`}
-                    >
-                        <Icon name={liked ? "heart-filled" : "heart"} className="h-4 w-4" />
-                    </button>
-                </div>
-            )}
-
-            {/* duration, swapping to a remove (trash) button on hover */}
-            <div className="flex w-12 shrink-0 items-center justify-center">
-                <span className="text-[11px] text-subtext group-hover:hidden">{msToClock(track.duration)}</span>
-                <button
-                    onClick={remove}
-                    title={autoplay ? "Remove suggestion" : "Remove"}
-                    className="hidden text-subtext transition-colors hover:text-red-400 group-hover:block"
-                >
-                    <Icon name="trash" className="h-4 w-4" />
-                </button>
-            </div>
+                duration={<div className={`relative flex w-12 shrink-0 items-center ${dense ? "justify-center" : "justify-end"}`}>
+                    <span className={`tabular-nums text-subtext ${dense ? "text-[11px] group-hover:invisible group-focus-within:invisible" : "text-xs"}`}>{msToClock(track.duration)}</span>
+                    {dense && <button
+                        type="button"
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={remove}
+                        title={autoplay ? "Remove suggestion" : "Remove"}
+                        className="absolute inset-0 flex items-center justify-center text-subtext opacity-0 transition-colors hover:text-red-400 group-hover:opacity-100 group-focus-within:opacity-100"
+                    ><Icon name="trash" className="h-4 w-4" /></button>}
+                </div>}
+                menu={!dense && <button
+                    type="button"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => { event.stopPropagation(); onContextMenu(event); }}
+                    aria-label={`More options for ${track.title}`}
+                    className={`${TRACK_ACTION_CLASS} text-subtext hover:text-maintext`}
+                ><Icon name="more" className="h-4 w-4" /></button>}
+            />
+            </motion.div>
         </Reorder.Item>
     );
-}
+});
+
+export default QueueItem;

@@ -1,5 +1,5 @@
 import { useNifty } from "../../context/NiftyContext.js";
-import { SlideTransition, motion, entrance } from "../motion/index.js";
+import { SlideTransition } from "../motion/index.js";
 
 import QueueList from "../queue/QueueList.js";
 import NowPlayingPanel, { NowPlayingBackdrop } from "../NowPlayingPanel.js";
@@ -7,8 +7,7 @@ import ConnectPanel from "./ConnectPanel.js";
 import PanelHeader from "./PanelHeader.js";
 import Icon from "../Icon.js";
 
-// Each panel (header + content) animates as one unit: Queue/Connect slide down
-// out and Now playing rises from below — so closing a panel reveals it.
+// Each panel's header and content share one short entrance on navigation.
 function PanelBody({ panel, onClose }) {
     if (panel === "queue") {
         return (
@@ -42,16 +41,16 @@ function PanelBody({ panel, onClose }) {
 }
 
 export default function RightSidebar() {
-    const { settings, updateSettings, ready } = useNifty();
+    const { settings, updateSettings } = useNifty();
     const panel = settings.rightPanel;
     const close = () => updateSettings({ rightPanel: "nowplaying" });
 
     return (
-        <motion.aside {...entrance(0.1)} data-panel="right" className="relative hidden w-[var(--right-w)] shrink-0 flex-col overflow-hidden rounded-lg bg-surface lg:flex">
+        <aside data-panel="right" className="relative hidden w-[var(--right-w)] shrink-0 flex-col overflow-hidden rounded-lg bg-surface lg:flex">
             {/* Same slide primitive as the centre view, so panels enter with
                 identical timing. The panel is keyed, so the old one (and the
                 Queue panel's Reorder subtree) is gone before the new one paints.
-                Until the first state lands the box simply stays empty.
+                Each panel owns its initial loading placeholder.
                 Now playing hands its cover-art gradient to the pinned backdrop, so
                 the slide never exposes the bare surface above it.
                 The inner (sliding) layer is the scroll container:
@@ -59,7 +58,6 @@ export default function RightSidebar() {
                     drag, so a dragged track isn't left behind on auto-scroll.
                   • overflow-anchor:none — disable Chrome scroll anchoring, which
                     would otherwise fight framer's layout slide (scrollTop flicker). */}
-            {ready && (
             <SlideTransition
                 transitionKey={panel}
                 layoutScroll
@@ -69,7 +67,6 @@ export default function RightSidebar() {
             >
                 <PanelBody panel={panel} onClose={close} />
             </SlideTransition>
-            )}
-        </motion.aside>
+        </aside>
     );
 }

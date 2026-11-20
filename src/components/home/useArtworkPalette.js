@@ -127,7 +127,9 @@ export default function useArtworkPalette(artwork) {
     const [palette, setPalette] = useState(() => (artwork ? cache.get(artwork) || null : null));
 
     useEffect(() => {
-        if (!artwork) { setPalette(null); return; }
+        // A missing intermediate player snapshot is not a new palette. Keep
+        // painting the current colors while the next track resolves.
+        if (!artwork) return;
 
         const hit = cache.get(artwork);
         if (hit) { setPalette(hit); return; }
@@ -141,9 +143,11 @@ export default function useArtworkPalette(artwork) {
             let colors = null;
             try { colors = extract(img); } catch { colors = null; }
             if (colors) cache.set(artwork, colors);
-            if (live) setPalette(colors);
+            if (live && colors) setPalette(colors);
         };
-        img.onerror = () => { if (live) setPalette(null); };
+        // A failed/monochrome image has no replacement colors; it must not
+        // flash the theme accent between two successfully sampled covers.
+        img.onerror = () => {};
         img.src = artwork;
 
         return () => { live = false; };

@@ -8,10 +8,11 @@ import { useEntityMenu } from "../menu/entityMenu.js";
 import { useEntityActions } from "./useEntityActions.js";
 import QueueGlyph from "./QueueGlyph.js";
 import Icon from "../Icon.js";
+import { MUSIC_CARD_BODY_CLASS } from "../skeletonLayout.js";
 
-// A grid card for any search item. Songs/videos queue on click (the corner icon
+// A grid card for any search item. Songs/videos queue on click (the queue icon
 // flips to a check on add); albums/artists/playlists open their page. Albums
-// and playlists also get a corner play button that queues the whole collection
+// and playlists also get an inline play button that queues the whole collection
 // without leaving the grid. Artists are round.
 export default function Tile({ item }) {
     const { play, selected, openEntity } = useNifty();
@@ -32,7 +33,7 @@ export default function Tile({ item }) {
         setTimeout(() => setDone(false), 1000);
     };
 
-    // Corner play on album/playlist tiles: play the whole collection now,
+    // Inline play on album/playlist tiles: play the whole collection now,
     // without opening its page first.
     const playCollection = (e) => {
         e.stopPropagation();
@@ -50,7 +51,7 @@ export default function Tile({ item }) {
         <button
             onClick={onClick}
             onContextMenu={onContextMenu}
-            className={`group flex w-full flex-col gap-3 rounded-lg p-3 text-left transition hover:bg-elevated ${active ? "bg-elevated" : ""}`}
+            className={`group ${MUSIC_CARD_BODY_CLASS} rounded-lg text-left transition hover:bg-elevated ${active ? "bg-elevated" : ""}`}
         >
             <div className="relative w-full">
                 <img
@@ -58,25 +59,29 @@ export default function Tile({ item }) {
                     onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
                     className={`aspect-square w-full object-cover shadow-lg ${round ? "rounded-full" : "rounded-md"}`}
                     alt=""
+                    loading="lazy"
+                    decoding="async"
                 />
+            </div>
+            <div className="flex w-full min-w-0 items-center gap-2">
+                <div className="min-w-0 flex-1">
+                    <div className={`truncate text-sm font-bold text-maintext ${round ? "text-center" : ""}`}>{item.title}</div>
+                    <div className={`truncate text-xs capitalize text-subtext ${round ? "text-center" : ""}`}>{subtitle}</div>
+                </div>
                 {playable && (
-                    <span className={`absolute bottom-2 right-2 flex h-10 w-10 items-center justify-center rounded-full bg-accent text-canvas shadow-lg transition ${done ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100"}`}>
-                        <QueueGlyph done={done} className="h-5 w-5" />
+                    <span className={`flex h-6 w-5 shrink-0 items-center justify-center text-accent transition-opacity ${done ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"}`}>
+                        <QueueGlyph done={done} className="h-4 w-4" />
                     </span>
                 )}
                 {collection && (
                     <span
                         title={selected ? `Play this ${item.kind}` : "Select a server first"}
                         onClick={playCollection}
-                        className="absolute bottom-2 right-2 flex h-10 w-10 translate-y-2 items-center justify-center rounded-full bg-accent text-canvas opacity-0 shadow-lg transition group-hover:translate-y-0 group-hover:opacity-100"
+                        className="flex h-6 w-5 shrink-0 items-center justify-center text-accent opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
                     >
-                        <Icon name="play" className="h-5 w-5" />
+                        <Icon name="play" className="h-4 w-4" />
                     </span>
                 )}
-            </div>
-            <div className="min-w-0">
-                <div className={`truncate text-sm font-bold text-maintext ${round ? "text-center" : ""}`}>{item.title}</div>
-                <div className={`truncate text-xs capitalize text-subtext ${round ? "text-center" : ""}`}>{subtitle}</div>
             </div>
         </button>
     );

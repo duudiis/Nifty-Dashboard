@@ -23,8 +23,10 @@ export default function Account() {
         const handler = (e) => {
             if (ref.current && !ref.current.contains(e.target)) setOpen(false);
         };
+        const onKey = (e) => { if (e.key === "Escape") { setOpen(false); ref.current?.querySelector("button")?.focus(); } };
         window.addEventListener("click", handler);
-        return () => window.removeEventListener("click", handler);
+        window.addEventListener("keydown", onKey);
+        return () => { window.removeEventListener("click", handler); window.removeEventListener("keydown", onKey); };
     }, [open]);
 
     // Returning from an OAuth connect: open Settings → Connections and toast
@@ -56,6 +58,8 @@ export default function Account() {
         <div ref={ref} className="relative">
             <button
                 onClick={() => setOpen((o) => !o)}
+                aria-label="Account menu"
+                aria-expanded={open}
                 className="flex items-center gap-2 rounded-full bg-topbartext/10 py-1 pl-1 pr-3 text-topbartext transition hover:bg-topbartext/15"
             >
                 <img src={user.avatar_url} alt="" className="h-7 w-7 rounded-full object-cover" />
@@ -74,28 +78,28 @@ export default function Account() {
                         exit={{ opacity: 0, scale: 0.96, y: -6 }}
                         transition={{ duration: 0.14, ease: EASE }}
                         style={{ transformOrigin: "top right" }}
-                        className="absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-lg border border-border bg-elevated p-1 shadow-2xl"
+                        className="absolute right-0 z-50 mt-2 w-52 space-y-1 overflow-hidden rounded-lg border border-border bg-elevated p-1.5 shadow-2xl"
                     >
                         <button
                             onClick={() => { setOpen(false); setView("history"); }}
-                            className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[12px] font-medium text-maintext transition hover:bg-surface"
+                            className="flex min-h-9 w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[13px] font-medium text-maintext transition-colors hover:bg-surface"
                         >
-                            <Icon name="history" className="h-3.5 w-3.5" />
+                            <Icon name="history" className="h-4 w-4 text-subtext" />
                             Listening history
                         </button>
                         <button
                             onClick={() => { setOpen(false); openSettings("appearance"); }}
-                            className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[12px] font-medium text-maintext transition hover:bg-surface"
+                            className="flex min-h-9 w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[13px] font-medium text-maintext transition-colors hover:bg-surface"
                         >
-                            <Icon name="settings" className="h-3.5 w-3.5" />
+                            <Icon name="settings" className="h-4 w-4 text-subtext" />
                             Settings
                         </button>
                         <div className="my-1 h-px bg-border/70" />
                         <button
                             onClick={logout}
-                            className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[12px] font-medium text-rose-400 transition hover:bg-rose-500/10"
+                            className="flex min-h-9 w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[13px] font-medium text-red-400 transition-colors hover:bg-red-400/10"
                         >
-                            <Icon name="logout" className="h-3.5 w-3.5" />
+                            <Icon name="logout" className="h-4 w-4" />
                             Log out
                         </button>
                     </motion.div>

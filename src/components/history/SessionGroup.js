@@ -1,111 +1,69 @@
 import { useEffect, useRef, useState } from "react";
 
 import Icon from "../Icon.js";
-import Loader from "../Loader.js";
+import { TrackListSkeleton } from "../Loader.js";
 import PlayItem from "./PlayItem.js";
-import { AnimatePresence, motion, EASE } from "../motion/index.js";
-import { formatTime, humanDuration } from "../../lib/format.js";
+import { AnimatePresence, motion, EASE, LoadingSwap } from "../motion/index.js";
+import { formatTime } from "../../lib/format.js";
 
-// A single voice-channel session: a summary card that reveals its play-by-play
-// timeline on expand. Plays are fetched lazily (and once) the first time the
-// card is opened, so a long history never loads every track up front.
-export default function SessionGroup({ session, defaultOpen = false }) {
+// Sessions are light separators in one track list. Fetch their tracks only as
+// they approach the viewport, keeping a long history cheap to open.
+export default function SessionGroup({ session, defaultOpen = true }) {
     const [open, setOpen] = useState(defaultOpen);
-    const [plays, setPlays] = useState(null);   // null = not loaded yet
+    const [visible, setVisible] = useState(false);
+    const [plays, setPlays] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(false);
-    const fetched = useRef(false);
+    const [retry, setRetry] = useState(0);
+    const container = useRef(null);
 
     useEffect(() => {
-        if (!open || fetched.current) return;
-        fetched.current = true;
+        if (!container.current || visible) return;
+        if (typeof IntersectionObserver === "undefined") { setVisible(true); return; }
+        const observer = new IntersectionObserver((entries) => {
+            if (entries.some((entry) => entry.isIntersecting)) { setVisible(true); observer.disconnect(); }
+        }, { rootMargin: "240px" });
+        observer.observe(container.current);
+        return () => observer.disconnect();
+    }, [visible]);
+
+    useEffect(() => {
+        if (!open || !visible || plays != null) return;
+        const controller = new AbortController();
         setLoading(true);
         setError(false);
-        fetch(`/api/history?sessionId=${session.id}`, { cache: "no-store" })
-            .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
-            .then((json) => setPlays(json.plays || []))
-            .catch(() => { setError(true); fetched.current = false; })
-            .finally(() => setLoading(false));
-    }, [open, session.id]);
+        fetch(`/api/history?sessionId=${encodeURIComponent(session.id)}`, { cache: "no-store", signal: controller.signal })
+            .then((response) => { if (!response.ok) throw new Error(); return response.json(); })
+            .then((json) => { setPlays(json.plays || []); setLoading(false); })
+            .catch((error) => { if (error.name !== "AbortError") setError(true); })
+            .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+        return () => controller.abort();
+    }, [open, visible, session.id, retry, plays]);
 
-    // An orphaned session (bot never wrote ended_at) looks "open" but isn't —
-    // treat it as live only when its last listening span reaches nearly to now.
     const effectiveEnd = session.endedAt || session.lastListen;
     const live = !session.endedAt && effectiveEnd && (Date.now() - new Date(effectiveEnd) < 120_000);
-    const range = `${formatTime(session.startedAt)} – ${live ? "now" : formatTime(effectiveEnd)}`;
-    const wallMs = (live ? Date.now() : new Date(effectiveEnd)) - new Date(session.startedAt);
+    const range = `${formatTime(session.startedAt)}${live ? " – now" : effectiveEnd ? ` – ${formatTime(effectiveEnd)}` : ""}`;
 
     return (
-        <div className="overflow-hidden rounded-xl border border-border bg-elevated/40">
-            <button
-                onClick={() => setOpen((o) => !o)}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/[0.03]"
-            >
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent">
-                    <Icon name="boombox" className="h-5 w-5" />
-                </span>
-
-                <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-maintext">{range}</span>
-                        {live && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
-                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Live
-                            </span>
-                        )}
-                    </div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-subtext">
-                        <span>{session.plays} track{session.plays === 1 ? "" : "s"}</span>
-                        <span className="text-subtext/50">·</span>
-                        <span>{session.distinctTracks} unique</span>
-                        <span className="text-subtext/50">·</span>
-                        <span className="text-maintext/80">{humanDuration(session.listenedMs)} listened</span>
-                        <span className="text-subtext/50">·</span>
-                        <span>{humanDuration(wallMs)} long</span>
-                    </div>
-                </div>
-
-                <Icon
-                    name="chevron-down"
-                    className={`h-4 w-4 shrink-0 text-subtext transition-transform ${open ? "rotate-180" : ""}`}
-                />
+        <section ref={container} className="mb-5">
+            <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} className="mb-1 flex min-h-11 w-full items-center gap-3 border-b border-border/50 px-3 text-left text-xs text-subtext transition-colors hover:text-maintext">
+                <span className="font-medium tabular-nums">{range}</span>
+                <span className="text-subtext/60">·</span>
+                <span>{session.plays} song{session.plays === 1 ? "" : "s"}</span>
+                {live && <span className="text-subtext">Listening now</span>}
+                <Icon name="chevron-down" className={`ml-auto h-3.5 w-3.5 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
             </button>
-
             <AnimatePresence initial={false}>
                 {open && (
-                    <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.24, ease: EASE }}
-                        className="overflow-hidden"
-                    >
-                        <div className="px-3 pb-3">
-                            {loading && (
-                                <div className="flex items-center px-2 py-4">
-                                    <Loader size="sm" />
-                                </div>
-                            )}
-                            {error && (
-                                <button
-                                    onClick={() => { setOpen(false); requestAnimationFrame(() => setOpen(true)); }}
-                                    className="px-2 py-4 text-xs text-rose-400 hover:underline"
-                                >
-                                    Couldn't load this session — retry
-                                </button>
-                            )}
-                            {plays && plays.length > 0 && (
-                                <ul className="pt-1">
-                                    {plays.map((p) => <PlayItem key={p.id} play={p} />)}
-                                </ul>
-                            )}
-                            {plays && plays.length === 0 && (
-                                <div className="px-2 py-4 text-xs text-subtext">No tracks recorded for this session.</div>
-                            )}
-                        </div>
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.22, ease: EASE }} className="overflow-hidden">
+                        <LoadingSwap loading={plays == null && !error} fallback={<TrackListSkeleton rows={session.plays || 3} rowHeight={76} label="Loading listening history" />}>
+                        {error && <button type="button" onClick={() => setRetry((value) => value + 1)} className="my-5 rounded-full border border-border px-4 py-2 text-xs text-subtext hover:text-maintext">Couldn&apos;t load this session. Try again</button>}
+                        {plays?.length > 0 && <ul>{plays.map((play) => <PlayItem key={play.id} play={play} />)}</ul>}
+                        {plays?.length === 0 && <p className="px-3 py-6 text-xs text-subtext">No songs recorded for this session.</p>}
+                        </LoadingSwap>
                     </motion.div>
                 )}
             </AnimatePresence>
-        </div>
+        </section>
     );
 }

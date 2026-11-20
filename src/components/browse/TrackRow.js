@@ -1,115 +1,107 @@
-import { memo, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
-import { Reorder } from "../motion/index.js";
+import { Reorder, EASE } from "../motion/index.js";
 import QueueGlyph from "./QueueGlyph.js";
-import ArtistLink from "./ArtistLink.js";
+import { TRACK_ACTION_CLASS, TRACK_NUMBER_CLASS, TrackRowContent, trackRowClassName } from "./trackTable.js";
 import Icon from "../Icon.js";
 
-// A playable song/video row (search results, album/playlist/artist track lists).
-// Click anywhere to add it to the queue; right-click for the full play/queue
-// menu; the heart saves to Liked songs; the artist name opens their page.
-//
-// When `dragValue` is set the row is a framer <Reorder.Item> — the parent
-// paginates so only ~100 rows are ever mounted, keeping the reorder snappy.
-// Memoized so a reorder re-renders only the rows whose props actually change.
-//
-// `badge` replaces the index column and `meta` replaces the duration, so the
-// home screen can hang a play count or a timestamp off a row without forking
-// the heart / artist-link / menu / queue-glyph behaviour into a second copy.
-// Height stays locked at 60px either way: CollectionPage virtualizes against
-// an exact row pitch.
-function TrackRow({ track, index, badge = null, meta = null, dragValue = null, onDragStart, onDragEnd }) {
+// Collection rows have an exact shared pitch for virtualization; compact rows
+// elsewhere keep their 60px pitch. Playback, likes and menus stay shared.
+function TrackRow({ track, index, badge = null, meta = null, collection = false, dragValue = null, dragEnabled = true, onDragStart, onDragEnd }) {
     const { play, selected, isLiked, toggleLike } = useNifty();
     const trackMenu = useTrackMenu();
     const [done, setDone] = useState(false);
     const [dragging, setDragging] = useState(false);
-    // A drag ends with a stray click; ignore it so reordering never queues.
     const draggedRef = useRef(false);
+    const resetTimer = useRef(null);
+    useEffect(() => () => clearTimeout(resetTimer.current), []);
 
     const liked = isLiked(track);
-    const draggable = dragValue != null;
-
+    const reorderItem = dragValue != null;
+    const draggable = reorderItem && dragEnabled;
+    const playable = !!(track.playQuery || track.url);
     const queue = () => {
-        if (draggedRef.current) return;
-        if (!selected || done) return;
+        if (draggedRef.current || !selected || !playable || done) return;
         play(track.playQuery || track.url, "queue", track.title);
         setDone(true);
-        setTimeout(() => setDone(false), 1000);
+        clearTimeout(resetTimer.current);
+        resetTimer.current = setTimeout(() => setDone(false), 1000);
     };
-
-    const like = (e) => {
-        e.stopPropagation();
-        toggleLike(track);
-    };
-
     const { onContextMenu, active } = useContextMenu(() => trackMenu(track, { source: "search", onAdd: queue }));
-
-    // Fixed 60px height (border-box: 44px art + 8px padding each side) so the
-    // collection list can virtualize with an exact row pitch.
-    const base = `group flex h-[60px] items-center gap-3 rounded-md p-2 transition-colors hover:bg-elevated ${selected ? "cursor-pointer" : ""} ${active ? "bg-elevated" : ""}`;
+    const base = `${collection && !active && !dragging ? "bg-surface" : ""} ${trackRowClassName({ collection, active: active || dragging })} ${selected && playable ? "cursor-pointer" : ""}`;
 
     const inner = (
-        <>
-            {badge != null ? (
-                <span className="hidden w-5 shrink-0 items-center justify-center sm:flex">{badge}</span>
-            ) : index != null ? (
-                <span className="hidden w-5 shrink-0 text-center text-xs text-subtext sm:block">{index}</span>
-            ) : null}
-
-            <div className="relative h-11 w-11 shrink-0">
+        <TrackRowContent
+            title={track.title}
+            artist={track.artist}
+            artistBrowseId={track.artistBrowseId}
+            collection={collection}
+            leading={(badge != null || index != null) && (
+                <span className={`relative shrink-0 items-center justify-center text-center text-xs tabular-nums text-subtext ${collection ? TRACK_NUMBER_CLASS : "hidden w-7 sm:flex"}`}>
+                    <span className={draggable ? "group-hover:opacity-0" : ""}>{badge ?? index}</span>
+                    {draggable && <Icon name="grip" className="absolute h-4 w-4 opacity-0 group-hover:opacity-70" />}
+                </span>
+            )}
+            artwork={<button
+                type="button"
+                disabled={!selected || !playable}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => { event.stopPropagation(); queue(); }}
+                aria-label={done ? `${track.title} added to queue` : `Add ${track.title} to queue`}
+                className={`relative shrink-0 overflow-hidden rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${collection ? "h-10 w-10" : "h-11 w-11"}`}
+            >
                 <img
                     src={artworkOrFallback(track.artwork)}
-                    onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
-                    className="h-11 w-11 rounded object-cover"
+                    onError={(event) => (event.currentTarget.src = artworkOrFallback(null))}
+                    className="h-full w-full object-cover"
                     alt=""
+                    loading="lazy"
                 />
-                <span
-                    className={`absolute inset-0 flex items-center justify-center rounded bg-black/50 text-white transition ${done ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
-                >
+                <span className={`absolute inset-0 flex items-center justify-center bg-black/55 text-white transition-opacity ${done ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"}`}>
                     <QueueGlyph done={done} className="h-5 w-5" />
                 </span>
-            </div>
-
-            <div className="flex min-w-0 flex-1 items-center gap-3">
-                <div className="flex min-w-0 flex-col leading-tight">
-                    <span className="truncate text-[13px] text-maintext">{track.title}</span>
-                    <ArtistLink name={track.artist} browseId={track.artistBrowseId} className="text-[11px] text-subtext" />
-                </div>
+            </button>}
+            like={<button
+                type="button"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => { event.stopPropagation(); toggleLike(track); }}
+                title={liked ? "Remove from Liked songs" : "Save to Liked songs"}
+                aria-label={liked ? `Remove ${track.title} from Liked songs` : `Save ${track.title} to Liked songs`}
+                className={`${TRACK_ACTION_CLASS} ${liked ? "text-accent" : "text-subtext hover:text-maintext"}`}
+            >
+                <Icon name={liked ? "heart-filled" : "heart"} className="h-4 w-4" />
+            </button>}
+            duration={<span className={`${meta != null ? "shrink-0" : "w-12 shrink-0"} text-right text-xs tabular-nums text-subtext`}>
+                {meta ?? track.duration ?? "—"}
+            </span>}
+            menu={collection && (
                 <button
-                    onClick={like}
-                    title={liked ? "Remove from Liked songs" : "Save to Liked songs"}
-                    className={`shrink-0 transition-colors ${liked ? "text-accent" : "text-subtext hover:text-maintext"}`}
+                    type="button"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => { event.stopPropagation(); onContextMenu(event); }}
+                    aria-label={`More options for ${track.title}`}
+                    className={`${TRACK_ACTION_CLASS} text-subtext hover:text-maintext`}
                 >
-                    <Icon name={liked ? "heart-filled" : "heart"} className="h-4 w-4" />
+                    <Icon name="more" className="h-4 w-4" />
                 </button>
-            </div>
-
-            {meta != null ? (
-                <span className="shrink-0 text-right text-[11px] text-subtext">{meta}</span>
-            ) : track.duration ? (
-                <span className="w-12 shrink-0 text-center text-[11px] text-subtext">{track.duration}</span>
-            ) : null}
-        </>
+            )}
+        />
     );
 
-    if (!draggable) {
-        return (
-            <div onClick={queue} onContextMenu={onContextMenu} title={selected ? "Add to queue" : "Select a server first"} className={base}>
-                {inner}
-            </div>
-        );
-    }
+    if (!reorderItem) return <div onClick={queue} onContextMenu={onContextMenu} className={base}>{inner}</div>;
 
     return (
         <Reorder.Item
             as="div"
             value={dragValue}
-            // transition-colors only — never `transition` (all), which framer
-            // would apply to the drag transform and make dragging stutter.
+            drag={draggable ? "y" : false}
+            layout={draggable ? "position" : false}
+            initial={false}
+            transition={{ layout: { duration: 0.24, ease: EASE } }}
             onDragStart={() => { draggedRef.current = true; setDragging(true); onDragStart?.(); }}
             onDragEnd={() => {
                 setDragging(false);
@@ -119,7 +111,7 @@ function TrackRow({ track, index, badge = null, meta = null, dragValue = null, o
             whileDrag={{ boxShadow: "0 12px 28px rgb(0 0 0 / 0.45)", cursor: "grabbing" }}
             onClick={queue}
             onContextMenu={onContextMenu}
-            className={`select-none ${base} ${dragging ? "bg-elevated" : ""}`}
+            className={`select-none ${base}`}
         >
             {inner}
         </Reorder.Item>

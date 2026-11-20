@@ -11,7 +11,7 @@ import UserSocket from "./UserSocket.js";
 // which used to trip the old client-timer heartbeat and drop the socket every
 // minute). Bots that send app-level "heartbeat" frames keep working unchanged —
 // either one counts as a sign of life.
-const PING_INTERVAL = 30_000;
+const PING_INTERVAL = 25_000;
 const LIVENESS_GRACE = 90_000; // ~3 missed pings before we call it dead
 
 // Advertised to peers that run their own heartbeat timer (the bots).
@@ -37,10 +37,23 @@ export default class Connection {
             data: { heartbeatInterval: HEARTBEAT_INTERVAL }
         }));
 
+        this.socket._socket?.setKeepAlive(true, PING_INTERVAL);
+        this.socket._socket?.setNoDelay(true);
+        this.lastProbe = Date.now();
         this.armLiveness();
         this.pingTimer = setInterval(() => {
+            const now = Date.now();
+            // A suspended process/event-loop stall is not evidence that the
+            // peer died. Give queued pongs a chance to arrive after waking.
+            if (now - this.lastProbe > PING_INTERVAL * 2) this.armLiveness();
+            this.lastProbe = now;
+            if (now - this.lastActivity > LIVENESS_GRACE) {
+                try { this.socket.terminate(); } catch {}
+                return;
+            }
             try { this.socket.ping(); } catch {}
         }, PING_INTERVAL);
+        this.pingTimer.unref?.();
 
         this.socket.on("message", (raw) => this.onMessage(raw));
         this.socket.on("pong", () => this.armLiveness());
@@ -52,14 +65,10 @@ export default class Connection {
     }
 
     armLiveness() {
-        clearTimeout(this.livenessTimeout);
-        this.livenessTimeout = setTimeout(() => {
-            try { this.socket.terminate(); } catch {}
-        }, LIVENESS_GRACE);
+        this.lastActivity = Date.now();
     }
 
     teardown() {
-        clearTimeout(this.livenessTimeout);
         clearInterval(this.pingTimer);
     }
 
@@ -67,7 +76,7 @@ export default class Connection {
         try {
             const cookies = parse(this.req?.headers?.cookie || "");
             const user = await verifySession(cookies.session);
-            if (user && !this.role) {
+            if (user && !this.role && this.socket.readyState === this.socket.OPEN) {
                 this.role = new UserSocket(this.socket, user);
                 this.socket.send(JSON.stringify({
                     operation: "identify_success",
@@ -84,6 +93,7 @@ export default class Connection {
         } catch {
             return; // ignore malformed frames
         }
+        this.armLiveness();
 
         // Heartbeats work the same before and after identification.
         if (message.operation === "heartbeat") {
@@ -116,6 +126,7 @@ export default class Connection {
 
         // Browser identification fallback: a session JWT passed explicitly.
         const user = await verifySession(token);
+        if (this.role || this.socket.readyState !== this.socket.OPEN) return;
         if (user) {
             this.role = new UserSocket(this.socket, user);
             this.socket.send(JSON.stringify({

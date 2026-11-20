@@ -5,9 +5,10 @@ import { artworkOrFallback } from "../../lib/format.js";
 import Icon from "../Icon.js";
 import TrackRow from "./TrackRow.js";
 import Tile from "./Tile.js";
-import { motion, EASE } from "../motion/index.js";
-import { PageLoader } from "../Loader.js";
+import { LoadingSwap } from "../motion/index.js";
+import { ArtistSkeleton } from "../Loader.js";
 import { entityExternalUrl, recordCollectionQueued } from "./useEntityActions.js";
+import { MUSIC_GRID_CLASS } from "../skeletonLayout.js";
 
 // Spotify-style artist page: artwork-tinted header (blur pinned by
 // CenterContent), top songs, then the discography newest-first. Open in
@@ -21,19 +22,17 @@ export default function ArtistPage({ id }) {
         let stale = false;
         setLoading(true);
         setData(null);
-        setPageArt(null);
         fetch(`/api/browse?id=${encodeURIComponent(id)}`)
             .then((r) => r.json())
             .then((j) => {
                 if (stale) return;
                 setData(j);
-                setPageArt(j?.artwork || null);
+                setPageArt(j?.artwork || null, id);
             })
             .catch(() => !stale && setData(null))
             .finally(() => !stale && setLoading(false));
         return () => {
             stale = true;
-            setPageArt(null);
         };
     }, [id, setPageArt]);
 
@@ -60,10 +59,8 @@ export default function ArtistPage({ id }) {
         if (data?.title) notify(`Playing ${data.title}`);
     };
 
-    if (loading) return <PageLoader />;
-
     return (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2, ease: EASE }}>
+        <LoadingSwap loading={loading} fallback={<ArtistSkeleton />} className="flex flex-1 flex-col" contentClassName="flex flex-1 flex-col">
             {!data?.title ? (
                 <div className="p-8 text-center text-sm text-subtext">Couldn&apos;t load this artist.</div>
             ) : (
@@ -117,7 +114,7 @@ export default function ArtistPage({ id }) {
                     {albums.length > 0 && (
                         <div className="flex flex-col gap-3 px-6 pb-8">
                             <h3 className="text-lg font-bold text-maintext">Discography</h3>
-                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                            <div className={MUSIC_GRID_CLASS}>
                                 {albums.map((a) => (
                                     <Tile key={a.browseId} item={a} />
                                 ))}
@@ -126,6 +123,6 @@ export default function ArtistPage({ id }) {
                     )}
                 </div>
             )}
-        </motion.div>
+        </LoadingSwap>
     );
 }

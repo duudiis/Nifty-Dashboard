@@ -11,6 +11,14 @@
 import { forwardRef } from "react";
 
 const ICONS = {
+    "library-lines": { body: <><path d="M4 4v16M9 4v16M14 4l6 15" /></> },
+    "playlist-add": { body: <><path d="M4 5h12M4 10h12M4 15h7M17 13v8M13 17h8" /></> },
+    sort: { body: <><path d="M4 6h16M4 12h11M4 18h6" /></> },
+    clock: { body: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></> },
+    plus: { body: <path d="M12 5v14M5 12h14" /> },
+    "arrow-up": { body: <path d="M12 20V4m-6 6 6-6 6 6" /> },
+    "arrow-down": { body: <path d="M12 4v16m-6-6 6 6 6-6" /> },
+    more: { fill: true, stroke: false, body: <><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></> },
     // --- library ---
     heart: { body: <path d="M12 21.35 10.55 20.03 C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3 c1.74 0 3.41.81 4.5 2.09 C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5 c0 3.78-3.4 6.86-8.55 11.54 L12 21.35 Z" /> },
     "heart-filled": { fill: true, body: <path d="M12 21.35 10.55 20.03 C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3 c1.74 0 3.41.81 4.5 2.09 C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5 c0 3.78-3.4 6.86-8.55 11.54 L12 21.35 Z" /> },

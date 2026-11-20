@@ -7,7 +7,8 @@ import { artworkOrFallback } from "../../lib/format.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
 import { useEntityMenu } from "../menu/entityMenu.js";
-import { AnimatePresence, motion, EASE } from "../motion/index.js";
+import { AnimatePresence, LoadingSwap, motion, EASE } from "../motion/index.js";
+import { TrackListSkeleton } from "../Loader.js";
 
 // The typeahead dropdown under the search bar. Three modes:
 //   search — the closest matches to what's being typed, ranked by fuzzy
@@ -84,19 +85,6 @@ function rank(query, sections) {
     }
 
     return top.map((e) => e.item);
-}
-
-// Placeholder rows mirroring the real row layout (artwork + two text lines).
-function SkeletonRows() {
-    return Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="flex items-center gap-3 p-2">
-            <div className="h-9 w-9 shrink-0 rounded bg-elevated" />
-            <div className="flex flex-1 flex-col gap-1.5">
-                <div className="h-2.5 rounded bg-elevated" style={{ width: `${55 - i * 7}%` }} />
-                <div className="h-2 rounded bg-elevated" style={{ width: `${30 - i * 3}%` }} />
-            </div>
-        </div>
-    ));
 }
 
 function Row({ item, onPick }) {
@@ -252,20 +240,8 @@ export default function SearchSuggest({ query, open, onClose, onPick }) {
                     className="absolute left-0 right-0 top-full z-[60] mt-2 overflow-hidden rounded-xl border border-border bg-surface/95 shadow-2xl backdrop-blur-md"
                 >
                     <div ref={innerRef} className="p-1.5">
-                        {/* popLayout lifts the outgoing block out of the flow, so
-                            the measured height is the incoming content's alone
-                            and the box resizes while the two crossfade. */}
-                        <AnimatePresence mode="popLayout" initial={false}>
-                            <motion.div
-                                key={state.loading ? "skeleton" : "results"}
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                transition={{ duration: 0.15, ease: EASE }}
-                            >
-                                {state.loading ? (
-                                    <SkeletonRows />
-                                ) : state.items.length === 0 ? (
+                        <LoadingSwap loading={state.loading} fallback={<TrackListSkeleton rows={mode === "link" ? 1 : 4} rowHeight={52} label="Loading suggestions" />}>
+                                {state.items.length === 0 ? (
                                     <div className="flex flex-col items-center gap-1 px-6 py-6 text-center">
                                         <span className="text-[13px] font-bold text-maintext">
                                             {mode === "link" ? "Couldn't recognise that link" : "Nothing queued yet"}
@@ -278,25 +254,21 @@ export default function SearchSuggest({ query, open, onClose, onPick }) {
                                     </div>
                                 ) : (
                                     <>
-                                        {state.items.map((item, i) => (
-                                            <motion.div
+                                        {state.items.map((item) => (
+                                            <Row
                                                 key={`${item.kind}:${item.videoId || item.browseId || item.url || item.title}`}
-                                                initial={{ opacity: 0, y: 6 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                transition={{ duration: 0.18, ease: EASE, delay: i * 0.03 }}
-                                            >
-                                                <Row item={item} onPick={onPick} />
-                                            </motion.div>
+                                                item={item}
+                                                onPick={onPick}
+                                            />
                                         ))}
-                                        <div className="px-3 pb-1 pt-1.5 text-[10px] text-subtext/70">
-                                            {mode === "link" ? "Press Enter to open"
-                                                : mode === "recent" ? "Recently queued"
-                                                : "Press Enter for all results"}
-                                        </div>
                                     </>
                                 )}
-                            </motion.div>
-                        </AnimatePresence>
+                        </LoadingSwap>
+                        {(state.loading || state.items.length > 0) && <div className="px-3 pb-1 pt-1.5 text-[10px] text-subtext/70">
+                            {mode === "link" ? "Press Enter to open"
+                                : mode === "recent" ? "Recently queued"
+                                : "Press Enter for all results"}
+                        </div>}
                     </div>
                 </motion.div>
             )}

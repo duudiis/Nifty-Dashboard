@@ -1,15 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
-import { artworkOrFallback } from "../../lib/format.js";
 import { parseEntityId } from "../../sources/ids.js";
 import Icon from "../Icon.js";
-import { PageLoader } from "../Loader.js";
+import { CollectionSkeleton } from "../Loader.js";
 import TrackRow from "./TrackRow.js";
+import { CollectionHeader, formatCollectionDuration, TRACK_ROW_HEIGHT, TRACK_TABLE_GUTTER_CLASS, TrackTableHeader } from "./trackTable.js";
 import ArtistLink from "./ArtistLink.js";
-import { motion, Reorder, EASE } from "../motion/index.js";
+import { LoadingSwap, Reorder } from "../motion/index.js";
 import { useDragScroll, findScroller } from "../motion/useDragScroll.js";
-import { useContextMenu } from "../menu/ContextMenu.js";
+import SortDropdown from "../menu/SortDropdown.js";
 import { useModal } from "../modal/Modal.js";
 import { entityExternalUrl, recordCollectionQueued } from "./useEntityActions.js";
 
@@ -27,11 +27,7 @@ function clockToSeconds(str) {
 }
 
 function totalDuration(tracks) {
-    const total = tracks.reduce((sum, t) => sum + clockToSeconds(t.duration), 0);
-    if (!total) return null;
-    const h = Math.floor(total / 3600);
-    const m = Math.round((total % 3600) / 60);
-    return h > 0 ? `${h} hr ${m} min` : `${m} min`;
+    return formatCollectionDuration(tracks.reduce((sum, t) => sum + clockToSeconds(t.duration), 0));
 }
 
 function releaseYear(date) {
@@ -40,11 +36,11 @@ function releaseYear(date) {
 }
 
 const BASE_SORT_OPTIONS = [
-    { id: "custom", label: "Custom order" },
-    { id: "added", label: "Date added" },
-    { id: "title", label: "Title" },
-    { id: "artist", label: "Artist" },
-    { id: "duration", label: "Duration" }
+    { id: "custom", label: "Custom order", icon: "grip" },
+    { id: "added", label: "Date added", icon: "history" },
+    { id: "title", label: "Title", icon: "music" },
+    { id: "artist", label: "Artist", icon: "user" },
+    { id: "duration", label: "Duration", icon: "clock" }
 ];
 
 function sortTracks(tracks, sortBy, sortDesc) {
@@ -66,7 +62,9 @@ function sortTracks(tracks, sortBy, sortDesc) {
     });
 }
 
-const ROW_H = 60;      // fixed row height (px); every track row is exactly h-[60px]
+const useIsoEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
+const ROW_H = TRACK_ROW_HEIGHT; // shared with live rows and loading placeholders
 const OVERSCAN = 12;   // rows rendered beyond the viewport on each side
 
 // Virtualized track table: only the rows near the viewport are mounted; the
@@ -75,13 +73,14 @@ const OVERSCAN = 12;   // rows rendered beyond the viewport on each side
 // <Reorder> runs on that window; during a drag the window may only grow (never
 // evict) so items stay mounted while you auto-scroll. The sort arrives with the
 // page (initialSort), so the list is ordered on its first paint.
-function TrackList({ data, refId, kind, playUrl, initialSort }) {
-    const isPlaylist = data.type === "playlist";
+function TrackList({ data, refId, kind, playUrl, initialSort, actions }) {
+    const { notify } = useNifty();
     const reorderable = !!data.reorderable;
 
     const [sort, setSort] = useState(initialSort || { sortBy: "custom", sortDesc: false });
     const [order, setOrder] = useState(data.tracks || []);
     const orderRef = useRef(order); orderRef.current = order;
+    const beforeDrag = useRef(order);
 
     const wrapRef = useRef(null);          // spacers + rows; its top = logical row 0
     const scrollerRef = useRef(null);
@@ -89,8 +88,12 @@ function TrackList({ data, refId, kind, playUrl, initialSort }) {
     const { start: startAutoscroll, stop: stopAutoscroll } = useDragScroll(wrapRef);
 
     const dragEnabled = reorderable && sort.sortBy === "custom";
-    const displayed = dragEnabled ? order : sortTracks(order, sort.sortBy, sort.sortDesc);
+    const displayed = useMemo(() => sortTracks(order, sort.sortBy, sort.sortDesc), [order, sort.sortBy, sort.sortDesc]);
+    const rowKeys = useMemo(() => new Map(order.map((track, i) => [track,
+        track.entryId != null ? `entry:${track.entryId}` : `track:${track.url || track.playQuery || track.title}:${i}`
+    ])), [order]);
     const total = displayed.length;
+    const totalRef = useRef(total); totalRef.current = total;
 
     const [range, setRange] = useState({ start: 0, end: 30 });
     const rangeRef = useRef(range); rangeRef.current = range;
@@ -103,8 +106,8 @@ function TrackList({ data, refId, kind, playUrl, initialSort }) {
         const sc = scroller.getBoundingClientRect();
         const rect = wrap.getBoundingClientRect();
         const past = sc.top - rect.top;             // px of the list scrolled above the viewport
-        const n = orderRef.current.length;
-        let start = Math.max(0, Math.floor(past / ROW_H) - OVERSCAN);
+        const n = totalRef.current;
+        let start = Math.min(Math.max(0, n - 1), Math.max(0, Math.floor(past / ROW_H) - OVERSCAN));
         let end = Math.min(n, Math.ceil((past + sc.height) / ROW_H) + OVERSCAN);
         if (end <= start) end = Math.min(n, start + 1);
         const prev = rangeRef.current;
@@ -115,17 +118,14 @@ function TrackList({ data, refId, kind, playUrl, initialSort }) {
         if (prev.start !== start || prev.end !== end) setRange({ start, end });
     }, []);
 
-    // Reset the window on data / sort change, then measure.
-    useEffect(() => { setOrder(data.tracks || []); }, [data.tracks]);
-    useEffect(() => { if (initialSort) setSort(initialSort); }, [initialSort]);
-    useEffect(() => {
-        setRange({ start: 0, end: 30 });
-        const id = requestAnimationFrame(recompute);
-        return () => cancelAnimationFrame(id);
-    }, [total, sort.sortBy, recompute]);
+    // Keep the visible window at the current scroll position. Resetting to row
+    // zero and measuring on the next frame briefly blanks a scrolled table.
+    useIsoEffect(() => { setOrder(data.tracks || []); }, [data.tracks]);
+    useIsoEffect(() => { if (initialSort) setSort(initialSort); }, [initialSort]);
+    useIsoEffect(recompute, [total, sort.sortBy, sort.sortDesc, recompute]);
 
-    // Follow the page scroller.
-    useEffect(() => {
+    // Measure before the first paint, then follow the page scroller.
+    useIsoEffect(() => {
         const scroller = findScroller(wrapRef.current);
         scrollerRef.current = scroller;
         if (!scroller) return;
@@ -144,22 +144,24 @@ function TrackList({ data, refId, kind, playUrl, initialSort }) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "set_sort", ref: refId, sortBy: next.sortBy, sortDesc: next.sortDesc })
-        }).catch(() => {});
+        }).then((response) => { if (!response.ok) throw new Error(); })
+            .catch(() => notify("Couldn't save your sort preference"));
     };
 
     const chooseSort = (sortBy) => {
-        if (sortBy === sort.sortBy && sortBy !== "custom") persistSort({ sortBy, sortDesc: !sort.sortDesc });
-        else persistSort({ sortBy, sortDesc: false });
+        persistSort({ sortBy, sortDesc: sortBy === "added" });
     };
 
     // framer <Reorder> reorders only the mounted window; splice it back into
     // the full order around the window bounds.
     const onReorder = (winRows) => {
         const { start, end } = rangeRef.current;
-        setOrder([...orderRef.current.slice(0, start), ...winRows, ...orderRef.current.slice(end)]);
+        const next = [...orderRef.current.slice(0, start), ...winRows, ...orderRef.current.slice(end)];
+        orderRef.current = next;
+        setOrder(next);
     };
 
-    const onRowDragStart = () => { draggingRef.current = true; startAutoscroll(); };
+    const onRowDragStart = () => { beforeDrag.current = orderRef.current; draggingRef.current = true; startAutoscroll(); };
     const onRowDragEnd = () => {
         draggingRef.current = false;
         stopAutoscroll();
@@ -168,7 +170,14 @@ function TrackList({ data, refId, kind, playUrl, initialSort }) {
             const body = data.liked
                 ? { action: "reorder_liked", order: ids }
                 : { action: "reorder_playlist", playlistId: parseEntityId(refId)?.id, order: ids };
-            fetch("/api/library", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => {});
+            const committed = orderRef.current;
+            const previous = beforeDrag.current;
+            fetch("/api/library", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+                .then((response) => { if (!response.ok) throw new Error(); })
+                .catch(() => {
+                    if (orderRef.current === committed) { orderRef.current = previous; setOrder(previous); }
+                    notify("Couldn't save that order. Please try again.");
+                });
         }
         requestAnimationFrame(recompute); // collapse the grown window back to the viewport
     };
@@ -176,39 +185,21 @@ function TrackList({ data, refId, kind, playUrl, initialSort }) {
     const hasAddedDates = (data.tracks || []).some((t) => t.addedAt);
     const sortOptions = BASE_SORT_OPTIONS.filter((o) => o.id !== "added" || hasAddedDates);
 
-    const { onContextMenu: openSortMenu } = useContextMenu(() =>
-        sortOptions.map((o) => ({
-            label: o.id === sort.sortBy && o.id !== "custom"
-                ? `${o.label} · ${sort.sortDesc ? "descending" : "ascending"}`
-                : o.label,
-            icon: o.id === sort.sortBy ? "check" : undefined,
-            onClick: () => chooseSort(o.id)
-        }))
-    );
-
-    const currentSortLabel = BASE_SORT_OPTIONS.find((o) => o.id === sort.sortBy)?.label || "Custom order";
-
     const header = (
-        <div className="flex items-center gap-3 border-b border-border/60 px-2 pb-2 text-[10px] font-bold uppercase tracking-wide text-subtext">
-            <span className="hidden w-5 shrink-0 text-center sm:block">#</span>
-            <span className="w-11 shrink-0" />
-            <span className="min-w-0 flex-1">Title</span>
-            {isPlaylist && (
-                <button onClick={openSortMenu} title="Sort" className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-subtext transition-colors hover:bg-elevated hover:text-maintext">
-                    <Icon name="list" className="h-3.5 w-3.5" />
-                    {currentSortLabel}
-                    {sort.sortBy !== "custom" && <Icon name="chevron-down" className={`h-3 w-3 transition-transform ${sort.sortDesc ? "" : "rotate-180"}`} />}
-                </button>
-            )}
-            <span className="w-12 shrink-0 text-center">Time</span>
-        </div>
+        <>
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
+                {actions}
+                <SortDropdown options={sortOptions} value={sort.sortBy} onChange={chooseSort} descending={sort.sortDesc} onDirectionChange={(sortDesc) => persistSort({ ...sort, sortDesc })} />
+            </div>
+            <TrackTableHeader />
+        </>
     );
 
     if (total === 0) {
         return (
-            <div className="flex flex-col px-4 pb-6">
+            <div className={`flex flex-col pb-8 ${TRACK_TABLE_GUTTER_CLASS}`}>
                 {header}
-                <div className="px-2 py-8 text-sm text-subtext">
+                <div className="px-3 py-14 text-center text-sm text-subtext">
                     {playUrl
                         ? `Track list unavailable for this ${kind} — Play still queues the whole thing.`
                         : data.liked
@@ -222,10 +213,12 @@ function TrackList({ data, refId, kind, playUrl, initialSort }) {
     const winRows = displayed.slice(range.start, range.end);
     const rowEls = winRows.map((track, i) => (
         <TrackRow
-            key={dragEnabled ? track.entryId : `${track.url}-${range.start + i}`}
+            key={rowKeys.get(track)}
             track={track}
+            collection
             index={range.start + i + 1}
-            dragValue={dragEnabled ? track : null}
+            dragValue={reorderable ? track : null}
+            dragEnabled={dragEnabled}
             onDragStart={onRowDragStart}
             onDragEnd={onRowDragEnd}
         />
@@ -234,11 +227,11 @@ function TrackList({ data, refId, kind, playUrl, initialSort }) {
     const botPad = Math.max(0, (total - range.end) * ROW_H);
 
     return (
-        <div className="flex flex-col px-4 pb-6">
+        <div className={`flex flex-col pb-8 ${TRACK_TABLE_GUTTER_CLASS}`}>
             {header}
             <div ref={wrapRef} className="flex flex-col">
                 {topPad > 0 && <div style={{ height: topPad }} aria-hidden />}
-                {dragEnabled ? (
+                {reorderable ? (
                     <Reorder.Group as="div" axis="y" values={winRows} onReorder={onReorder} className="flex flex-col">
                         {rowEls}
                     </Reorder.Group>
@@ -257,18 +250,18 @@ export default function CollectionPage({ id }) {
     const [data, setData] = useState(null);
     const [sortPref, setSortPref] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [retry, setRetry] = useState(0);
 
     useEffect(() => {
         let stale = false;
         setLoading(true);
         setData(null);
         setSortPref(null);
-        setPageArt(null);
         // Fetch the tracks and the saved sort together so the list is ordered
         // correctly on its first paint — no flash of custom order re-sorting
         // once a later sort request lands.
         Promise.all([
-            fetch(`/api/browse?id=${encodeURIComponent(id)}`).then((r) => r.json()),
+            fetch(`/api/browse?id=${encodeURIComponent(id)}`).then((r) => { if (!r.ok) throw new Error(); return r.json(); }),
             fetch(`/api/library?view=sort&ref=${encodeURIComponent(id)}`).then((r) => r.json()).catch(() => null)
         ])
             .then(([j, s]) => {
@@ -277,15 +270,14 @@ export default function CollectionPage({ id }) {
                 setData(j);
                 // Liked songs gets the accent-tinted backdrop matching its
                 // cover tile, never a track's artwork.
-                setPageArt(j?.liked ? "accent" : j?.artwork || null);
+                setPageArt(j?.liked ? "accent" : j?.artwork || null, id);
             })
             .catch(() => !stale && setData(null))
             .finally(() => !stale && setLoading(false));
         return () => {
             stale = true;
-            setPageArt(null);
         };
-    }, [id, setPageArt]);
+    }, [id, setPageArt, retry]);
 
     const tracks = data?.tracks || [];
     const kind = data?.type || "collection";
@@ -311,102 +303,90 @@ export default function CollectionPage({ id }) {
     const length = totalDuration(tracks);
     const metaBits = [
         year,
-        tracks.length ? `${tracks.length} track${tracks.length === 1 ? "" : "s"}` : null,
+        `${tracks.length.toLocaleString()} song${tracks.length === 1 ? "" : "s"}`,
         length
     ].filter(Boolean);
 
-    if (loading) return <PageLoader />;
-    if (!data?.title) {
-        return <div className="p-8 text-center text-sm text-subtext">Couldn&apos;t load this {data?.type || "page"}.</div>;
-    }
-
     return (
-        // One-shot fade-in only — no AnimatePresence / popLayout wrapping the
-        // track list, so framer never re-measures a thousands-long list during
-        // a drag (that layout pass, absent on the queue page, was the lag).
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2, ease: EASE }}>
-                    <div className="flex flex-col">
-                        {/* header — the artwork blur behind it is pinned by CenterContent */}
-                        <div className="flex flex-col gap-6 px-6 pb-6 pt-14 sm:flex-row sm:items-end">
-                            {data.liked ? (
-                                <span className="flex h-48 w-48 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-accent to-accent/40 text-canvas shadow-2xl">
-                                    <Icon name="heart-filled" className="h-20 w-20" />
-                                </span>
-                            ) : (
-                                <img
-                                    src={artworkOrFallback(data.artwork)}
-                                    onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
-                                    className="h-48 w-48 shrink-0 rounded-md object-cover shadow-2xl ring-1 ring-white/10"
-                                    alt=""
-                                />
-                            )}
-                            <div className="flex min-w-0 flex-col gap-2 drop-shadow-sm">
-                                <span className="text-xs font-bold uppercase tracking-wide text-maintext/80">{kind}</span>
-                                <h1 className="text-4xl font-extrabold leading-tight sm:text-5xl">{data.title}</h1>
-                                {data.subtitle && (
-                                    kind === "album" ? (
-                                        <ArtistLink
-                                            name={data.subtitle}
-                                            browseId={data.artistBrowseId}
-                                            className="text-sm font-semibold text-maintext/90"
-                                        />
-                                    ) : (
-                                        <span className="text-sm font-semibold text-maintext/90">{data.subtitle}</span>
-                                    )
-                                )}
-                                {metaBits.length > 0 && (
-                                    <span className="text-xs text-maintext/70">{metaBits.join(" · ")}</span>
-                                )}
-                            </div>
-                        </div>
+        <LoadingSwap loading={loading} fallback={<CollectionSkeleton liked={id === "nifty:playlist:liked"} />}>
+            {data?.title ? <div className="flex flex-col">
+                {/* header — the artwork blur behind it is pinned by CenterContent */}
+                <CollectionHeader
+                    artwork={data.artwork}
+                    icon={data.liked ? "heart-filled" : null}
+                    eyebrow={data.liked ? "Your collection" : kind === "album" ? "Album" : "Playlist"}
+                    title={data.title}
+                >
+                    {data.subtitle && (
+                        kind === "album" ? (
+                            <ArtistLink
+                                name={data.subtitle}
+                                browseId={data.artistBrowseId}
+                                className="text-sm font-semibold text-maintext/90"
+                            />
+                        ) : (
+                            <span className="text-sm font-semibold text-maintext/90">{data.subtitle}</span>
+                        )
+                    )}
+                    {metaBits.length > 0 && (
+                        <span className="mt-1 text-xs leading-relaxed text-maintext/70">{metaBits.join(" · ")}</span>
+                    )}
+                </CollectionHeader>
 
-                        {/* actions */}
-                        <div className="flex items-center gap-3 px-6 py-4">
-                            <button
-                                onClick={playAll}
-                                disabled={!selected || (tracks.length === 0 && !playUrl)}
-                                className="flex items-center gap-2 rounded-full bg-accent px-5 py-2 text-sm font-bold text-canvas transition hover:brightness-110 disabled:opacity-40"
-                            >
-                                <Icon name="play" className="h-4 w-4" /> Play
-                            </button>
-                            <button
-                                onClick={queueAll}
-                                disabled={!selected || (tracks.length === 0 && !playUrl)}
-                                className="flex items-center gap-2 rounded-full bg-elevated px-5 py-2 text-sm font-bold text-maintext transition hover:bg-surface disabled:opacity-40"
-                            >
-                                <Icon name="enqueue" className="h-4 w-4" /> Add all to queue
-                            </button>
-                            {!data.custom && (
-                                <button
-                                    onClick={() => toggleSaveEntity(item, data)}
-                                    title={saved ? "Remove from your library" : "Save to your library"}
-                                    className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${saved ? "text-accent" : "text-subtext hover:text-maintext"}`}
-                                >
-                                    <Icon name={saved ? "heart-filled" : "heart"} className="h-6 w-6" />
-                                </button>
-                            )}
-                            {data.custom && !data.liked && (
-                                <button
-                                    onClick={async () => {
-                                        const sure = await modal.confirm({
-                                            title: "Delete playlist?",
-                                            message: `“${data.title}” and everything in it will be gone for good.`,
-                                            confirmLabel: "Delete",
-                                            danger: true
-                                        });
-                                        if (sure) removePlaylist(item);
-                                    }}
-                                    title="Delete this playlist"
-                                    className="flex h-10 w-10 items-center justify-center rounded-full text-subtext transition-colors hover:text-rose-400"
-                                >
-                                    <Icon name="trash" className="h-5 w-5" />
-                                </button>
-                            )}
-                        </div>
-
-                        {/* tracks */}
-                        <TrackList data={data} refId={id} kind={kind} playUrl={playUrl} initialSort={sortPref} />
-                    </div>
-        </motion.div>
+                <TrackList key={id} data={data} refId={id} kind={kind} playUrl={playUrl} initialSort={sortPref} actions={
+                <div className="flex flex-wrap items-center gap-3">
+                    <button
+                        onClick={playAll}
+                        disabled={!selected || (tracks.length === 0 && !playUrl)}
+                        className="flex h-12 w-12 items-center justify-center rounded-full bg-accent text-canvas shadow-lg transition hover:scale-105 hover:brightness-110 disabled:opacity-40"
+                        title={`Play ${data.title}`}
+                        aria-label={`Play ${data.title}`}
+                    >
+                        <Icon name="play" className="ml-0.5 h-5 w-5" />
+                    </button>
+                    <button
+                        onClick={queueAll}
+                        disabled={!selected || (tracks.length === 0 && !playUrl)}
+                        className="flex min-h-8 items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-maintext transition-colors hover:border-subtext hover:bg-elevated disabled:opacity-40"
+                    >
+                        <Icon name="enqueue" className="h-4 w-4" /> Add all to queue
+                    </button>
+                    {!data.custom && !data.liked && (
+                        <button
+                            onClick={() => toggleSaveEntity(item, data)}
+                            title={saved ? "Remove from your library" : "Save to your library"}
+                            aria-label={saved ? "Remove from your library" : "Save to your library"}
+                            className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${saved ? "text-accent" : "text-subtext hover:text-maintext"}`}
+                        >
+                            <Icon name={saved ? "heart-filled" : "heart"} className="h-6 w-6" />
+                        </button>
+                    )}
+                    {data.custom && !data.liked && (
+                        <button
+                            onClick={async () => {
+                                const sure = await modal.confirm({
+                                    title: "Delete playlist?",
+                                    message: `“${data.title}” and everything in it will be gone for good.`,
+                                    confirmLabel: "Delete",
+                                    danger: true
+                                });
+                                if (sure) removePlaylist(item);
+                            }}
+                            title="Delete this playlist"
+                            aria-label="Delete this playlist"
+                            className="flex h-10 w-10 items-center justify-center rounded-full text-subtext transition-colors hover:text-rose-400"
+                        >
+                            <Icon name="trash" className="h-5 w-5" />
+                        </button>
+                    )}
+                </div>
+                } />
+            </div> : !loading ? (
+                <div className="flex flex-col items-center gap-4 px-6 py-20 text-center text-sm text-subtext">
+                    <p>Couldn&apos;t load this collection.</p>
+                    <button onClick={() => setRetry((value) => value + 1)} className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-maintext hover:border-subtext">Try again</button>
+                </div>
+            ) : null}
+        </LoadingSwap>
     );
 }

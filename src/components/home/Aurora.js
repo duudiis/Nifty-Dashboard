@@ -1,4 +1,4 @@
-import { AnimatePresence, motion, EASE } from "../motion/index.js";
+import { BackdropCrossfade, useBackdropPhase } from "../artwork.js";
 import useArtworkPalette from "./useArtworkPalette.js";
 
 /**
@@ -40,6 +40,7 @@ function curtainGradient(colors, shift) {
 export default function Aurora({ artwork, height = 360 }) {
     const palette = useArtworkPalette(artwork);
     const colors = palette && palette.length ? palette : FALLBACK;
+    const phase = useBackdropPhase();
 
     // Cycled rather than clamped: a two-colour cover still fills every layer,
     // just with its two colours alternating.
@@ -47,22 +48,8 @@ export default function Aurora({ artwork, height = 360 }) {
 
     return (
         <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 overflow-hidden" style={{ height }}>
-            {/* No mode="wait": the outgoing palette has to still be there while
-                the incoming one arrives, or a track change dips the whole band
-                to black on its way between two colours. Both layers are
-                absolute, so they simply cross over each other. */}
-            <AnimatePresence initial={false}>
-                <motion.div
-                    // Keyed on the palette, not the artwork: the colours land a
-                    // moment after the track does, and keying on the URL would
-                    // cross to the fallback first and then jump again.
-                    key={colors.join("|")}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 1.4, ease: EASE }}
-                    className="aurora"
-                >
+            <BackdropCrossfade identity={colors.join("|")} duration={1.4}>
+                <div className="aurora">
                     <div
                         className="aurora-base"
                         style={{ background: `radial-gradient(130% 115% at 50% 0%, ${at(0)} 0%, transparent 76%)` }}
@@ -72,7 +59,7 @@ export default function Aurora({ artwork, height = 360 }) {
                         <div
                             key={`lobe-${n}`}
                             className={`aurora-lobe aurora-lobe-${n}`}
-                            style={{ background: `radial-gradient(circle at 50% 50%, ${at(n - 1)} 0%, transparent 72%)` }}
+                            style={{ ...phase, background: `radial-gradient(circle at 50% 50%, ${at(n - 1)} 0%, transparent 72%)` }}
                         />
                     ))}
 
@@ -80,8 +67,8 @@ export default function Aurora({ artwork, height = 360 }) {
                         horizontally — two transforms that would otherwise
                         overwrite each other on one element. */}
                     {[1, 2, 3].map((n) => (
-                        <div key={`curtain-${n}`} className={`aurora-curtain aurora-curtain-${n}`}>
-                            <div style={{ backgroundImage: curtainGradient(colors, n) }} />
+                        <div key={`curtain-${n}`} className={`aurora-curtain aurora-curtain-${n}`} style={phase}>
+                            <div style={{ ...phase, backgroundImage: curtainGradient(colors, n) }} />
                         </div>
                     ))}
 
@@ -89,11 +76,11 @@ export default function Aurora({ artwork, height = 360 }) {
                         <div
                             key={`point-${n}`}
                             className={`aurora-point aurora-point-${n}`}
-                            style={{ background: `radial-gradient(circle at 50% 50%, ${at(n + 1)} 0%, transparent 70%)` }}
+                            style={{ ...phase, background: `radial-gradient(circle at 50% 50%, ${at(n + 1)} 0%, transparent 70%)` }}
                         />
                     ))}
-                </motion.div>
-            </AnimatePresence>
+                </div>
+            </BackdropCrossfade>
 
             {/* Settles the light into the page instead of cutting it off. */}
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-surface" />

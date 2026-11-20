@@ -64,7 +64,7 @@ async function bundleFor(seed) {
 
     return remember(key, {
         seed: { name: seed.name, browseId: seed.browseId, artwork: seed.artwork },
-        songs: (radio?.data || []).slice(0, 10).map((t) => ({ kind: "song", ...track(t) })),
+        songs: (radio?.data || []).slice(0, 18).map((t) => ({ kind: "song", ...track(t) })),
         artists: (related?.data || []).slice(0, 12).map(artistItem),
         releases: (albums?.data || [])
             .filter((a) => isRecent(a.release_date))

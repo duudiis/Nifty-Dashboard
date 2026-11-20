@@ -1,10 +1,12 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/router";
 
 import { buildEntityId, parseEntityId } from "../sources/ids.js";
 import { trackRow } from "../lib/trackShape.js";
+import { anchorPlayer, applyPlayerControl, progressAt, mergeAutoplay, matchesSession } from "../lib/playbackState.js";
 
 const NiftyContext = createContext(null);
+const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 export const THEME_GROUPS = {
     dark: ["nifty", "spotify", "amethyst", "crimson", "midnight", "forest", "sunset", "graphite", "ocean"],
@@ -191,9 +193,14 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     // Artwork for the current entity page's pinned backdrop. Lives here (not in
     // the page) so the transition layer can render it in the non-sliding layer
     // — the blur can never leak past the header during the slide-up.
-    const [pageArt, setPageArt] = useState(null);
+    const [entityArt, setEntityArt] = useState({});
+    const setPageArt = useCallback((artwork, id) => {
+        if (!id) return;
+        setEntityArt((previous) => previous[id] === artwork ? previous : { ...previous, [id]: artwork });
+    }, []);
 
     const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+    const [settingsLoaded, setSettingsLoaded] = useState(false);
 
     const wsRef = useRef(null);
     const reconnectRef = useRef(null);
@@ -202,55 +209,90 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     selectedRef.current = selected;
     const notifyIdRef = useRef(0);
 
-    /* ---- player/queue state: read straight from the shared database via the
-       HTTP API. The WebSocket only tells us WHEN to re-read (nudges). ---- */
+    const playerRef = useRef(player);
+    playerRef.current = player;
+    const revisions = useRef({ player: 0, queue: 0, autoplay: 0, session: 0 });
+    const requests = useRef({ player: 0, queue: 0 });
+    const idleTimer = useRef(null);
+    const pendingControl = useRef(null);
+    const controlTimer = useRef(null);
+    const resyncTimer = useRef(null);
+    const fetchStateRef = useRef(() => {});
 
+    const receivePlayer = useCallback((snapshot) => {
+        clearTimeout(idleTimer.current);
+        if (!snapshot?.track) {
+            // Track transitions briefly report idle. Keep the bar in place until
+            // the next track arrives, while an actual stop still clears promptly.
+            idleTimer.current = setTimeout(() => {
+                pendingControl.current = null;
+                setPlayer(null);
+            }, 450);
+            return;
+        }
+        const pending = pendingControl.current;
+        if (pending && pending.url === snapshot.track.songUrl && Date.now() < pending.until) {
+            const expected = progressAt(pending.player);
+            const seekMatches = Math.abs(snapshot.progress - expected) < 1800;
+            const pauseMatches = snapshot.playing === pending.player.playing;
+            if (!seekMatches || !pauseMatches) return;
+        }
+        pendingControl.current = null;
+        const next = anchorPlayer(snapshot);
+        playerRef.current = next;
+        setPlayer(next);
+    }, []);
+
+    useEffect(() => () => {
+        clearTimeout(idleTimer.current);
+        clearTimeout(controlTimer.current);
+        clearTimeout(resyncTimer.current);
+    }, []);
+
+    // An HTTP read may finish after a newer socket event or local action.
+    // Reconcile each stream separately so an old queue read cannot reset autoplay.
     const fetchState = useCallback(async (what = "both") => {
         const sel = selectedRef.current;
         if (!sel?.guildId || !sel?.botId) return;
+        const version = { ...revisions.current };
         const params = `botId=${encodeURIComponent(sel.botId)}&guildId=${encodeURIComponent(sel.guildId)}`;
-        const stillCurrent = () =>
+        const stillCurrent = () => version.session === revisions.current.session &&
             selectedRef.current?.guildId === sel.guildId && selectedRef.current?.botId === sel.botId;
-
-        // Both reads go out at once. The database is remote, so awaiting them
-        // one after the other put a whole extra round trip on every boot.
-        // A failed read resolves to undefined and is simply skipped — the next
-        // nudge retries it.
         const read = (path) => fetch(`${path}?${params}`, { cache: "no-store" })
-            .then((r) => (r.ok ? r.json() : undefined))
-            .catch(() => undefined);
-
-        const [playerJson, queueJson] = await Promise.all([
-            what !== "queue" ? read("/api/player") : undefined,
-            what !== "player" ? read("/api/queue") : undefined
-        ]);
-
-        if (stillCurrent()) {
-            if (playerJson !== undefined) {
-                // Anchor the server-computed progress to the local clock:
-                // displayed progress derives from this anchor instead of
-                // accumulating ticks, so it can never drift.
-                setPlayer(playerJson?.track
-                    ? { ...playerJson, _anchor: { progress: playerJson.progress || 0, at: Date.now() } }
-                    : null);
-                // The queue cursor rides along with the player row.
-                if (playerJson?.track && typeof playerJson.position === "number") {
-                    setQueue((prev) => ({ ...prev, position: playerJson.position }));
+            .then((r) => r.ok ? r.json() : undefined).catch(() => undefined);
+        const playerRequest = what !== "queue" ? ++requests.current.player : null;
+        const queueRequest = what !== "player" ? ++requests.current.queue : null;
+        await Promise.all([
+            playerRequest !== null ? read("/api/player").then((data) => {
+                if (!stillCurrent() || data === undefined || playerRequest !== requests.current.player || version.player !== revisions.current.player) return;
+                receivePlayer(data);
+                if (data?.track && typeof data.position === "number") {
+                    setQueue((prev) => ({ ...prev, position: data.position }));
                 }
-            }
-            if (queueJson !== undefined) {
-                setQueue({
-                    tracks: queueJson?.tracks || [],
-                    position: queueJson?.position ?? 0,
-                    autoplay: queueJson?.autoplay || EMPTY_AUTOPLAY
-                });
-            }
-        }
-
-        // A read that failed is still no longer "loading" — the boxes give way
-        // either way, and the next nudge retries in the background.
-        setStateLoaded(true);
-    }, []);
+            }) : undefined,
+            queueRequest !== null ? read("/api/queue").then((data) => {
+                if (!stillCurrent() || data === undefined || queueRequest !== requests.current.queue) return;
+                if (version.queue !== revisions.current.queue) {
+                    // A delta may have arrived before the initial full queue.
+                    // Fetch a fresh baseline instead of leaving a partial list.
+                    clearTimeout(resyncTimer.current);
+                    resyncTimer.current = setTimeout(() => {
+                        if (stillCurrent()) fetchStateRef.current("queue");
+                    }, 150);
+                }
+                setQueue((prev) => ({
+                    ...prev,
+                    ...(version.queue === revisions.current.queue ? { tracks: data?.tracks || [] } : {}),
+                    ...(version.queue === revisions.current.queue && version.player === revisions.current.player
+                        ? { position: data?.position ?? 0 } : {}),
+                    autoplay: version.autoplay === revisions.current.autoplay
+                        ? mergeAutoplay(prev.autoplay, data?.autoplay) : prev.autoplay
+                }));
+            }) : undefined
+        ]);
+        if (stillCurrent()) setStateLoaded(true);
+    }, [receivePlayer]);
+    fetchStateRef.current = fetchState;
 
     /* ---- transient toast notifications (shown stacked above the player) ---- */
 
@@ -272,6 +314,11 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     });
     const libraryRef = useRef(library);
     libraryRef.current = library;
+    // Resolve artwork for the destination during render. Page cleanup must
+    // never clear a shared tint after the next route has already mounted.
+    const pageArt = entityId === "nifty:playlist:liked" ? "accent"
+        : Object.hasOwn(entityArt, entityId) ? entityArt[entityId] || "accent"
+        : library.items.find((item) => item.browseId === entityId)?.artwork || null;
 
     // O(1) liked-URL lookup — rebuilt only when the liked set changes, not per
     // row. Without this, isLiked() scanning a thousands-long array on every one
@@ -457,9 +504,16 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
 
     /* ---- settings: load + persist + apply theme ---- */
 
-    useEffect(() => { setSettings(loadSettings()); }, []);
+    useBeforePaint(() => {
+        setSettings(loadSettings());
+        setSettingsLoaded(true);
+    }, []);
 
-    useEffect(() => {
+    useBeforePaint(() => {
+        // The document already applied the saved theme before hydration.
+        // Applying DEFAULT_SETTINGS first briefly restored Nifty's colors and
+        // then transitioned every element back to the saved theme.
+        if (!settingsLoaded) return;
         if (typeof window === "undefined") return;
         const root = document.documentElement;
         root.dataset.theme = settings.theme;
@@ -497,7 +551,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         }
 
         try { localStorage.setItem("nifty:settings", JSON.stringify(settings)); } catch {}
-    }, [settings]);
+    }, [settings, settingsLoaded]);
 
     const updateSettings = useCallback((patch) => {
         setSettings((prev) => ({ ...prev, ...patch }));
@@ -505,30 +559,44 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
 
     /* ---- websocket ---- */
 
-    const sendRef = useRef(() => {});
+    const sendRef = useRef(() => false);
     const send = useCallback((operation, data = {}) => {
-        sendRef.current(operation, data);
+        return sendRef.current(operation, data);
     }, []);
 
     useEffect(() => {
-        if (!user) return;
+        if (!user?.id) return;
 
         let closed = false;
+        let offlineTimer;
+        const botTimers = new Map();
 
         const connect = () => {
+            if (closed) return;
+            clearTimeout(reconnectRef.current);
             const proto = window.location.protocol === "https:" ? "wss" : "ws";
             const ws = new WebSocket(`${proto}://${window.location.host}/ws`);
             wsRef.current = ws;
+            let identified = false;
 
             sendRef.current = (operation, data = {}) => {
-                if (ws.readyState === WebSocket.OPEN) {
+                if (identified && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({ operation, data }));
+                    return true;
                 }
+                return false;
             };
 
             ws.onmessage = (event) => {
+                if (closed || wsRef.current !== ws) return;
                 let message;
                 try { message = JSON.parse(event.data); } catch { return; }
+
+                const stateEvent = /^(p_full|q_|a_full|player_updated|queue_updated)/.test(message.operation);
+                if (stateEvent && !matchesSession(message.data, selectedRef.current)) return;
+                if (message.operation === "p_full") revisions.current.player++;
+                if (/^q_/.test(message.operation)) revisions.current.queue++;
+                if (message.operation === "a_full") revisions.current.autoplay++;
 
                 switch (message.operation) {
 
@@ -538,6 +606,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
                     // working when a background tab's timers are throttled.
 
                     case "identify_success": {
+                        identified = true;
                         setConnected(true);
                         retryRef.current = 0;
                         // On every (re)connect, check whether a newer dashboard
@@ -564,12 +633,15 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
                     case "sessions": {
                         const botId = message.data?.botId || null;
                         const botName = message.data?.botName;
+                        clearTimeout(offlineTimer);
+                        clearTimeout(botTimers.get(botId || botName));
+                        botTimers.delete(botId || botName);
                         const incoming = message.data?.sessions || [];
                         // The hub answering with no bot at all means none are
                         // online — drop everything, don't merge.
                         setSessionsLoaded(true);
                         if (!botId && !botName) {
-                            setSessions([]);
+                            offlineTimer = setTimeout(() => setSessions([]), selectedRef.current ? 12000 : 0);
                             break;
                         }
                         // Replace this bot's entries, keep the others.
@@ -605,8 +677,12 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
 
                     case "p_full": {
                         const d = message.data;
+                        if (typeof d?.autoplay === "boolean") {
+                            revisions.current.autoplay++;
+                            setQueue((prev) => ({ ...prev, autoplay: mergeAutoplay(prev.autoplay, { enabled: d.autoplay }) }));
+                        }
                         // No track loaded → the player is idle.
-                        if (!d || !d.track) { setPlayer(null); break; }
+                        if (!d || !d.track) { receivePlayer(null); break; }
                         const track = trackRow(d.track);
                         const payload = {
                             progress: d.progress || 0,
@@ -618,7 +694,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
                             position: d.position,
                             track
                         };
-                        setPlayer({ ...payload, _anchor: { progress: payload.progress, at: Date.now() } });
+                        receivePlayer(payload);
                         if (typeof d.position === "number") {
                             setQueue((prev) => ({ ...prev, position: d.position }));
                             // If the now-playing track isn't the one sitting at the
@@ -689,11 +765,11 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
                     // travels as one snapshot.
                     case "a_full": {
                         const d = message.data || {};
-                        const tracks = (d.tracks || []).map((r) => ({
+                        const tracks = Array.isArray(d.tracks) ? d.tracks.map((r) => ({
                             auto_id: String(r.id),
                             ...trackRow(r)
-                        }));
-                        setQueue((prev) => ({ ...prev, autoplay: { enabled: !!d.enabled, tracks } }));
+                        })) : undefined;
+                        setQueue((prev) => ({ ...prev, autoplay: mergeAutoplay(prev.autoplay, { ...d, tracks }) }));
                         break;
                     }
 
@@ -704,7 +780,11 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
                         const botName = message.data?.botName;
                         const key = botId || botName;
                         if (!key) break;
-                        setSessions((prev) => prev.filter((s) => (s.botId || s.botName) !== key));
+                        clearTimeout(botTimers.get(key));
+                        botTimers.set(key, setTimeout(() => {
+                            botTimers.delete(key);
+                            setSessions((prev) => prev.filter((s) => (s.botId || s.botName) !== key));
+                        }, 12000));
                         break;
                     }
 
@@ -714,25 +794,43 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
             };
 
             ws.onclose = () => {
+                if (closed || wsRef.current !== ws) return;
                 setConnected(false);
-                if (closed) return;
                 // Retry almost immediately so a blip is invisible, backing off
                 // only if the hub really is down.
                 const delay = Math.min(300 * 2 ** retryRef.current++, 5000);
                 reconnectRef.current = setTimeout(connect, delay);
             };
 
-            ws.onerror = () => { try { ws.close(); } catch {} };
+            // onclose owns reconnects; an error can precede it.
+            ws.onerror = () => {};
         };
 
+        const wake = () => {
+            if (closed) return;
+            const ws = wsRef.current;
+            if (!ws || ws.readyState === WebSocket.CLOSED) connect();
+            else if (ws.readyState === WebSocket.OPEN) {
+                send("sessions_request");
+                fetchState("both");
+            }
+        };
+        const onVisible = () => { if (document.visibilityState === "visible") wake(); };
+        window.addEventListener("online", wake);
+        document.addEventListener("visibilitychange", onVisible);
         connect();
 
         return () => {
             closed = true;
             clearTimeout(reconnectRef.current);
+            clearTimeout(offlineTimer);
+            for (const timer of botTimers.values()) clearTimeout(timer);
+            window.removeEventListener("online", wake);
+            document.removeEventListener("visibilitychange", onVisible);
+            sendRef.current = () => false;
             try { wsRef.current?.close(); } catch {}
         };
-    }, [user, fetchState]);
+    }, [user?.id, fetchState, receivePlayer, send]);
 
     // Opening the queue page does a one-off full fetch as a safety net: local
     // state is kept live by deltas, but this reconciles anything a missed delta
@@ -757,20 +855,31 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         const id = setInterval(() => {
             setPlayer((prev) => {
                 if (!prev?.playing || !prev?.track || !prev?._anchor) return prev;
-                const rate = prev.speed || 1;
-                const elapsed = (Date.now() - prev._anchor.at) * rate;
-                const duration = prev.track.duration || Infinity;
-                const next = Math.min(prev._anchor.progress + elapsed, duration);
+                const next = progressAt(prev);
                 if (next === prev.progress) return prev;
                 return { ...prev, progress: next };
             });
-        }, 500);
+        }, 250);
         return () => clearInterval(id);
     }, [player?.playing, player?.track?.songUrl, player?._anchor?.at]);
 
     /* ---- actions ---- */
 
     const selectSession = useCallback((session, { switchView = true } = {}) => {
+        if (session?.guildId && selectedRef.current &&
+            String(session.guildId) === String(selectedRef.current.guildId) &&
+            String(session.botId) === String(selectedRef.current.botId)) {
+            setSelected(session);
+            if (switchView) setView("queue");
+            return;
+        }
+        clearTimeout(idleTimer.current);
+        clearTimeout(controlTimer.current);
+        clearTimeout(resyncTimer.current);
+        pendingControl.current = null;
+        revisions.current.session++;
+        selectedRef.current = session;
+        setStateLoaded(false);
         setSelected(session);
         setPlayer(null);
         setQueue(EMPTY_QUEUE);
@@ -792,6 +901,10 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
             // Nothing controllable anymore (e.g. the only bot went offline):
             // clear the stale selection so the UI shows its empty state.
             if (selectedRef.current) {
+                clearTimeout(idleTimer.current);
+                pendingControl.current = null;
+                selectedRef.current = null;
+                revisions.current.session++;
                 setSelected(null);
                 setPlayer(null);
                 setQueue(EMPTY_QUEUE);
@@ -810,8 +923,22 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     const control = useCallback((action, extra = {}) => {
         const sel = selectedRef.current;
         if (!sel?.guildId) return;
-        send("action", { botId: sel.botId, guildId: sel.guildId, action, ...extra });
-    }, [send]);
+        const sent = send("action", { botId: sel.botId, guildId: sel.guildId, action, ...extra });
+        if (!sent) { notify("Reconnecting — try again in a moment"); return false; }
+        if (action === "seek" || action === "togglePause") {
+            revisions.current.player++;
+            const next = applyPlayerControl(playerRef.current, action, extra);
+            playerRef.current = next;
+            if (next?.track) pendingControl.current = { player: next, url: next.track.songUrl, until: Date.now() + 2500 };
+            setPlayer(next);
+            clearTimeout(controlTimer.current);
+            const sessionVersion = revisions.current.session;
+            controlTimer.current = setTimeout(() => {
+                if (sessionVersion === revisions.current.session) fetchStateRef.current("player");
+            }, 2700);
+        }
+        return true;
+    }, [send, notify]);
 
     // Ask the bot to join the user's voice channel in the selected guild.
     const summon = useCallback(() => control("summon"), [control]);
@@ -821,7 +948,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     const play = useCallback((query, mode = "queue", label) => {
         const sel = selectedRef.current;
         if (!sel?.guildId || !query) return;
-        send("action", {
+        const sent = send("action", {
             botId: sel.botId,
             guildId: sel.guildId,
             action: "play",
@@ -829,6 +956,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
             now: mode === "now",
             next: mode === "next"
         });
+        if (!sent) { notify("Reconnecting — try again in a moment"); return; }
         // A label means a single user-initiated add — toast it. Bulk callers
         // (queue-all) pass no label and emit their own single notification.
         if (label) {
@@ -866,7 +994,9 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     // Promote a suggestion into the real queue (attributed to this user).
     const autoplayPlay = useCallback((autoId) => control("autoplayPlay", { autoId }), [control]);
     const autoplayPlayNext = useCallback((autoId) => control("autoplayPlayNext", { autoId }), [control]);
-    const autoplayQueue = useCallback((autoId) => control("autoplayQueue", { autoId }), [control]);
+    const autoplayQueue = useCallback((autoId, toIndex) => control("autoplayQueue", {
+        autoId, ...(Number.isInteger(toIndex) ? { toIndex } : {})
+    }), [control]);
 
     const jump = useCallback((trackId) => control("jump", addressEntry(trackId)), [control, addressEntry]);
     // Play now: bot moves the entry to right after the current track, then jumps.
@@ -882,17 +1012,19 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     // The actual fetch. `initiatedRef` guards against running the same query
     // twice when both a click and the URL-sync effect fire.
     const initiatedRef = useRef("");
+    const searchRequestRef = useRef(0);
     const doSearch = useCallback(async (query) => {
         const q = query.trim();
         if (!q) return;
         initiatedRef.current = q;
+        const request = ++searchRequestRef.current;
         setSearch({ query: q, sections: [], loading: true });
         try {
             const res = await fetch(`/api/search?query=${encodeURIComponent(q)}`);
             const json = await res.json();
-            setSearch({ query: q, sections: json.sections || [], loading: false });
+            if (request === searchRequestRef.current) setSearch({ query: q, sections: json.sections || [], loading: false });
         } catch {
-            setSearch({ query: q, sections: [], loading: false });
+            if (request === searchRequestRef.current) setSearch({ query: q, sections: [], loading: false });
         }
     }, []);
 
@@ -942,6 +1074,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         user,
         connected,
         ready,
+        stateLoaded,
         sessions,
         selected,
         player,

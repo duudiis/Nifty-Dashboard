@@ -1,70 +1,35 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { AnimatePresence, motion, EASE, DUR } from "./motion/index.js";
-
-const fade = {
-    initial: { opacity: 0 },
-    animate: { opacity: 1 },
-    exit: { opacity: 0 },
-    transition: { duration: DUR.base, ease: EASE }
-};
-
-// Placeholder that mirrors the loaded "About" layout (facts grid + artist blurb).
-function InfoSkeleton() {
-    return (
-        <div className="flex flex-col gap-4 border-t border-border/60 pt-4">
-            <div className="flex flex-col gap-2.5">
-                <div className="h-2.5 w-24 rounded bg-elevated" />
-                <div className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-2.5">
-                    {[
-                        ["w-12", "w-24"],
-                        ["w-14", "w-16"],
-                        ["w-16", "w-12"],
-                        ["w-12", "w-20"]
-                    ].map(([l, r], i) => (
-                        <div key={i} className="contents">
-                            <div className={`h-3 ${l} rounded bg-elevated`} />
-                            <div className={`h-3 ${r} justify-self-end rounded bg-elevated`} />
-                        </div>
-                    ))}
-                </div>
-            </div>
-            <div className="flex flex-col gap-2.5">
-                <div className="h-2.5 w-24 rounded bg-elevated" />
-                {["w-full", "w-full", "w-full", "w-2/3"].map((w, i) => (
-                    <div key={i} className={`h-3 ${w} rounded bg-elevated`} />
-                ))}
-            </div>
-        </div>
-    );
-}
+import { LoadingSwap } from "./motion/index.js";
+import { SongInfoSkeleton } from "./Loader.js";
 
 // Fetches the server-cached extra song context (/api/songinfo): facts from
 // iTunes plus a short artist blurb from Wikipedia. Shows a skeleton while it
 // loads, then crossfades to the content (or nothing if there's none).
 export default function SongInfo({ track }) {
-    const [info, setInfo] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const key = track?.title ? JSON.stringify([track.title, track.artist || ""]) : null;
+    const cache = useRef(new Map());
+    const [result, setResult] = useState(null);
+    const known = key && (result?.key === key || cache.current.has(key));
+    const info = result?.key === key ? result.info : cache.current.get(key);
+    const loading = !!key && !known;
 
     useEffect(() => {
-        if (!track?.title) {
-            setInfo(null);
-            setLoading(false);
-            return;
-        }
-        let stale = false;
-        setLoading(true);
-        setInfo(null);
+        if (!key || cache.current.has(key)) return;
+        const controller = new AbortController();
         const qs = new URLSearchParams({ title: track.title, artist: track.artist || "" });
-        fetch(`/api/songinfo?${qs}`)
-            .then((r) => r.json())
-            .then((j) => !stale && setInfo(j))
-            .catch(() => !stale && setInfo(null))
-            .finally(() => !stale && setLoading(false));
-        return () => {
-            stale = true;
+        const publish = (info) => {
+            if (controller.signal.aborted) return;
+            cache.current.set(key, info);
+            if (cache.current.size > 24) cache.current.delete(cache.current.keys().next().value);
+            setResult({ key, info });
         };
-    }, [track?.songUrl, track?.title]);
+        fetch(`/api/songinfo?${qs}`, { signal: controller.signal })
+            .then((r) => r.ok ? r.json() : null)
+            .then(publish)
+            .catch(() => publish(null));
+        return () => controller.abort();
+    }, [key]);
 
     const it = info?.itunes;
     const artist = info?.artist;
@@ -79,13 +44,9 @@ export default function SongInfo({ track }) {
     ].filter(Boolean);
 
     return (
-        <AnimatePresence mode="wait" initial={false}>
-            {loading ? (
-                <motion.div key="skeleton" {...fade}>
-                    <InfoSkeleton />
-                </motion.div>
-            ) : hasContent ? (
-                <motion.div key="content" {...fade} className="flex flex-col gap-4 border-t border-border/60 pt-4">
+        <LoadingSwap loading={loading} fallback={<SongInfoSkeleton />}>
+            {hasContent ? (
+                <div className="flex flex-col gap-4 border-t border-border/60 pt-4">
                     {facts.length > 0 && (
                         <div className="flex flex-col gap-2">
                             <span className="text-[10px] font-bold uppercase tracking-wide text-subtext">About this song</span>
@@ -126,8 +87,8 @@ export default function SongInfo({ track }) {
                             )}
                         </div>
                     )}
-                </motion.div>
+                </div>
             ) : null}
-        </AnimatePresence>
+        </LoadingSwap>
     );
 }

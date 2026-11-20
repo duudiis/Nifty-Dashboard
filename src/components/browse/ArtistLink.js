@@ -25,9 +25,10 @@ export default function ArtistLink({ name, browseId = null, className = "" }) {
     return (
         <button
             type="button"
+            onPointerDown={(event) => event.stopPropagation()}
             onClick={open}
             title={`Go to ${name}`}
-            className={`min-w-0 truncate text-left transition-colors hover:text-maintext hover:underline ${className}`}
+            className={`w-fit min-w-0 max-w-full self-start truncate text-left transition-colors hover:text-maintext hover:underline ${className}`}
         >
             {name}
         </button>

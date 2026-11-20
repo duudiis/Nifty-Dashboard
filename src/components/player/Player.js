@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useTransform } from "framer-motion";
 
 import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
@@ -6,8 +7,9 @@ import { getYouTubeVideoId } from "../../lib/youtube.js";
 import Icon from "../Icon.js";
 import AddedBy from "../AddedBy.js";
 import ArtistLink from "../browse/ArtistLink.js";
+import { BackdropCrossfade, useDecodedArtwork } from "../artwork.js";
 import Marquee from "../Marquee.js";
-import { AnimatePresence, motion, entrance, EASE } from "../motion/index.js";
+import { AnimatePresence, motion, useEntrance, EASE, useContentChange, useCrossfadeWeights } from "../motion/index.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
 import ProgressBar from "./ProgressBar.js";
@@ -50,9 +52,8 @@ function IconButton({ onClick, active, title, large, disabled, className = "", c
 }
 
 function Controls({ playing, onPlayPause, sideDisabled, playDisabled }) {
-    const { player, control, queue, toggleAutoplay } = useNifty();
+    const { player, control } = useNifty();
     const loopActive = player?.loop && player.loop !== "disabled";
-    const autoplayOn = queue.autoplay?.enabled ?? false;
 
     // First press restarts the current track; press again near the start to go to
     // the previous track (Spotify-style ~3s threshold).
@@ -83,11 +84,6 @@ function Controls({ playing, onPlayPause, sideDisabled, playDisabled }) {
                 <Icon name={player?.loop === "track" ? "loop-one" : "loop"} className="h-[17px] w-[17px]" />
             </IconButton>
 
-            {/* Autoplay stays clickable while "ended" — flipping it on is
-                exactly how you keep the music going from there. */}
-            <IconButton onClick={toggleAutoplay} active={autoplayOn} title={autoplayOn ? "Autoplay: on" : "Autoplay: off"}>
-                <Icon name="infinity" className="h-[18px] w-[18px]" />
-            </IconButton>
         </div>
     );
 }
@@ -98,22 +94,25 @@ function Song({ track }) {
     const { onContextMenu, active } = useContextMenu(() => (track ? trackMenu(track, { source: "player" }) : []));
 
     const liked = track ? isLiked(track) : false;
+    const art = useDecodedArtwork(artworkOrFallback(track?.artwork), { fallback: artworkOrFallback(null) });
+    // Keep the title, artist link and requester mounted while the next song
+    // settles into place. No opacity reset or second entrance after loading.
+    const metadataY = useContentChange(track?.songUrl || track?.title, { distance: 6, duration: 0.28 });
 
     return (
         <div
             onContextMenu={onContextMenu}
             className={`group -mx-2 flex min-w-0 items-center gap-3 rounded-md px-2 py-1 transition ${active ? "bg-maintext/5" : ""}`}
         >
-            <img
-                src={artworkOrFallback(track?.artwork)}
-                onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
-                className="h-14 w-14 shrink-0 rounded-md object-cover shadow-md"
-                alt=""
-            />
-            <div className="flex min-w-0 max-w-[14rem] flex-col leading-tight">
-                <Marquee text={track?.title || ""} className="text-[13px] font-bold text-maintext" />
-                <ArtistLink name={track?.artist || "—"} className="text-[11px] text-subtext" />
+            <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md bg-elevated shadow-md" data-player-art>
+                <BackdropCrossfade identity={art} duration={0.2}>
+                    {art && <img src={art} className="h-full w-full object-cover" alt="" />}
+                </BackdropCrossfade>
             </div>
+            <motion.div style={{ y: metadataY }} className="flex min-w-0 max-w-[14rem] flex-col leading-tight" data-player-metadata>
+                <Marquee key={track?.songUrl || track?.title} text={track?.title || ""} className="text-[13px] font-bold text-maintext" />
+                <ArtistLink name={track?.artist || "—"} className="text-[11px] text-subtext" />
+            </motion.div>
             <button
                 onClick={() => track && toggleLike(track)}
                 title={liked ? "Remove from Liked songs" : "Save to Liked songs"}
@@ -121,20 +120,9 @@ function Song({ track }) {
             >
                 <Icon name={liked ? "heart-filled" : "heart"} className="h-4 w-4" />
             </button>
-            <AddedBy track={track} size={20} className="ml-2 w-24 shrink-0 text-[11px] text-subtext/80" />
-        </div>
-    );
-}
-
-// Matches the Song layout (art + title + artist) for the brief stopped-state load.
-function SongSkeleton() {
-    return (
-        <div className="-mx-2 flex min-w-0 items-center gap-3 px-2 py-1">
-            <div className="h-14 w-14 shrink-0 rounded-md bg-elevated" />
-            <div className="flex min-w-0 max-w-[14rem] flex-col gap-2">
-                <div className="h-3 w-32 rounded bg-elevated" />
-                <div className="h-2.5 w-20 rounded bg-elevated" />
-            </div>
+            <motion.div style={{ y: metadataY }} className="shrink-0">
+                <AddedBy track={track} size={20} className="ml-2 w-24 text-[11px] text-subtext/80" />
+            </motion.div>
         </div>
     );
 }
@@ -221,16 +209,23 @@ function Glow() {
 function Prompt({ mode }) {
     const { inviteUrl, summon, selected, updateSettings } = useNifty();
     const [summoning, setSummoning] = useState(false);
+    const summonTimer = useRef(null);
+
+    useEffect(() => () => clearTimeout(summonTimer.current), []);
 
     const onSummon = () => {
         setSummoning(true);
-        summon();
-        setTimeout(() => setSummoning(false), 8000); // re-enable if it didn't take
+        if (summon() === false) {
+            setSummoning(false);
+            return;
+        }
+        clearTimeout(summonTimer.current);
+        summonTimer.current = setTimeout(() => setSummoning(false), 8000);
     };
 
     if (mode === "invite") {
         return (
-            <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:gap-32 sm:text-left">
+            <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:gap-8 sm:text-left">
                 <div className="flex flex-col">
                     <span className="text-sm font-bold text-maintext">I can&apos;t see you anywhere!</span>
                     <span className="text-[11px] text-subtext">Invite Nifty to your server and hop into a voice channel.</span>
@@ -249,7 +244,7 @@ function Prompt({ mode }) {
 
     if (mode === "summon") {
         return (
-            <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:gap-32 sm:text-left">
+            <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:gap-8 sm:text-left">
                 <div className="flex flex-col">
                     <span className="text-sm font-bold text-maintext">Ready when you are</span>
                     <span className="text-[11px] text-subtext">
@@ -299,13 +294,39 @@ function Prompt({ mode }) {
 
 /* ---- player bar ---- */
 
+function PromptFrame({ mode, current, weights }) {
+    const opacity = useTransform(weights, (value) => value[mode] || 0);
+    const visibility = useTransform(opacity, (value) => value <= 0 ? "hidden" : "visible");
+    return (
+        <motion.div
+            style={{ opacity, visibility, mixBlendMode: "plus-lighter" }}
+            className="pointer-events-none absolute inset-x-4 inset-y-0 flex items-center justify-center md:right-[21rem] xl:left-[21rem]"
+            data-player-prompt={mode}
+            aria-hidden={!current || undefined}
+        >
+            <div className={current ? "pointer-events-auto" : "pointer-events-none"}><Prompt mode={mode} /></div>
+        </motion.div>
+    );
+}
+
+// One clock controls every visible prompt. Independent enter/exit animations
+// started on different frames and briefly dimmed (or brightened) the text.
+// An interrupted dissolve starts from its actual painted mixture, preserving
+// the opacity and identity of the layers already on screen.
+function PromptSwap({ mode }) {
+    const weights = useCrossfadeWeights(mode, { duration: 0.2 });
+    return <div className="isolate">{["invite", "summon", "recommend"].map((name) => <PromptFrame key={name} mode={name} current={mode === name} weights={weights} />)}</div>;
+}
+
 export default function Player() {
+    const reveal = useEntrance(0.15);
     const { player, queue, selected, sessions, control, jump, ready } = useNifty();
     const track = player?.track || null;
     const tracks = queue.tracks || [];
     const hasQueue = tracks.length > 0;
 
-    const session = sessions.find((s) => String(s.guildId) === String(selected?.guildId)) || selected;
+    const session = sessions.find((s) => String(s.guildId) === String(selected?.guildId)
+        && String(s.botId || s.botName) === String(selected?.botId || selected?.botName)) || selected;
     const botHere = !!(session && session.botActive && session.sameChannel);
 
     let mode;
@@ -324,100 +345,61 @@ export default function Player() {
         ? () => jump(tracks[0]?.track_id ?? 0)
         : () => control("togglePause");
 
-    // Brief placeholder when the queue stops, in case the bot is still
-    // settling — just long enough to swallow the gap, not a real wait.
-    const [prevTrigger, setPrevTrigger] = useState({ mode, url: tracks[0]?.songUrl });
-    const [endedLoading, setEndedLoading] = useState(false);
-
-    // Intercept state changes during render to prevent the flashing
-    if (mode !== prevTrigger.mode || tracks[0]?.songUrl !== prevTrigger.url) {
-        setPrevTrigger({ mode, url: tracks[0]?.songUrl });
-        setEndedLoading(mode === "ended"); 
-    }
-
-    useEffect(() => {
-        if (endedLoading) {
-            const t = setTimeout(() => setEndedLoading(false), 600);
-            return () => clearTimeout(t);
-        }
-    }, [endedLoading]);
-
-    const showSkeleton = ended && endedLoading;
-
     return (
-        // The bar fades in just behind the boxes above it, and stays empty
-        // until the first player state lands.
-        <motion.div {...entrance(0.15)} className="relative h-20 shrink-0">
+        <motion.div {...reveal} className="relative h-20 shrink-0">
             {ready && (
-            // No initial={false}: this subtree mounts when the player state
-            // lands, so the first render is the reveal and should fade in.
-            <AnimatePresence>
-                <motion.div
-                    // playing and ended share one key so starting playback from
-                    // the stopped state is seamless (no crossfade blink).
-                    key={contextual ? mode : "player"}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.25, ease: EASE }}
-                    className="absolute inset-0 flex items-center gap-4 px-4"
-                >
-                    {contextual ? (
-                        <>
-                            <Glow />
-                            {/* equal flex-1 spacers on both sides keep the prompt in the
-                                true centre of the bar, not just the space left of the toggles */}
-                            <div className="flex-1" />
-                            <div className="relative flex shrink-0 items-center justify-center">
-                                <Prompt mode={mode} />
-                            </div>
-                            <div className="relative flex flex-1 items-center justify-end gap-4">
-                                <PanelToggles />
-                                <FullscreenButton />
-                            </div>
-                        </>
-                    ) : (
-                        <>
-                            <div className="flex min-w-0 flex-1 items-center">
-                                {/* skeleton <-> song crossfade (popLayout overlaps them);
-                                    playing and loaded-ended share the "song" key, so
-                                    switching between them doesn't re-animate. */}
-                                <AnimatePresence mode="popLayout" initial={false}>
-                                    {showSkeleton ? (
-                                        <motion.div key="skeleton" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: EASE }} className="w-full">
-                                            <SongSkeleton />
-                                        </motion.div>
-                                    ) : (
-                                        <motion.div key="song" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: EASE }} className="w-full">
-                                            <Song track={songTrack} />
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
-                            </div>
+                <div className="absolute inset-0" data-player-mode={mode}>
+                    {/* These layers stay mounted through every mode change.
+                        Replacing the entire bar used to fade two glows and two
+                        sets of panel buttons over one another. */}
+                    <motion.div initial={false} animate={{ opacity: contextual ? 1 : 0 }} transition={{ duration: 0.2, ease: EASE }} className="pointer-events-none absolute inset-0">
+                        <Glow />
+                    </motion.div>
 
-                            <div className="flex w-[40%] max-w-xl flex-col items-center gap-2">
-                                <Controls
-                                    playing={!ended && player?.playing}
-                                    onPlayPause={onPlayPause}
-                                    sideDisabled={ended}
-                                    playDisabled={showSkeleton}
-                                />
-                                {ended ? (
-                                    <ProgressBar progress={0} duration={songTrack?.duration || 0} disabled />
-                                ) : (
-                                    <ProgressBar />
+                    <div className="absolute inset-0 flex items-center gap-4 px-4">
+                        <div className="relative flex h-16 min-w-0 flex-1 items-center">
+                            <AnimatePresence initial={false}>
+                                {!contextual && (
+                                    <motion.div key="song" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, pointerEvents: "none" }} transition={{ duration: 0.18, ease: EASE }} className="absolute inset-x-0" data-player-song>
+                                        <Song track={songTrack} />
+                                    </motion.div>
                                 )}
-                            </div>
+                            </AnimatePresence>
+                        </div>
 
-                            <div className="flex flex-1 items-center justify-end gap-4">
-                                <PanelToggles />
-                                <Volume disabled={ended} />
-                                <FullscreenButton />
-                            </div>
-                        </>
-                    )}
-                </motion.div>
-            </AnimatePresence>
+                        <div className="relative h-14 w-[40%] max-w-xl">
+                            <AnimatePresence initial={false}>
+                                {!contextual && (
+                                    <motion.div key="controls" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, pointerEvents: "none" }} transition={{ duration: 0.2, ease: EASE }} className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                                        <Controls
+                                            playing={!ended && player?.playing}
+                                            onPlayPause={onPlayPause}
+                                            sideDisabled={ended}
+                                            playDisabled={false}
+                                        />
+                                        <ProgressBar
+                                            progress={ended ? 0 : undefined}
+                                            duration={ended ? songTrack?.duration || 0 : undefined}
+                                            disabled={ended}
+                                        />
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+
+                        <div className={`relative z-10 flex flex-1 items-center justify-end gap-4 ${contextual ? "invisible pointer-events-none md:visible md:pointer-events-auto" : ""}`}>
+                            <PanelToggles />
+                            <motion.div initial={false} animate={{ opacity: contextual ? 0 : 1 }} transition={{ duration: 0.2, ease: EASE }} className={contextual ? "pointer-events-none" : ""} aria-hidden={contextual}>
+                                <Volume disabled={contextual || ended} />
+                            </motion.div>
+                            <FullscreenButton />
+                        </div>
+                    </div>
+
+                    {/* Only the prompt text changes between Summon and Empty
+                        queue. Its fixed box never participates in bar layout. */}
+                    <PromptSwap mode={contextual ? mode : null} />
+                </div>
             )}
         </motion.div>
     );

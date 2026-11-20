@@ -1,27 +1,27 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
 import Icon from "../Icon.js";
-import Loader from "../Loader.js";
-import { AnimatePresence, motion, EASE } from "../motion/index.js";
+import { LyricsSkeleton } from "../Loader.js";
+import { AnimatePresence, motion, EASE, LoadingSwap } from "../motion/index.js";
 
 // Interpolates a smooth, ~frame-accurate playback position between the 1s
 // progress pushes from the bot, so line/word highlighting lands on time.
 function useSmoothProgress(player) {
-    const base = useRef({ p: 0, t: 0, playing: false });
+    const base = useRef({ p: 0, t: 0, playing: false, speed: 1 });
     const [ms, setMs] = useState(0);
 
     useEffect(() => {
-        base.current = { p: player?.progress || 0, t: performance.now(), playing: !!player?.playing };
+        base.current = { p: player?.progress || 0, t: performance.now(), playing: !!player?.playing, speed: player?.speed || 1 };
         setMs(player?.progress || 0);
-    }, [player?.progress, player?.playing, player?.track?.songUrl]);
+    }, [player?.progress, player?.playing, player?.speed, player?.track?.songUrl]);
 
     // 100ms is plenty for line-level highlighting and far cheaper than redrawing
     // the whole list every animation frame. The per-word sweep is pure CSS.
     useEffect(() => {
         const id = setInterval(() => {
             const b = base.current;
-            setMs(b.playing ? b.p + (performance.now() - b.t) : b.p);
+            setMs(b.playing ? b.p + (performance.now() - b.t) * b.speed : b.p);
         }, 100);
         return () => clearInterval(id);
     }, []);
@@ -30,7 +30,7 @@ function useSmoothProgress(player) {
     // immediately — otherwise sync re-attaches and scrolls to the *old* line for
     // a beat before the bot's seek lands.
     const seek = useCallback((target) => {
-        base.current = { p: target, t: performance.now(), playing: base.current.playing };
+        base.current = { ...base.current, p: target, t: performance.now() };
         setMs(target);
     }, []);
 
@@ -40,91 +40,90 @@ function useSmoothProgress(player) {
 // Words light up ~120ms before their timestamp so the highlight lands with,
 // rather than behind, the sung word (the bot clock is interpolated, not exact).
 const WORD_LEAD = 120;
+const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+function Centered({ children }) {
+    return <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">{children}</div>;
+}
 
 function Line({ line, state, ms, onClick, nodeRef }) {
-    // state: "active" | "past" | "future". Words are always rendered as spans so
-    // a line changing state only toggles a class — it never replaces DOM nodes
-    // (which would drop the user's text selection / open menus).
-    //
-    // Word-timed lines (Enhanced LRC) carry `line.words` with per-word times; we
-    // render those tokens directly and drive each word's highlight from the
-    // clock. Plain lines split on whitespace and keep the fixed-stagger sweep.
-    const tokens = useMemo(
-        () =>
-            line.words?.length
-                ? line.words
-                : line.text.split(/(\s+)/).map((text) => ({ text })),
-        [line.words, line.text]
-    );
-    const timed = state === "active" && !!line.words?.length;
+    // Only Enhanced LRC supplies word timestamps. Ordinary synced lyrics
+    // highlight as a complete line, without inventing a word-by-word cadence.
+    const wordTimed = !!line.words?.length && line.words.every((word) => Number.isFinite(word.time));
+    const timed = state === "active" && wordTimed;
+    const mountedAt = useRef(ms);
 
     return (
         <button
             ref={nodeRef}
             onClick={onClick}
-            className={`block w-full text-balance text-left text-3xl font-extrabold leading-tight transition-all duration-500 sm:text-4xl ${
+            style={{ textShadow: state === "active" && !wordTimed ? "0 0 12px rgb(var(--c-accent) / 0.3)" : "none" }}
+            className={`block w-full origin-left text-balance text-left text-3xl font-extrabold leading-tight transition-[color,transform,text-shadow] duration-500 sm:text-4xl ${
                 state === "active"
-                    ? `${timed ? "lyric-line-timed" : "lyric-line-active"} scale-[1.02] text-lyric`
+                    ? `${timed ? "lyric-line-timed" : ""} scale-[1.02] text-lyric`
                     : state === "past"
                     ? "text-lyric/25 hover:text-lyric/40"
                     : "text-lyric/30 hover:text-lyric/45"
             }`}
         >
-            {tokens.map((tk, i) => {
+            {wordTimed ? line.words.map((tk, i) => {
                 const sung = timed && tk.time != null && ms + WORD_LEAD >= tk.time;
+                const alreadySung = sung && tk.time <= mountedAt.current + WORD_LEAD;
                 return (
                     <span
                         key={i}
                         className={`lyric-word${sung ? " lyric-word-sung" : ""}`}
-                        style={!timed && state === "active" ? { animationDelay: `${i * 0.045}s` } : undefined}
+                        style={alreadySung ? { animation: "none", opacity: 1, transform: "none", textShadow: "0 0 12px rgb(var(--c-accent) / 0.3)" } : undefined}
                     >
                         {tk.text}
                     </span>
                 );
-            })}
+            }) : <span className="lyric-line-text">{line.text || "\u00a0"}</span>}
         </button>
     );
 }
 
 export default function LyricsView() {
-    const { player, selected, control } = useNifty();
+    const { player, selected, control, ready } = useNifty();
     const track = player?.track || null;
+    const trackKey = track?.title ? JSON.stringify([track.songUrl, track.title, track.artist, track.duration]) : null;
     const [ms, seekMs] = useSmoothProgress(player);
 
-    const [data, setData] = useState(null); // { synced, plain, instrumental, source }
-    const [loading, setLoading] = useState(false);
+    const [result, setResult] = useState(null); // { key, data: { synced, plain, instrumental, source } }
+    // Derive loading during render, including the first paint and track
+    // changes. An effect-set flag briefly showed "Lyrics not found" first.
+    const loading = !!trackKey && result?.key !== trackKey;
+    const data = loading ? null : result?.data;
     const [autoSync, setAutoSync] = useState(true);
 
     const scroller = useRef(null);
     const lineRefs = useRef([]);
+    const positionedScroller = useRef(null);
 
     // Fetch (server-cached) lyrics whenever the track changes. Clear the old
     // lyrics immediately so the view never lingers on the previous song.
     useEffect(() => {
-        if (!track?.title) {
-            setData(null);
+        if (!trackKey) {
+            setResult(null);
             return;
         }
-        let stale = false;
-        setData(null);
+        const controller = new AbortController();
         setAutoSync(true);
-        setLoading(true);
         const qs = new URLSearchParams({
             title: track.title,
             artist: track.artist || "",
             duration: String(track.duration || 0)
         });
-        fetch(`/api/lyrics?${qs}`)
-            .then((r) => r.json())
+        fetch(`/api/lyrics?${qs}`, { signal: controller.signal })
+            .then((r) => r.ok ? r.json() : null)
             .then((j) => {
-                if (!stale) setData(j);
+                if (!controller.signal.aborted) setResult({ key: trackKey, data: j });
             })
-            .catch(() => !stale && setData(null))
-            .finally(() => !stale && setLoading(false));
-        return () => {
-            stale = true;
-        };
-    }, [track?.songUrl, track?.title]);
+            .catch(() => {
+                if (!controller.signal.aborted) setResult({ key: trackKey, data: null });
+            });
+        return () => controller.abort();
+    }, [trackKey]);
 
     const synced = data?.synced || [];
 
@@ -154,14 +153,21 @@ export default function LyricsView() {
         const el = lineRefs.current[activeIndex];
         const box = scroller.current;
         if (!el || !box) return;
-        const top = el.offsetTop - box.clientHeight / 2 + el.clientHeight / 2;
+        const top = box.scrollTop + el.getBoundingClientRect().top - box.getBoundingClientRect().top
+            - box.clientHeight / 2 + el.clientHeight / 2;
         box.scrollTo({ top, behavior });
     }, [activeIndex]);
 
     // Keep the active line centred — unless the user has scrolled away.
-    useEffect(() => {
-        if (autoSync) scrollToActive();
-    }, [activeIndex, autoSync, scrollToActive]);
+    useBeforePaint(() => {
+        if (!autoSync || !scroller.current) return;
+        // The incoming lyrics are already centred when their opacity rises.
+        // Only subsequent line changes scroll, so loading never reveals a
+        // second motion from the top of the song to the current verse.
+        const firstPosition = positionedScroller.current !== scroller.current;
+        scrollToActive(firstPosition ? "instant" : "smooth");
+        positionedScroller.current = scroller.current;
+    }, [activeIndex, autoSync, scrollToActive, ready]);
 
     // A manual scroll/wheel/touch detaches sync until the user taps "Sync".
     const detach = () => setAutoSync(false);
@@ -178,14 +184,11 @@ export default function LyricsView() {
         setAutoSync(true);
     };
 
-    const Centered = ({ children }) => (
-        <div className="flex flex-1 flex-col items-center justify-center p-8 text-center">{children}</div>
-    );
-
     // Decide what to show, then crossfade between states below.
     let mode;
-    if (!selected || !track) mode = "notrack";
-    else if (loading && !data) mode = "loading";
+    if (!ready) mode = "loading";
+    else if (!selected || !track) mode = "notrack";
+    else if (loading) mode = "loading";
     else if (data?.instrumental) mode = "instrumental";
     else if (synced.length) mode = "synced";
     else if (data?.plain) mode = "plain";
@@ -193,16 +196,16 @@ export default function LyricsView() {
 
     let body;
     if (mode === "loading") {
-        body = <Centered><Loader size="lg" className="text-lyric/70" /></Centered>;
+        body = null;
     } else if (mode === "synced") {
         body = (
             <>
                 <div
-                    key={track.songUrl}
+                    key={trackKey}
                     ref={scroller}
                     onWheel={detach}
                     onTouchMove={detach}
-                    className="flex-1 space-y-9 overflow-y-auto px-8 py-[42vh] sm:px-14"
+                    className="lyrics-scroll min-h-0 flex-1 space-y-9 overflow-y-auto px-8 sm:px-14"
                 >
                     {synced.map((line, i) => (
                         <Line
@@ -235,7 +238,7 @@ export default function LyricsView() {
         );
     } else if (mode === "plain") {
         body = (
-            <div className="flex-1 overflow-y-auto px-8 py-12 sm:px-14">
+            <div className="min-h-0 flex-1 overflow-y-auto px-8 py-12 sm:px-14">
                 <pre className="whitespace-pre-wrap text-left font-unbounded text-2xl font-extrabold leading-relaxed text-lyric/85">
                     {data.plain}
                 </pre>
@@ -250,21 +253,12 @@ export default function LyricsView() {
     }
 
     return (
-        <div className="relative h-full overflow-hidden">
+        <div className="relative flex h-full min-h-0 flex-col overflow-hidden" style={{ containerType: "size" }}>
             {/* the cover-art backdrop is rendered by SlideTransition (pinned, so
                 it doesn't slide with the view); only the lyric states live here */}
-            <AnimatePresence initial={false}>
-                <motion.div
-                    key={mode}
-                    className="absolute inset-0 flex flex-col"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.3, ease: EASE }}
-                >
-                    {body}
-                </motion.div>
-            </AnimatePresence>
+            <LoadingSwap loading={mode === "loading"} fallback={<LyricsSkeleton />} className="flex min-h-0 flex-1 flex-col" contentClassName="flex min-h-0 flex-1 flex-col">
+                {body}
+            </LoadingSwap>
         </div>
     );
 }

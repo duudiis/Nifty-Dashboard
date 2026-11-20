@@ -6,11 +6,12 @@ import Icon from "../Icon.js";
 import Account from "./Account.js";
 import SearchSuggest from "../search/SearchSuggest.js";
 import ConnectionStatus from "../ConnectionStatus.js";
-import { AnimatePresence, motion, entrance, EASE } from "../motion/index.js";
+import { AnimatePresence, motion, EASE, useEntrance } from "../motion/index.js";
 import { useNifty } from "../../context/NiftyContext.js";
 import { parseLink } from "../../sources/links.js";
 
 export default function TopBar() {
+    const reveal = useEntrance(0, { distance: -6 });
     const { runSearch, setView, updateAvailable, reloadApp, openEntity, play, notify, ready, view } = useNifty();
     const router = useRouter();
     const [query, setQuery] = useState(() => (router.query.q ? String(router.query.q) : ""));
@@ -84,7 +85,7 @@ export default function TopBar() {
 
     return (
         // The bar arrives as one piece — a single quick fade, no cascade.
-        <motion.header {...entrance()} className="flex h-16 shrink-0 items-center gap-4 bg-topbar px-4">
+        <motion.header {...reveal} className="flex h-16 shrink-0 items-center gap-4 bg-topbar px-4">
 
             {/* Brand (left third) */}
             <div className="flex min-w-0 flex-1 items-center justify-start">

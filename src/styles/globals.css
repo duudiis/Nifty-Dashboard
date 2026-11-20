@@ -250,12 +250,10 @@
         animation: pop-in 0.12s cubic-bezier(0.4, 0, 0.2, 1) forwards;
     }
 
-    /* Loading indicator (src/components/Loader.js): three dots breathing in
-       turn, Spotify-style. The whole row waits a beat before showing, so a
-       load that finishes quickly never flashes it at all. */
-    @keyframes loader-dot {
-        0%, 80%, 100% { opacity: 0.25; transform: scale(0.72); }
-        40%           { opacity: 1;    transform: scale(1); }
+    /* A quiet sound wave for page loads, and shared content-shaped shimmer. */
+    @keyframes loader-wave {
+        0%, 100% { opacity: 0.45; transform: scaleY(0.32); }
+        50% { opacity: 1; transform: scaleY(1); }
     }
     @keyframes loader-in {
         from { opacity: 0; }
@@ -264,21 +262,45 @@
     .loader {
         display: inline-flex;
         align-items: center;
-        gap: var(--loader-gap, 6px);
-        animation: loader-in 0.3s ease-out var(--loader-delay, 0.3s) both;
+        height: var(--loader-height, 24px);
+        gap: var(--loader-gap, 4px);
+        animation: loader-in 0.25s ease-out var(--loader-delay, 0.2s) both;
     }
     .loader > span {
-        width: var(--loader-dot, 8px);
-        height: var(--loader-dot, 8px);
+        width: var(--loader-width, 4px);
+        height: 100%;
         border-radius: 9999px;
         background-color: currentColor;
-        animation: loader-dot 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        animation: loader-wave 1s ease-in-out infinite;
     }
-    .loader > span:nth-child(2) { animation-delay: 0.16s; }
-    .loader > span:nth-child(3) { animation-delay: 0.32s; }
+    .loader > span:nth-child(1), .loader > span:nth-child(5) { height: 60%; }
+    .loader > span:nth-child(2) { animation-delay: -0.8s; }
+    .loader > span:nth-child(3) { animation-delay: -0.6s; }
+    .loader > span:nth-child(4) { animation-delay: -0.4s; }
+    .loader > span:nth-child(5) { animation-delay: -0.2s; }
 
+    @keyframes skeleton-shimmer {
+        from { transform: translateX(-100%); }
+        to { transform: translateX(100%); }
+    }
+    .skeleton {
+        position: relative;
+        overflow: hidden;
+        isolation: isolate;
+        background: rgb(var(--c-text) / 0.07);
+    }
+    .skeleton::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, transparent, rgb(var(--c-text) / 0.075), transparent);
+        transform: translateX(-100%);
+        animation: skeleton-shimmer 1.8s ease-in-out infinite;
+    }
     @media (prefers-reduced-motion: reduce) {
-        .loader > span { animation-duration: 2.4s; }
+        .loader, .loader > span, .skeleton::after { animation: none; }
+        .loader > span:nth-child(2), .loader > span:nth-child(4) { height: 80%; }
+        .skeleton::after { display: none; }
     }
 
     /* Panel resizing (src/components/layout/ResizeHandle.js). While a seam is
@@ -490,8 +512,8 @@
     .lyric-blob-b { animation: drift-b 34s ease-in-out infinite; }
     .lyric-blob-c { animation: drift-c 30s ease-in-out infinite; }
 
-    /* Karaoke-style word sweep: each word of the active line lights up in turn,
-       then settles to a soft glow. animation-delay is set per word inline. */
+    /* Plain synced lyrics light up as a whole line. Only actual word timestamps
+       opt into the karaoke animation below. */
     @keyframes word-glow {
         0%   { opacity: 0.3; text-shadow: 0 0 0 transparent; transform: translateY(0.08em); }
         45%  { opacity: 1; text-shadow: 0 0 20px rgb(var(--c-accent) / 0.6), 0 0 7px rgb(255 255 255 / 0.5); }
@@ -503,9 +525,14 @@
     }
     /* The active line sweeps in once (0.3 -> 1) then rests bright + glowing.
        Non-active lines stay full opacity; their dimming comes from line colour. */
-    .lyric-line-active .lyric-word {
+    .lyric-line-text { display: block; }
+    @keyframes line-glow {
+        from { opacity: 0.3; text-shadow: 0 0 0 transparent; }
+        to { opacity: 1; text-shadow: 0 0 12px rgb(var(--c-accent) / 0.3); }
+    }
+    .lyric-line-active .lyric-line-text {
         text-shadow: 0 0 12px rgb(var(--c-accent) / 0.3);
-        animation: word-glow 0.55s cubic-bezier(0.4, 0, 0.2, 1) both;
+        animation: line-glow 0.55s cubic-bezier(0.4, 0, 0.2, 1) both;
     }
 
     /* Word-timed (Enhanced LRC) active line: each word stays dim and slightly
@@ -519,6 +546,11 @@
     }
     .lyric-line-timed .lyric-word-sung {
         animation: word-glow 0.55s cubic-bezier(0.4, 0, 0.2, 1) both;
+    }
+
+    .lyrics-scroll { padding-block: calc(50cqh - 1.171875rem); }
+    @media (min-width: 640px) {
+    .lyrics-scroll { padding-block: calc(50cqh - 1.25rem); }
     }
 
     /* Range sliders (progress + volume) */

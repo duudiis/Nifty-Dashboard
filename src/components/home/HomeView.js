@@ -1,14 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { FadeIn } from "../motion/index.js";
-import { PageLoader } from "../Loader.js";
-
-import Hero from "./sections/Hero.js";
-import RoomsRail from "./sections/RoomsRail.js";
-import PulseStrip from "./sections/PulseStrip.js";
-import FirstRun from "./sections/FirstRun.js";
-import QuickPicks from "./sections/QuickPicks.js";
-import UpNext from "./sections/UpNext.js";
+import { LoadingSwap } from "../motion/index.js";
+import { HomeSkeleton } from "../Loader.js";
+import { useNifty } from "../../context/NiftyContext.js";
+import QuickPicks, { HomeGreeting } from "./sections/QuickPicks.js";
 import RecentlyRail from "./sections/RecentlyRail.js";
 import LibraryRail from "./sections/LibraryRail.js";
 import OnRepeat from "./sections/OnRepeat.js";
@@ -17,123 +12,78 @@ import BecauseYouPlayed from "./sections/BecauseYouPlayed.js";
 import NewReleases from "./sections/NewReleases.js";
 import Genres from "./sections/Genres.js";
 import LikedUnheard from "./sections/LikedUnheard.js";
-import TheRoom from "./sections/TheRoom.js";
-import TheExchange from "./sections/TheExchange.js";
-import YourRhythm from "./sections/YourRhythm.js";
-import OnThisDay from "./sections/OnThisDay.js";
-import HomeFooter from "./sections/HomeFooter.js";
 
-const EMPTY_HOME = {
-    totals: { today_ms: 0, week_ms: 0, prev_week_ms: 0, all_ms: 0, plays: 0, distinct_tracks: 0, sessions: 0 },
-    firstSeenAt: null, lastTrack: null, topArtists: [], onRepeat30: [], onRepeatAll: [],
-    recentHeard: [], recentQueued: [], likedUnheard: [], likedUnheardTotal: 0, onThisDay: [],
-    clock: [], days: [], feed: [], leaders: [], reach: [], brought: []
-};
+const EMPTY_HOME = { topArtists: [], onRepeat30: [], onRepeatAll: [], recentHeard: [], recentQueued: [], likedUnheard: [] };
+const EMPTY_DISCOVER = { personalized: false, bundles: [], releases: [], songs: [], playlists: [], artists: [], albums: [] };
 
-const EMPTY_DISCOVER = { personalized: false, seeds: [], bundles: [], releases: [], songs: [], playlists: [], artists: [], albums: [] };
+async function homeResource(url, signal) {
+    const request = new AbortController();
+    const abort = () => request.abort();
+    if (signal.aborted) return null;
+    signal.addEventListener("abort", abort, { once: true });
+    // A stalled external catalogue must still reveal the user's own music.
+    const timeout = setTimeout(abort, 8000);
+    try {
+        const response = await fetch(url, { cache: "no-store", signal: request.signal });
+        return response.ok ? await response.json() : null;
+    } catch {
+        return null;
+    } finally {
+        clearTimeout(timeout);
+        signal.removeEventListener("abort", abort);
+    }
+}
 
-/**
- * The home screen.
- *
- * Loads in two halves. The page waits (behind one quiet loader) only for the
- * database half — the user's own history, usually a few hundred ms — and then
- * reveals everything at once. The recommendation half fills its sections in
- * afterwards, because Deezer is a third party and a slow minute there must not
- * hold up a page built from the user's own history. The library is already
- * loaded by the context.
- *
- * No intervals. The page fetches once per mount; everything live on it — the
- * player, the queue, the room list — arrives on the WebSocket deltas the
- * context already applies.
- */
+// Publish the initial shelves together. Showing one placeholder shelf and then
+// inserting several personalized rails displaced everything further down the
+// page. The greeting stays put while the completed layout fades in beneath it.
 export default function HomeView() {
-    const [home, setHome] = useState(EMPTY_HOME);
-    const [homeLoaded, setHomeLoaded] = useState(false);
+    const { library } = useNifty();
+    const [home, setHome] = useState(null);
     const [discover, setDiscover] = useState(EMPTY_DISCOVER);
-    const [discoverLoaded, setDiscoverLoaded] = useState(false);
-
-    // Strict mode double-invokes effects; the fetch is idempotent but there is
-    // no reason to pay for it twice.
-    const loadedOnce = useRef(false);
-    const [reloadKey, setReloadKey] = useState(0);
+    const [genreShelf, setGenreShelf] = useState(null);
 
     useEffect(() => {
-        if (loadedOnce.current && reloadKey === 0) return;
-        loadedOnce.current = true;
-        let live = true;
-
+        const controller = new AbortController();
+        const { signal } = controller;
+        const genreRequest = homeResource("/api/genres?id=132", signal);
         (async () => {
-            const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-            let payload = EMPTY_HOME;
-            try {
-                const res = await fetch(`/api/home?tz=${encodeURIComponent(tz)}`, { cache: "no-store" });
-                if (res.ok) payload = { ...EMPTY_HOME, ...(await res.json()) };
-            } catch { /* the page still renders from context alone */ }
+            const payload = { ...EMPTY_HOME, ...(await homeResource("/api/home", signal)) };
+            if (signal.aborted) return;
 
-            if (!live) return;
-            setHome(payload);
-            setHomeLoaded(true);
-
-            // Chained, not parallel — the seeds come out of the first response.
-            // Send a run of candidates, not the top three: the route keeps the
-            // first few that match a real catalogue artist, and the very top of
-            // a listening history is often an alias nothing can resolve.
-            const seeds = payload.topArtists.slice(0, 10).map((a) => a.name).filter(Boolean);
-            try {
-                const res = await fetch(`/api/discover?seeds=${encodeURIComponent(seeds.join(","))}`, { cache: "no-store" });
-                if (res.ok && live) setDiscover({ ...EMPTY_DISCOVER, ...(await res.json()) });
-            } catch { /* the discovery rows simply don't appear */ }
-            if (live) setDiscoverLoaded(true);
+            const seeds = [...new Set([
+                ...payload.topArtists.map((artist) => artist.name),
+                ...payload.recentHeard.map((track) => track.artist)
+            ].filter(Boolean))].slice(0, 10);
+            const recommendations = await homeResource(`/api/discover?seeds=${encodeURIComponent(seeds.join(","))}`, signal);
+            const genre = await genreRequest;
+            if (!signal.aborted) {
+                setDiscover({ ...EMPTY_DISCOVER, ...recommendations });
+                setGenreShelf(genre || { id: "132", songs: [], albums: [] });
+                setHome(payload);
+            }
         })();
-
-        return () => { live = false; };
-    }, [reloadKey]);
-
-    const refresh = () => { setHomeLoaded(false); setDiscoverLoaded(false); setReloadKey((k) => k + 1); };
-
-    // A handful of plays is not a mirror yet — showing nineteen empty shelves
-    // to someone who just arrived is worse than showing them how to start.
-    const starting = homeLoaded && home.totals.plays < 10;
-
-    // First visit only; a refresh keeps the page up and refills it in place.
-    if (!homeLoaded && home === EMPTY_HOME) return <PageLoader />;
-
-    const band = (i, node) => (
-        <FadeIn key={i} delay={Math.min(i * 0.04, 0.4)} y={10}>{node}</FadeIn>
-    );
-
-    const sections = [
-        <Hero home={home} />,
-        <RoomsRail />,
-        <PulseStrip home={home} loading={!homeLoaded} onRefresh={refresh} />
-    ];
-
-    if (starting) {
-        sections.push(<FirstRun home={home} />);
-    } else {
-        sections.push(
-            <QuickPicks home={home} loading={!homeLoaded} />,
-            <UpNext />,
-            <RecentlyRail home={home} loading={!homeLoaded} />,
-            <LibraryRail />,
-            <OnRepeat home={home} loading={!homeLoaded} />,
-            <ArtistsRail home={home} loading={!homeLoaded} />,
-            <BecauseYouPlayed discover={discover} loading={!discoverLoaded} />,
-            <NewReleases discover={discover} loading={!discoverLoaded} />,
-            <LikedUnheard home={home} loading={!homeLoaded} />,
-            <Genres />,
-            <TheRoom home={home} loading={!homeLoaded} />,
-            <TheExchange home={home} loading={!homeLoaded} />,
-            <YourRhythm home={home} loading={!homeLoaded} />,
-            <OnThisDay home={home} loading={!homeLoaded} />
-        );
-    }
-
-    sections.push(<HomeFooter home={home} loading={!homeLoaded} />);
+        // StrictMode's replacement setup must start its own request when the
+        // first setup is aborted; a persistent loadedOnce guard breaks this.
+        return () => controller.abort();
+    }, []);
 
     return (
-        <div className="flex flex-col gap-8 px-6 pb-16 pt-6">
-            {sections.map((node, i) => band(i, node))}
+        <div className="flex flex-col gap-5 px-4 pb-14 pt-6 sm:px-6 lg:px-8">
+            <HomeGreeting />
+            <LoadingSwap loading={!home || !library?.loaded} fallback={<HomeSkeleton />} contentClassName="flex min-w-0 flex-col gap-9 sm:gap-10">
+                {home && <>
+                    <QuickPicks home={home} discover={discover} />
+                    <BecauseYouPlayed discover={discover} />
+                    <OnRepeat home={home} />
+                    <NewReleases discover={discover} />
+                    <Genres initialShelf={genreShelf} />
+                    <RecentlyRail home={home} />
+                    <ArtistsRail home={home} />
+                    <LikedUnheard home={home} />
+                    <LibraryRail />
+                </>}
+            </LoadingSwap>
         </div>
     );
 }

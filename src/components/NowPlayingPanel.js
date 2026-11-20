@@ -1,66 +1,29 @@
-import { useEffect, useRef, useState } from "react";
-
 import { useNifty } from "../context/NiftyContext.js";
 import { artworkOrFallback } from "../lib/format.js";
 import AddedBy from "./AddedBy.js";
 import SongInfo from "./SongInfo.js";
+import { NowPlayingSkeleton } from "./Loader.js";
 import Icon from "./Icon.js";
 import PanelHeader from "./layout/PanelHeader.js";
-import { AnimatePresence, motion, EASE, DUR } from "./motion/index.js";
+import { LoadingSwap, motion, useContentChange } from "./motion/index.js";
+import { BackdropCrossfade, useDecodedArtwork } from "./artwork.js";
 import { useContextMenu } from "./menu/ContextMenu.js";
 import { useTrackMenu } from "./menu/trackMenu.js";
 
-// The bot briefly reports an empty player between tracks (skip stops the old
-// track before starting the next). Ride out those gaps so the panel crossfades
-// straight from one track to the next instead of flashing the empty state.
-function useStableTrack(live) {
-    const [shown, setShown] = useState(live || null);
-    const timer = useRef();
-
-    useEffect(() => {
-        clearTimeout(timer.current);
-        if (live) {
-            setShown(live);
-        } else {
-            timer.current = setTimeout(() => setShown(null), 700);
-        }
-        return () => clearTimeout(timer.current);
-    }, [live?.songUrl, live?.artwork]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    return shown;
-}
-
-// Cover-art gradient behind the header + cover. Rendered as the panel's pinned
-// backdrop (by SlideTransition) so the panel slide can't expose the bare
-// surface above it. The blurred art crossfades between tracks; with nothing
-// playing there's no art, so the plain surface shows through.
+// The player context already retains short gaps between tracks. Artwork has a
+// separate readiness boundary: don't replace painted pixels until the next
+// image is decoded, even when its title has already arrived.
 export function NowPlayingBackdrop() {
     const { player } = useNifty();
-    const track = useStableTrack(player?.track || null);
-    const art = track ? artworkOrFallback(track.artwork) : null;
+    const source = player?.track ? artworkOrFallback(player.track.artwork) : null;
+    const art = useDecodedArtwork(source, { retainOnEmpty: false });
 
     return (
         <div className="pointer-events-none absolute inset-x-0 top-0 h-[560px] overflow-hidden">
-            <AnimatePresence initial={false}>
-                {art && (
-                    <motion.img
-                        key={art}
-                        src={art}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 0.55 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: DUR.slow, ease: EASE }}
-                        className="absolute inset-0 h-full w-full scale-[1.7] object-cover blur-3xl saturate-150"
-                        alt=""
-                    />
-                )}
-            </AnimatePresence>
-            {art && (
-                <div
-                    className="absolute inset-0"
-                    style={{ background: "linear-gradient(180deg, rgb(var(--c-surface) / 0.1) 0%, rgb(var(--c-surface) / 0.45) 62%, rgb(var(--c-surface)) 100%)" }}
-                />
-            )}
+            <BackdropCrossfade identity={art}>
+                {art && <img src={art} className="absolute inset-0 h-full w-full scale-[1.7] object-cover opacity-[0.55] blur-3xl saturate-150" alt="" />}
+            </BackdropCrossfade>
+            <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgb(var(--c-surface) / 0.1) 0%, rgb(var(--c-surface) / 0.45) 62%, rgb(var(--c-surface)) 100%)" }} />
         </div>
     );
 }
@@ -75,90 +38,48 @@ function EmptyState({ icon, title, hint }) {
     );
 }
 
-const panelFade = {
-    initial: { opacity: 0 },
-    animate: { opacity: 1 },
-    exit: { opacity: 0 },
-    transition: { duration: 0.28, ease: EASE }
-};
-
 export default function NowPlayingPanel() {
-    const { player, queue, selected } = useNifty();
-    const track = useStableTrack(player?.track || null);
+    const { player, queue, selected, ready, stateLoaded } = useNifty();
+    const track = player?.track || null;
     const trackMenu = useTrackMenu();
     const { onContextMenu } = useContextMenu(() => (track ? trackMenu(track, { source: "player" }) : []));
-
-    const stateKey = !selected ? "noserver" : !track ? "empty" : "track";
-
-    const art = track ? artworkOrFallback(track.artwork) : null;
-    // Backfill "added by" from the matching queue entry if the player omitted it.
+    const art = useDecodedArtwork(track ? artworkOrFallback(track.artwork) : null, { fallback: artworkOrFallback(null), retainOnEmpty: false });
     const queued = track
-        ? (queue.tracks || []).find((t) => t.track_id === queue.position || t.songUrl === track.songUrl)
+        ? (queue.tracks || []).find((item) => item.songUrl === track.songUrl)
         : null;
     const addedTrack = track ? { ...queued, ...track } : null;
+    const metadataY = useContentChange(track?.songUrl || track?.title, { duration: 0.3 });
 
-    // One AnimatePresence so the not-playing states and a live track crossfade
-    // into each other (and the cover + content crossfade between tracks).
     return (
-        <AnimatePresence mode="wait" initial={false}>
-            {stateKey === "noserver" ? (
-                <motion.div key="noserver" {...panelFade} className="flex min-h-full">
-                    <EmptyState icon="connect" title="Nothing selected" hint="Choose a server to see what's playing." />
-                </motion.div>
-            ) : stateKey === "empty" ? (
-                <motion.div key="empty" {...panelFade} className="flex min-h-full">
-                    <EmptyState icon="now-playing" title="Not playing" hint="Queue something to get started." />
-                </motion.div>
+        <LoadingSwap loading={!ready || (!!selected && stateLoaded === false)} fallback={<NowPlayingSkeleton />} className="flex min-h-full flex-col" contentClassName="flex flex-1 flex-col">
+            {!selected ? (
+                <EmptyState icon="connect" title="Nothing selected" hint="Choose a server to see what's playing." />
+            ) : !track ? (
+                <EmptyState icon="now-playing" title="Not playing" hint="Queue something to get started." />
             ) : (
-                <motion.div key="track" {...panelFade} onContextMenu={onContextMenu} className="relative">
-                    {/* the cover-art gradient backdrop is rendered by SlideTransition
-                        (pinned, so it doesn't slide with the panel) */}
-
-            {/* header lives inside the coloured area */}
-            <div className="relative">
-                <PanelHeader icon="now-playing" title="Now playing" />
-            </div>
-
-            {/* all the track content crossfades when the song changes.
-                popLayout overlaps old + new (a true crossfade) and keeps timing
-                identical whether the change came from us or from the bot. */}
-            <div className="relative">
-                <AnimatePresence mode="popLayout" initial={false}>
-                    <motion.div
-                        key={track.songUrl}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.28, ease: EASE }}
-                        className="flex flex-col gap-4 p-4 pt-0"
-                    >
-                    <img
-                        src={art}
-                        onError={(e) => (e.currentTarget.src = artworkOrFallback(null))}
-                        className="aspect-square w-full rounded-lg object-cover shadow-2xl"
-                        alt=""
-                    />
-
-                    <div className="flex flex-col gap-1">
-                        <a
-                            href={track.songUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-xl font-bold leading-tight text-maintext hover:underline"
-                        >
-                            {track.title}
-                        </a>
-                        <span className="text-sm text-subtext">{track.artist}</span>
-                    </div>
-
-                    <AddedBy track={addedTrack} size={22} className="text-xs text-subtext" />
-
-                            <SongInfo track={track} />
+                <div onContextMenu={onContextMenu} className="relative" data-now-playing-content>
+                    <PanelHeader icon="now-playing" title="Now playing" />
+                    {/* The decoded cover dissolves independently from the
+                        metadata movement; fetched facts and menus stay mounted. */}
+                    <div className="flex flex-col gap-4 p-4 pt-0">
+                        <div className="relative aspect-square w-full overflow-hidden rounded-lg bg-elevated shadow-2xl" data-now-playing-art>
+                            <BackdropCrossfade identity={art} duration={0.28}>
+                                {art && <img src={art} className="h-full w-full object-cover" alt="" />}
+                            </BackdropCrossfade>
+                        </div>
+                        <motion.div style={{ y: metadataY }} className="flex flex-col gap-4" data-now-playing-metadata>
+                            <div className="flex flex-col gap-1">
+                                <a href={track.songUrl} target="_blank" rel="noreferrer" className="text-xl font-bold leading-tight text-maintext hover:underline">
+                                    {track.title}
+                                </a>
+                                <span className="text-sm text-subtext">{track.artist}</span>
+                            </div>
+                            <AddedBy track={addedTrack} size={22} className="text-xs text-subtext" />
                         </motion.div>
-                    </AnimatePresence>
+                        <SongInfo track={track} />
                     </div>
-                </motion.div>
+                </div>
             )}
-        </AnimatePresence>
+        </LoadingSwap>
     );
 }
