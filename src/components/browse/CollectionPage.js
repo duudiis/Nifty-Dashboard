@@ -64,6 +64,8 @@ function sortTracks(tracks, sortBy, sortDesc) {
 
 const useIsoEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
+const LIKED_ID = "nifty:playlist:liked";
+
 const ROW_H = TRACK_ROW_HEIGHT; // shared with live rows and loading placeholders
 const OVERSCAN = 12;   // rows rendered beyond the viewport on each side
 
@@ -246,7 +248,7 @@ function TrackList({ data, refId, kind, playUrl, initialSort, actions }) {
 }
 
 export default function CollectionPage({ id }) {
-    const { play, selected, notify, setPageArt, isSaved, toggleSaveEntity, removePlaylist } = useNifty();
+    const { play, selected, notify, setPageArt, isSaved, toggleSaveEntity, removePlaylist, libraryRevision } = useNifty();
     const modal = useModal();
     const [data, setData] = useState(null);
     const [sortPref, setSortPref] = useState(null);
@@ -280,6 +282,21 @@ export default function CollectionPage({ id }) {
         };
     }, [id, setPageArt, retry]);
 
+    // A platform sync added songs while Liked songs is open: re-read the list
+    // in place — no loading state, the new songs simply appear.
+    const seenRevision = useRef(libraryRevision);
+    useEffect(() => {
+        if (libraryRevision === seenRevision.current) return;
+        seenRevision.current = libraryRevision;
+        if (id !== LIKED_ID) return;
+        let stale = false;
+        fetch(`/api/browse?id=${encodeURIComponent(id)}`)
+            .then((r) => (r.ok ? r.json() : null))
+            .then((fresh) => { if (!stale && fresh) setData(fresh); })
+            .catch(() => {});
+        return () => { stale = true; };
+    }, [libraryRevision, id]);
+
     const tracks = data?.tracks || [];
     const kind = data?.type || "collection";
     const item = { browseId: id, kind, custom: data?.custom, title: data?.title, subtitle: data?.subtitle, artwork: data?.artwork, url: entityExternalUrl({ browseId: id }, data) };
@@ -309,7 +326,7 @@ export default function CollectionPage({ id }) {
     ].filter(Boolean);
 
     return (
-        <LoadingSwap loading={loading} fallback={<CollectionSkeleton liked={id === "nifty:playlist:liked"} />}>
+        <LoadingSwap loading={loading} fallback={<CollectionSkeleton liked={id === LIKED_ID} />}>
             {data?.title ? <div className="flex flex-col">
                 {/* header — the artwork blur behind it is pinned by CenterContent */}
                 <CollectionHeader

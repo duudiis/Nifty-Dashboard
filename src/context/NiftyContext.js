@@ -349,6 +349,10 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
 
     useEffect(() => { if (user) refreshLibrary(); }, [user, refreshLibrary]);
 
+    // Bumped when the server reports songs added outside this tab (a platform
+    // sync), so an open Liked songs page can re-read itself in place.
+    const [libraryRevision, setLibraryRevision] = useState(0);
+
     const isLiked = useCallback((track) => {
         const url = track?.url || track?.songUrl;
         return !!url && likedSetRef.current.has(url);
@@ -773,6 +777,19 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
                         break;
                     }
 
+                    // A platform sync added liked songs on the server: re-read
+                    // the library. A background sync says so; one started from
+                    // Settings already reports itself there.
+                    case "library_updated": {
+                        refreshLibrary();
+                        setLibraryRevision((revision) => revision + 1);
+                        const { imported, label, trigger } = message.data || {};
+                        if (trigger === "auto" && imported > 0) {
+                            notify(`${imported.toLocaleString()} new liked song${imported === 1 ? "" : "s"} from ${label || "a connected account"}`);
+                        }
+                        break;
+                    }
+
                     // A bot went offline: its sessions are gone, drop them
                     // instead of leaving ghosts in the Connect list.
                     case "bot_disconnected": {
@@ -1072,6 +1089,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
 
     const value = {
         user,
+        libraryRevision,
         connected,
         ready,
         stateLoaded,

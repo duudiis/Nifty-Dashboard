@@ -6,6 +6,7 @@
 //   syncStatesFor(userId)                            the same, for every provider seen
 //   manualSyncAllowedAt(userId, provider, lastSyncedAt)   cooldown, epoch ms
 //   startAutoSync()                                  the stale-connection scheduler
+//   onSyncImported(listener)                         told when a sync added songs
 //
 // State lives on globalThis: the API routes (bundled by Next) and server.js
 // (plain Node) each load their own copy of this module, but they are one
@@ -22,6 +23,7 @@ import {
 const state = (globalThis.__niftySync ??= {
     jobs: new Map(),      // key -> job (the latest one per connection)
     failures: new Map(),  // key -> { count, at } consecutive failures
+    listeners: new Set(), // (userId, { provider, label, imported, trigger }) => void
     scheduler: null,
     ticking: false
 });
@@ -69,6 +71,13 @@ export function manualSyncAllowedAt(userId, provider, lastSyncedAt) {
     });
 }
 
+// Calls `listener(userId, { provider, label, imported, trigger })` whenever a
+// sync adds songs to someone's Liked songs. server.js uses it to nudge that
+// user's open dashboards over the WebSocket hub, which only it can reach.
+export function onSyncImported(listener) {
+    state.listeners.add(listener);
+}
+
 // Forget a connection's job when it is disconnected.
 export function clearSync(userId, provider) {
     const key = connectionKey(userId, provider);
@@ -103,6 +112,11 @@ export function startSync(userId, provider, { trigger = "manual", full = false }
             state.failures.delete(key);
             if (result.imported > 0 || trigger !== "auto") {
                 console.log(`[Dashboard] Sync ${key} (${trigger}, ${result.mode}): ${result.imported} new of ${result.scanned} read`);
+            }
+            if (result.imported > 0) {
+                for (const listener of state.listeners) {
+                    try { listener(userId, { provider, label, imported: result.imported, trigger }); } catch { /* a listener never fails a sync */ }
+                }
             }
         })
         .catch((error) => {
