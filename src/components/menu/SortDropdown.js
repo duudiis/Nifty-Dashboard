@@ -3,12 +3,13 @@ import { createPortal } from "react-dom";
 
 import Icon from "../Icon.js";
 import { AnimatePresence, motion, EASE } from "../motion/index.js";
+import { MENU_ICON_CLASS, MENU_ITEM_CLASS, MENU_PANEL_CLASS, MENU_WIDTH } from "./ContextMenu.js";
 
 // A button-anchored picker shared by collection pages and the library. The
 // portal keeps the menu clear of panel overflow and draggable list transforms.
 // The trigger's glyph shows the state at a glance: crossed arrows for a
-// hand-made order, rising or falling bars for a sorted one.
-const MENU_WIDTH = 224; // w-56
+// hand-made order, rising or falling bars for a sorted one. The menu itself is
+// the right-click menu's panel and rows, so both are exactly one size.
 export default function SortDropdown({ options, value, onChange, label = "Sort by", compact = false, descending, onDirectionChange }) {
     const [open, setOpen] = useState(false);
     const [position, setPosition] = useState(null);
@@ -101,10 +102,9 @@ export default function SortDropdown({ options, value, onChange, label = "Sort b
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: -3, scale: 0.98 }}
                             transition={{ duration: 0.16, ease: EASE }}
-                            style={{ ...position, transformOrigin: "top right" }}
-                            className="fixed z-[65] w-56 space-y-0.5 overflow-y-auto rounded-xl border border-border bg-elevated p-2 shadow-2xl"
+                            style={{ ...position, width: MENU_WIDTH, transformOrigin: "top right" }}
+                            className={`fixed z-[65] overflow-y-auto ${MENU_PANEL_CLASS}`}
                         >
-                            <div className="px-3 pb-2 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-subtext">{label}</div>
                             {options.map((option) => {
                                 const selected = value === option.id;
                                 const direction = selected && option.id !== "custom" && !!onDirectionChange;
@@ -118,11 +118,11 @@ export default function SortDropdown({ options, value, onChange, label = "Sort b
                                         aria-label={direction ? `${option.label}, ${descending ? "descending" : "ascending"}` : option.label}
                                         title={direction ? `Sort ${descending ? "ascending" : "descending"}` : undefined}
                                         onClick={() => select(option.id)}
-                                        className={`flex min-h-9 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs transition-colors hover:bg-maintext/[0.07] focus-visible:bg-maintext/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent ${selected ? "font-medium text-accent" : "text-maintext"}`}
+                                        className={`${MENU_ITEM_CLASS} hover:bg-surface focus-visible:bg-surface focus-visible:outline-none ${selected ? "text-accent" : "text-maintext"}`}
                                     >
-                                        {option.icon && <Icon name={option.icon} className={`h-3.5 w-3.5 ${selected ? "" : "text-subtext"}`} />}
-                                        <span className="flex-1">{option.label}</span>
-                                        {selected && <Icon name={direction ? (descending ? "sort-desc" : "sort-asc") : "check"} className="h-3.5 w-3.5" />}
+                                        {option.icon && <Icon name={option.icon} className={MENU_ICON_CLASS} />}
+                                        <span className="flex-1 truncate">{option.label}</span>
+                                        {selected && <Icon name={direction ? (descending ? "sort-desc" : "sort-asc") : "check"} className={MENU_ICON_CLASS} />}
                                     </button>
                                 );
                             })}

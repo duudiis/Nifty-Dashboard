@@ -29,7 +29,14 @@ import { AnimatePresence, motion } from "../motion/index.js";
 
 const Ctx = createContext(null);
 
-const MENU_W = 224;
+// One size for every menu in the app: the sort dropdowns are built from these
+// too, so they can't drift from the right-click menu.
+export const MENU_WIDTH = 224;
+export const MENU_PANEL_CLASS = "rounded-lg border border-border bg-elevated p-1 shadow-2xl";
+export const MENU_ITEM_CLASS = "flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[12px] font-medium transition disabled:cursor-not-allowed disabled:opacity-40";
+export const MENU_ICON_CLASS = "h-3.5 w-3.5 shrink-0";
+
+const MENU_W = MENU_WIDTH;
 const SUB_W = 208;
 const ITEM_H = 33;
 const SEP_H = 9;
@@ -128,7 +135,7 @@ export function ContextMenuProvider({ children }) {
                                 />
                                 <motion.div
                                     data-ctxmenu=""
-                                    className="fixed z-[95] overflow-hidden rounded-lg border border-border bg-elevated p-1 shadow-2xl"
+                                    className={`fixed z-[95] overflow-hidden ${MENU_PANEL_CLASS}`}
                                     style={{ left: menu.x, top: menu.y, width: MENU_W, transformOrigin: menu.origin }}
                                     initial={{ opacity: 0, scale: 0.95 }}
                                     animate={{ opacity: 1, scale: 1 }}
@@ -154,13 +161,13 @@ export function ContextMenuProvider({ children }) {
                                                     close();
                                                     item.onClick?.();
                                                 }}
-                                                className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[12px] font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                                                className={`${MENU_ITEM_CLASS} ${
                                                     item.danger
                                                         ? "text-rose-400 hover:bg-rose-500/10"
                                                         : "text-maintext hover:bg-surface"
                                                 } ${sub?.index === i ? "bg-surface" : ""}`}
                                             >
-                                                {item.icon && <Icon name={item.icon} className="h-3.5 w-3.5" />}
+                                                {item.icon && <Icon name={item.icon} className={MENU_ICON_CLASS} />}
                                                 <span className="truncate">{item.label}</span>
                                                 {item.children?.length > 0 && (
                                                     <Icon name="chevron-down" className="ml-auto h-3 w-3 shrink-0 -rotate-90 text-subtext" />
@@ -172,7 +179,7 @@ export function ContextMenuProvider({ children }) {
                                 {sub && menu.items[sub.index]?.children?.length > 0 && (
                                     <motion.div
                                         data-ctxmenu=""
-                                        className="fixed z-[96] max-h-72 overflow-y-auto rounded-lg border border-border bg-elevated p-1 shadow-2xl"
+                                        className={`fixed z-[96] max-h-72 overflow-y-auto ${MENU_PANEL_CLASS}`}
                                         style={{
                                             left: menu.x + MENU_W + SUB_W + PAD > window.innerWidth
                                                 ? menu.x - SUB_W + 4
@@ -197,9 +204,9 @@ export function ContextMenuProvider({ children }) {
                                                     close();
                                                     child.onClick?.();
                                                 }}
-                                                className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[12px] font-medium text-maintext transition hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
+                                                className={`${MENU_ITEM_CLASS} text-maintext hover:bg-surface`}
                                             >
-                                                {child.icon && <Icon name={child.icon} className="h-3.5 w-3.5 shrink-0" />}
+                                                {child.icon && <Icon name={child.icon} className={MENU_ICON_CLASS} />}
                                                 <span className="truncate">{child.label}</span>
                                             </button>
                                         ))}
