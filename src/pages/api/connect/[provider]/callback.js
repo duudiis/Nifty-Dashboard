@@ -2,7 +2,8 @@ import { parse, serialize } from "cookie";
 
 import { verifySession } from "../../../../lib/jwt.js";
 import { getProvider } from "../../../../connect/providers.js";
-import { upsertConnection, importLikedFromProvider } from "../../../../lib/connections.js";
+import { upsertConnection } from "../../../../lib/connections.js";
+import { startSync } from "../../../../connect/syncJobs.js";
 import { redirectUri } from "./start.js";
 
 // The provider redirects here after consent: verify state, exchange the code,
@@ -50,10 +51,9 @@ export default async function handler(req, res) {
         });
 
         // Import in the background so the browser returns immediately; the
-        // Connections tab polls for the resulting count.
-        importLikedFromProvider(user.id, providerId).catch((e) =>
-            console.error(`[Dashboard] Import (${providerId}) failed:`, e.message)
-        );
+        // Connections tab shows the job's progress. A fresh grant may be a
+        // different account, so read the whole list rather than only what's new.
+        startSync(user.id, providerId, { trigger: "connect", full: true });
 
         return done("ok");
     } catch (error) {

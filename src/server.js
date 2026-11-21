@@ -4,6 +4,7 @@ import next from "next";
 import { WebSocketServer } from "ws";
 
 import Connection from "./ws/Connection.js";
+import { startAutoSync } from "./connect/syncJobs.js";
 
 const dev = process.env.NODE_ENV !== "production";
 const port = parseInt(process.env.PORT || "3000", 10);
@@ -65,6 +66,8 @@ app.prepare().then(() => {
     server.listen(port, () => {
         console.log(`> Nifty Dashboard ready on http://localhost:${port}`);
         console.log(`> WebSocket hub listening on path ${WS_PATH}`);
+        // Keeps linked music accounts' liked songs fresh in the background.
+        startAutoSync();
     });
 
 });

@@ -10,7 +10,15 @@
 //   exchangeCode(code,uri)   -> { accessToken, refreshToken, expiresIn, scope }
 //   refresh(refreshToken)    -> { accessToken, expiresIn } (or null if N/A)
 //   fetchAccount(token)      -> { id, name }
-//   fetchLiked(token)        -> [ normalized track, ... ] (all of them, paged)
+//   likedPage(token, cursor, ctx) -> { items, total, next, scanned }
+//                            one page of liked songs (see connect/paging.js);
+//                            cursor is null/0 for the first page, ctx carries
+//                            { externalId } and survives across pages
+//   pageSize                 entries per page
+//   offsetPaged              cursor is a plain offset, so pages can be fetched
+//                            side by side
+//   newestFirst              the list is ordered most-recently-liked first,
+//                            which lets a re-sync stop at the first known page
 //
 // A normalized liked track:
 //   { source, sourceId, title, artist, isrc, url, artwork, durationMs, addedAt }
@@ -18,6 +26,45 @@
 // everyone's likes into one chronological Liked songs list.
 
 const env = (k) => process.env[k] || null;
+const bearer = (token) => ({ Authorization: `Bearer ${token}` });
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// GET a JSON API page. Waits out rate limits (429 + Retry-After) and retries a
+// dropped connection, a timeout or a transient 5xx; anything else throws with
+// the status attached so the sync can tell an expired grant from a platform
+// hiccup.
+async function getJson(url, headers, label) {
+    for (let attempt = 0; ; attempt++) {
+        let res;
+        try {
+            res = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
+        } catch (cause) {
+            if (attempt < 2) {
+                await sleep(1000 * (attempt + 1));
+                continue;
+            }
+            throw new Error(`${label} unreachable (${cause.name || "network error"})`);
+        }
+        if (res.ok) return res.json();
+
+        if (res.status === 429 && attempt < 3) {
+            const wait = Number(res.headers.get("retry-after")) || 2;
+            await sleep(Math.min(wait, 30) * 1000);
+            continue;
+        }
+        if (res.status >= 500 && attempt < 2) {
+            await sleep(1000 * (attempt + 1));
+            continue;
+        }
+
+        const body = await res.text().catch(() => "");
+        const error = new Error(`${label} ${res.status}`);
+        error.status = res.status;
+        // YouTube reports an exhausted quota as a 403.
+        error.rateLimited = res.status === 429 || /quota|rateLimit/i.test(body);
+        throw error;
+    }
+}
 
 // "PT3M20S" -> milliseconds (YouTube contentDetails.duration).
 function iso8601ToMs(iso) {
@@ -74,31 +121,25 @@ const spotify = {
         return { id: j.id, name: j.display_name || j.id };
     },
 
-    async fetchLiked(token) {
-        const out = [];
-        let url = "https://api.spotify.com/v1/me/tracks?limit=50";
-        while (url && out.length < 10000) {
-            const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-            if (!res.ok) throw new Error(`Spotify liked ${res.status}`);
-            const j = await res.json();
-            for (const item of j.items || []) {
-                const t = item.track;
-                if (!t?.id) continue;
-                out.push({
-                    source: "spotify",
-                    sourceId: t.id,
-                    title: t.name,
-                    artist: (t.artists || []).map((a) => a.name).join(", "),
-                    isrc: t.external_ids?.isrc || null,
-                    url: t.external_urls?.spotify || `https://open.spotify.com/track/${t.id}`,
-                    artwork: t.album?.images?.[0]?.url || null,
-                    durationMs: t.duration_ms || null,
-                    addedAt: item.added_at || null
-                });
-            }
-            url = j.next;
-        }
-        return out;
+    pageSize: 50,
+    offsetPaged: true,
+    newestFirst: true,
+
+    async likedPage(token, offset = 0) {
+        const j = await getJson(`https://api.spotify.com/v1/me/tracks?limit=50&offset=${offset}`, bearer(token), "Spotify liked");
+        const entries = j.items || [];
+        const items = entries.filter((entry) => entry.track?.id).map(({ track: t, added_at }) => ({
+            source: "spotify",
+            sourceId: t.id,
+            title: t.name,
+            artist: (t.artists || []).map((a) => a.name).join(", "),
+            isrc: t.external_ids?.isrc || null,
+            url: t.external_urls?.spotify || `https://open.spotify.com/track/${t.id}`,
+            artwork: t.album?.images?.[0]?.url || null,
+            durationMs: t.duration_ms || null,
+            addedAt: added_at || null
+        }));
+        return { items, scanned: entries.length, total: j.total ?? null, next: j.next ? offset + 50 : null };
     }
 };
 
@@ -148,29 +189,33 @@ const deezer = {
         return { id: j.id ? String(j.id) : null, name: j.name || "Deezer user" };
     },
 
-    async fetchLiked(token) {
-        const out = [];
-        let url = `https://api.deezer.com/user/me/tracks?limit=100&access_token=${token}`;
-        while (url && out.length < 10000) {
-            const j = await fetch(url).then((r) => r.json());
-            if (j?.error) throw new Error(`Deezer liked: ${j.error.message || j.error.type}`);
-            for (const t of j.data || []) {
-                out.push({
-                    source: "deezer",
-                    sourceId: String(t.id),
-                    title: t.title,
-                    artist: t.artist?.name || "",
-                    isrc: t.isrc || null,
-                    url: t.link || `https://www.deezer.com/track/${t.id}`,
-                    artwork: t.album?.cover_xl || t.album?.cover_big || t.album?.cover_medium || null,
-                    durationMs: t.duration ? t.duration * 1000 : null,
-                    // Deezer gives a unix "time_add" on favorites.
-                    addedAt: t.time_add ? new Date(t.time_add * 1000).toISOString() : null
-                });
-            }
-            url = j.next || null;
+    pageSize: 100,
+    offsetPaged: true,
+    newestFirst: false, // Deezer doesn't promise an order, so every sync reads the whole list
+
+    async likedPage(token, offset = 0) {
+        const j = await getJson(`https://api.deezer.com/user/me/tracks?limit=100&index=${offset}&access_token=${token}`, {}, "Deezer liked");
+        if (j?.error) {
+            // Deezer answers 200 with an error body.
+            const error = new Error(`Deezer liked: ${j.error.message || j.error.type}`);
+            error.status = /token|OAuth/i.test(j.error.type || "") ? 401 : undefined;
+            error.rateLimited = j.error.code === 4;
+            throw error;
         }
-        return out;
+        const entries = j.data || [];
+        const items = entries.map((t) => ({
+            source: "deezer",
+            sourceId: String(t.id),
+            title: t.title,
+            artist: t.artist?.name || "",
+            isrc: t.isrc || null,
+            url: t.link || `https://www.deezer.com/track/${t.id}`,
+            artwork: t.album?.cover_xl || t.album?.cover_big || t.album?.cover_medium || null,
+            durationMs: t.duration ? t.duration * 1000 : null,
+            // Deezer gives a unix "time_add" on favorites.
+            addedAt: t.time_add ? new Date(t.time_add * 1000).toISOString() : null
+        }));
+        return { items, scanned: entries.length, total: j.total ?? null, next: j.next ? offset + 100 : null };
     }
 };
 
@@ -236,68 +281,57 @@ const youtube = {
         return { id: ch?.id || null, name: ch?.snippet?.title || "YouTube account" };
     },
 
-    async fetchLiked(token) {
+    pageSize: 50,
+    offsetPaged: false, // page tokens only: one page after another
+    newestFirst: true,
+
+    async likedPage(token, pageToken = null) {
         // "LL" is the channel's Liked videos playlist — which mixes music with
         // everything else. We keep only videos in the Music category (10), so a
         // sync imports liked *songs*, not every liked video.
-        const auth = { Authorization: `Bearer ${token}` };
-        const out = [];
-        let pageToken = "";
+        const p = new URLSearchParams({
+            part: "snippet,contentDetails",
+            playlistId: "LL",
+            maxResults: "50",
+            ...(pageToken ? { pageToken } : {})
+        });
+        const j = await getJson(`https://www.googleapis.com/youtube/v3/playlistItems?${p}`, bearer(token), "YouTube liked");
 
-        do {
-            const p = new URLSearchParams({
-                part: "snippet,contentDetails",
-                playlistId: "LL",
-                maxResults: "50",
-                ...(pageToken ? { pageToken } : {})
-            });
-            const res = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${p}`, { headers: auth });
-            if (!res.ok) throw new Error(`YouTube liked ${res.status}`);
-            const j = await res.json();
+        const entries = (j.items || [])
+            .map((item) => ({ vid: item.contentDetails?.videoId, sn: item.snippet || {} }))
+            .filter((x) => x.vid);
 
-            const pageItems = (j.items || [])
-                .map((item) => ({ vid: item.contentDetails?.videoId, sn: item.snippet || {} }))
-                .filter((x) => x.vid);
-
-            // Look up category + duration for this page's videos in one call.
-            const ids = pageItems.map((x) => x.vid).join(",");
-            const meta = new Map();
-            if (ids) {
-                const vp = new URLSearchParams({ part: "snippet,contentDetails", id: ids, maxResults: "50" });
-                const vres = await fetch(`https://www.googleapis.com/youtube/v3/videos?${vp}`, { headers: auth });
-                if (vres.ok) {
-                    const vj = await vres.json();
-                    for (const v of vj.items || []) {
-                        meta.set(v.id, {
-                            categoryId: v.snippet?.categoryId,
-                            durationMs: iso8601ToMs(v.contentDetails?.duration)
-                        });
-                    }
-                }
-            }
-
-            for (const { vid, sn } of pageItems) {
-                const m = meta.get(vid);
-                if (!m || m.categoryId !== "10") continue; // music only
-                out.push({
-                    source: "youtube",
-                    sourceId: vid,
-                    title: sn.title || "Song",
-                    artist: (sn.videoOwnerChannelTitle || "").replace(/ - Topic$/, ""),
-                    isrc: null,
-                    url: `https://www.youtube.com/watch?v=${vid}`,
-                    // Full-resolution, bar-free cover — same URL the bot uses,
-                    // so imported rows match what playback writes to the catalog.
-                    artwork: `https://i.ytimg.com/vi/${vid}/maxresdefault.jpg`,
-                    durationMs: m.durationMs,
-                    addedAt: sn.publishedAt || null
+        // Look up category + duration for this page's videos in one call.
+        const meta = new Map();
+        if (entries.length) {
+            const vp = new URLSearchParams({ part: "snippet,contentDetails", id: entries.map((x) => x.vid).join(","), maxResults: "50" });
+            const vj = await getJson(`https://www.googleapis.com/youtube/v3/videos?${vp}`, bearer(token), "YouTube videos");
+            for (const v of vj.items || []) {
+                meta.set(v.id, {
+                    categoryId: v.snippet?.categoryId,
+                    durationMs: iso8601ToMs(v.contentDetails?.duration)
                 });
             }
+        }
 
-            pageToken = j.nextPageToken || "";
-        } while (pageToken && out.length < 10000);
+        const items = entries
+            .filter(({ vid }) => meta.get(vid)?.categoryId === "10") // music only
+            .map(({ vid, sn }) => ({
+                source: "youtube",
+                sourceId: vid,
+                title: sn.title || "Song",
+                artist: (sn.videoOwnerChannelTitle || "").replace(/ - Topic$/, ""),
+                isrc: null,
+                url: `https://www.youtube.com/watch?v=${vid}`,
+                // Full-resolution, bar-free cover — same URL the bot uses,
+                // so imported rows match what playback writes to the catalog.
+                artwork: `https://i.ytimg.com/vi/${vid}/maxresdefault.jpg`,
+                durationMs: meta.get(vid).durationMs,
+                addedAt: sn.publishedAt || null
+            }));
 
-        return out;
+        // Progress counts liked videos read, music or not.
+        return { items, scanned: (j.items || []).length, total: j.pageInfo?.totalResults ?? null, next: j.nextPageToken || null };
     }
 };
 
@@ -367,40 +401,35 @@ const tidal = {
         return { id: j.userId ? String(j.userId) : null, name: "Tidal account", country: j.countryCode || "US" };
     },
 
-    async fetchLiked(token, externalId) {
-        const country = env("TIDAL_COUNTRY_CODE") || "US";
-        const account = externalId || (await this.fetchAccount(token)).id;
-        if (!account) throw new Error("Tidal user id unknown");
+    pageSize: 100,
+    offsetPaged: true,
+    newestFirst: true, // asked for explicitly below
 
-        const out = [];
-        for (let offset = 0; offset < 10000; offset += 100) {
-            const p = new URLSearchParams({ limit: "100", offset: String(offset), countryCode: country });
-            const res = await fetch(`https://api.tidal.com/v1/users/${account}/favorites/tracks?${p}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (!res.ok) throw new Error(`Tidal liked ${res.status}`);
-            const j = await res.json();
-            const items = j.items || [];
-            for (const entry of items) {
-                const t = entry.item || entry;
-                if (!t?.id) continue;
-                out.push({
-                    source: "tidal",
-                    sourceId: String(t.id),
-                    title: t.title,
-                    artist: (t.artists || []).map((a) => a.name).join(", ") || t.artist?.name || "",
-                    isrc: t.isrc || null,
-                    url: t.url || `https://tidal.com/browse/track/${t.id}`,
-                    artwork: t.album?.cover
-                        ? `https://resources.tidal.com/images/${String(t.album.cover).replace(/-/g, "/")}/640x640.jpg`
-                        : null,
-                    durationMs: t.duration ? t.duration * 1000 : null,
-                    addedAt: entry.created || null
-                });
-            }
-            if (items.length < 100) break;
-        }
-        return out;
+    async likedPage(token, offset = 0, ctx = {}) {
+        const country = env("TIDAL_COUNTRY_CODE") || "US";
+        ctx.account ??= ctx.externalId || (await this.fetchAccount(token)).id;
+        if (!ctx.account) throw new Error("Tidal user id unknown");
+
+        const p = new URLSearchParams({
+            limit: "100", offset: String(offset), countryCode: country,
+            order: "DATE", orderDirection: "DESC"
+        });
+        const j = await getJson(`https://api.tidal.com/v1/users/${ctx.account}/favorites/tracks?${p}`, bearer(token), "Tidal liked");
+        const entries = j.items || [];
+        const items = entries.map((entry) => ({ t: entry.item || entry, created: entry.created })).filter(({ t }) => t?.id).map(({ t, created }) => ({
+            source: "tidal",
+            sourceId: String(t.id),
+            title: t.title,
+            artist: (t.artists || []).map((a) => a.name).join(", ") || t.artist?.name || "",
+            isrc: t.isrc || null,
+            url: t.url || `https://tidal.com/browse/track/${t.id}`,
+            artwork: t.album?.cover
+                ? `https://resources.tidal.com/images/${String(t.album.cover).replace(/-/g, "/")}/640x640.jpg`
+                : null,
+            durationMs: t.duration ? t.duration * 1000 : null,
+            addedAt: created || null
+        }));
+        return { items, scanned: entries.length, total: j.totalNumberOfItems ?? null, next: entries.length < 100 ? null : offset + 100 };
     }
 };
 
