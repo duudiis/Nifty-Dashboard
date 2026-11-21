@@ -192,7 +192,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
 
     // Artwork for the current entity page's pinned backdrop. Lives here (not in
     // the page) so the transition layer can render it in the non-sliding layer
-    // — the blur can never leak past the header during the slide-up.
+    // — the blur can never leak past the header during the page fade.
     const [entityArt, setEntityArt] = useState({});
     const setPageArt = useCallback((artwork, id) => {
         if (!id) return;

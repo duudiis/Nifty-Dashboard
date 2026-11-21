@@ -4,9 +4,10 @@ import { useEffect, useLayoutEffect, useState } from "react";
 // padding separate from the measured pitch used by scrolling/virtualization.
 export const TRACK_ROW_HEIGHT = 56;
 export const DENSE_TRACK_ROW_HEIGHT = 48;
-export const TRACK_ROW_CLASS = "h-14 gap-2 px-2";
+export const TRACK_ROW_CLASS = "h-14 gap-3 px-4";
 export const DENSE_TRACK_ROW_CLASS = "h-12 gap-2 px-2";
-export const COLLECTION_COVER_SIZE_CLASS = "h-32 w-32 shrink-0 sm:h-40 sm:w-40";
+// Sized by the header's own width (it is a size container), not the viewport.
+export const COLLECTION_COVER_SIZE_CLASS = "h-36 w-36 shrink-0 [@container_(min-width:520px)]:h-48 [@container_(min-width:520px)]:w-48";
 export const MUSIC_CARD_WIDTH = 164;
 export const MUSIC_CARD_WIDE_WIDTH = 184;
 export const MUSIC_CARD_TEXT_HEIGHT = 36;

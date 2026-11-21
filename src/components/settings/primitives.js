@@ -117,33 +117,39 @@ const THUMB_CLASSES = [
     "[&::-moz-range-thumb]:shadow-[0_1px_6px_rgb(0_0_0/0.35)]"
 ].join(" ");
 
-export function Slider({ label, value, min = 0, max, suffix = "", onChange }) {
+// `inline` puts label, track and value on one line (no min/max scale).
+export function Slider({ label, value, min = 0, max, suffix = "", onChange, inline = false }) {
     const id = useId();
     const ratio = (value - min) / (max - min);
-    return (
-        <div>
-            <div className="flex items-center justify-between gap-3">
-                <label htmlFor={id} className="text-[13px] font-medium text-maintext">{label}</label>
-                <output htmlFor={id} className="text-xs tabular-nums text-accent">{value}{suffix}</output>
-            </div>
-            <div className="relative flex h-[26px] items-center">
-                <div className="pointer-events-none absolute inset-x-0 h-1 overflow-hidden rounded-full bg-maintext/10">
-                    {/* the native thumb's centre travels inside the track by half its width */}
-                    <div
-                        className="h-full rounded-full bg-accent"
-                        style={{ width: `calc(${ratio * 100}% + ${(0.5 - ratio) * THUMB_PX}px)` }}
-                    />
-                </div>
-                <input
-                    id={id}
-                    type="range"
-                    min={min}
-                    max={max}
-                    value={value}
-                    onChange={(e) => onChange(Number(e.target.value))}
-                    className={`relative h-full w-full cursor-pointer appearance-none rounded-full bg-transparent ${FOCUS} ${THUMB_CLASSES}`}
+    const labelNode = <label htmlFor={id} className={inline ? "text-xs text-subtext" : "text-[13px] font-medium text-maintext"}>{label}</label>;
+    const valueNode = <output htmlFor={id} className={`text-xs tabular-nums text-accent ${inline ? "w-9 text-right" : ""}`}>{value}{suffix}</output>;
+    const track = (
+        <div className="relative flex h-[26px] min-w-0 flex-1 items-center">
+            <div className="pointer-events-none absolute inset-x-0 h-1 overflow-hidden rounded-full bg-maintext/10">
+                {/* the native thumb's centre travels inside the track by half its width */}
+                <div
+                    className="h-full rounded-full bg-accent"
+                    style={{ width: `calc(${ratio * 100}% + ${(0.5 - ratio) * THUMB_PX}px)` }}
                 />
             </div>
+            <input
+                id={id}
+                type="range"
+                min={min}
+                max={max}
+                value={value}
+                onChange={(e) => onChange(Number(e.target.value))}
+                className={`relative h-full w-full cursor-pointer appearance-none rounded-full bg-transparent ${FOCUS} ${THUMB_CLASSES}`}
+            />
+        </div>
+    );
+
+    if (inline) return <div className="flex min-w-0 flex-1 items-center gap-3">{labelNode}{track}{valueNode}</div>;
+
+    return (
+        <div>
+            <div className="flex items-center justify-between gap-3">{labelNode}{valueNode}</div>
+            {track}
             <div className="flex justify-between text-[10px] leading-none text-subtext/80" aria-hidden="true">
                 <span>{min}{suffix}</span>
                 <span>{max}{suffix}</span>

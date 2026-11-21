@@ -428,7 +428,7 @@ export default function QueueList({ dense = false }) {
                         <EmptyState icon="queue" title="The queue is empty" hint="Add a song from search, or drag a recommendation into your queue." />
                     </motion.div>}
                 </AnimatePresence>
-                {!dense && showQueueFrame && <TrackTableHeader />}
+                {!dense && showQueueFrame && <TrackTableHeader meta="Added by" />}
                 <Reorder.Group ref={listRef} as="div" axis="y" values={order.map((row) => row.key)} onReorder={handleReorder} className="relative isolate flex flex-col">
                     <AnimatePresence initial={false} mode="popLayout" onExitComplete={() => { if (!hasQueueTracks) setRetainQueueFrame(false); }}>{rows}</AnimatePresence>
                 </Reorder.Group>

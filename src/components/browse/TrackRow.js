@@ -6,12 +6,12 @@ import { useContextMenu } from "../menu/ContextMenu.js";
 import { useTrackMenu } from "../menu/trackMenu.js";
 import { Reorder, EASE } from "../motion/index.js";
 import QueueGlyph from "./QueueGlyph.js";
-import { TRACK_ACTION_CLASS, TRACK_NUMBER_CLASS, TrackRowContent, trackRowClassName } from "./trackTable.js";
+import { TRACK_ACTION_CLASS, TRACK_MENU_COLUMN_CLASS, TRACK_META_CLASS, TRACK_NUMBER_CLASS, TRACK_QUIET_ACTION_CLASS, TrackRowContent, formatAdded, trackRowClassName } from "./trackTable.js";
 import Icon from "../Icon.js";
 
 // Collection rows have an exact shared pitch for virtualization; compact rows
 // elsewhere keep their 60px pitch. Playback, likes and menus stay shared.
-function TrackRow({ track, index, badge = null, meta = null, collection = false, dragValue = null, dragEnabled = true, onDragStart, onDragEnd }) {
+function TrackRow({ track, index, badge = null, meta = null, collection = false, showAdded = false, dragValue = null, dragEnabled = true, onDragStart, onDragEnd }) {
     const { play, selected, isLiked, toggleLike } = useNifty();
     const trackMenu = useTrackMenu();
     const [done, setDone] = useState(false);
@@ -41,7 +41,7 @@ function TrackRow({ track, index, badge = null, meta = null, collection = false,
             artistBrowseId={track.artistBrowseId}
             collection={collection}
             leading={(badge != null || index != null) && (
-                <span className={`relative shrink-0 items-center justify-center text-center text-xs tabular-nums text-subtext ${collection ? TRACK_NUMBER_CLASS : "hidden w-7 sm:flex"}`}>
+                <span className={`relative text-subtext ${collection ? TRACK_NUMBER_CLASS : "hidden w-7 shrink-0 items-center justify-center text-center text-xs tabular-nums sm:flex"}`}>
                     <span className={draggable ? "group-hover:opacity-0" : ""}>{badge ?? index}</span>
                     {draggable && <Icon name="grip" className="absolute h-4 w-4 opacity-0 group-hover:opacity-70" />}
                 </span>
@@ -52,7 +52,7 @@ function TrackRow({ track, index, badge = null, meta = null, collection = false,
                 onPointerDown={(event) => event.stopPropagation()}
                 onClick={(event) => { event.stopPropagation(); queue(); }}
                 aria-label={done ? `${track.title} added to queue` : `Add ${track.title} to queue`}
-                className={`relative shrink-0 overflow-hidden rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${collection ? "h-10 w-10" : "h-11 w-11"}`}
+                className={`relative shrink-0 overflow-hidden rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${collection ? "h-10 w-10" : "h-11 w-11"}`}
             >
                 <img
                     src={artworkOrFallback(track.artwork)}
@@ -71,10 +71,11 @@ function TrackRow({ track, index, badge = null, meta = null, collection = false,
                 onClick={(event) => { event.stopPropagation(); toggleLike(track); }}
                 title={liked ? "Remove from Liked songs" : "Save to Liked songs"}
                 aria-label={liked ? `Remove ${track.title} from Liked songs` : `Save ${track.title} to Liked songs`}
-                className={`${TRACK_ACTION_CLASS} ${liked ? "text-accent" : "text-subtext hover:text-maintext"}`}
+                className={`${TRACK_ACTION_CLASS} ${liked ? "text-accent" : `text-subtext hover:text-maintext ${collection ? TRACK_QUIET_ACTION_CLASS : ""}`}`}
             >
                 <Icon name={liked ? "heart-filled" : "heart"} className="h-4 w-4" />
             </button>}
+            metadata={collection && showAdded && <span className={TRACK_META_CLASS}>{formatAdded(track.addedAt)}</span>}
             duration={<span className={`${meta != null ? "shrink-0" : "w-12 shrink-0"} text-right text-xs tabular-nums text-subtext`}>
                 {meta ?? track.duration ?? "—"}
             </span>}
@@ -84,7 +85,7 @@ function TrackRow({ track, index, badge = null, meta = null, collection = false,
                     onPointerDown={(event) => event.stopPropagation()}
                     onClick={(event) => { event.stopPropagation(); onContextMenu(event); }}
                     aria-label={`More options for ${track.title}`}
-                    className={`${TRACK_ACTION_CLASS} text-subtext hover:text-maintext`}
+                    className={`${TRACK_ACTION_CLASS} ${TRACK_MENU_COLUMN_CLASS} text-subtext hover:text-maintext ${TRACK_QUIET_ACTION_CLASS}`}
                 >
                     <Icon name="more" className="h-4 w-4" />
                 </button>
@@ -92,7 +93,7 @@ function TrackRow({ track, index, badge = null, meta = null, collection = false,
         />
     );
 
-    if (!reorderItem) return <div onClick={queue} onContextMenu={onContextMenu} className={base}>{inner}</div>;
+    if (!reorderItem) return <div onClick={queue} onContextMenu={onContextMenu} data-active={active || undefined} className={base}>{inner}</div>;
 
     return (
         <Reorder.Item
@@ -111,6 +112,7 @@ function TrackRow({ track, index, badge = null, meta = null, collection = false,
             whileDrag={{ boxShadow: "0 12px 28px rgb(0 0 0 / 0.45)", cursor: "grabbing" }}
             onClick={queue}
             onContextMenu={onContextMenu}
+            data-active={active || dragging || undefined}
             className={`select-none ${base}`}
         >
             {inner}

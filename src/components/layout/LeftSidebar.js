@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNifty } from "../../context/NiftyContext.js";
 import { artworkOrFallback } from "../../lib/format.js";
 import Icon from "../Icon.js";
-import { motion, Reorder, EASE, LoadingSwap, useEntrance, EntranceBoundary } from "../motion/index.js";
+import { motion, Reorder, EASE, LoadingSwap, EntranceBoundary } from "../motion/index.js";
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useEntityMenu } from "../menu/entityMenu.js";
 import SortDropdown from "../menu/SortDropdown.js";
@@ -154,7 +154,6 @@ function LibraryRow({ item, likedCount = 0, draggable = false, grouped = false, 
 }
 
 export default function LeftSidebar() {
-    const reveal = useEntrance(0.04, { distance: 8, fade: false });
     const { view, setView, library, reorderLibraryItem, settings, updateSettings } = useNifty();
     const modal = useModal();
 
@@ -181,7 +180,7 @@ export default function LeftSidebar() {
     };
 
     return (
-        <motion.aside {...reveal} data-panel="left" className="hidden w-[var(--left-w)] shrink-0 flex-col gap-2 md:flex">
+        <aside data-panel="left" className="hidden w-[var(--left-w)] shrink-0 flex-col gap-2 md:flex">
 
             {/* Nav card */}
             <nav className="space-y-1 rounded-lg bg-surface p-2">
@@ -247,6 +246,6 @@ export default function LeftSidebar() {
                 </EntranceBoundary>
                 </div>
             </div>
-        </motion.aside>
+        </aside>
     );
 }

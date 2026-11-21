@@ -4,7 +4,7 @@
 // consistent and new screens can opt in with a single wrapper. Built on
 // framer-motion; everything here is a thin, named convenience layer.
 //
-//   <SlideTransition transitionKey={view}>…</SlideTransition>  page/panel slide
+//   <ViewTransition transitionKey={view}>…</ViewTransition>    page/panel fade
 //   <FadeIn>…</FadeIn>                                   simple reveal
 //   useEntrance(delay)                                boundary-aware reveal
 //   <LoadingSwap loading={pending} fallback={…}>…</LoadingSwap>
@@ -53,15 +53,12 @@ export function EntranceBoundary({ children }) {
     return <EntranceContext.Provider value={true}>{children}</EntranceContext.Provider>;
 }
 
-// One source of truth for the centre view + right-sidebar panel slide, so every
-// layout enters with the same feel.
-const TRANSITION = {
-    enter: { duration: 0.32, ease: EASE },
-    riseFrom: 12   // px the foreground rises from on enter
-};
-
-// Backgrounds stay mounted outside the keyed foreground. Navigation fades
-// and raises the content once, without dimming the artwork behind it.
+// One source of truth for every entrance — the app shell on load, the centre
+// view and the right-sidebar panel on navigation. The boxes themselves never
+// move: their surfaces are simply there, and what's inside fades in once,
+// quickly. Backgrounds stay mounted outside the keyed foreground, so a
+// navigation never dims the artwork behind the content.
+const ENTER = { duration: 0.18, ease: EASE };
 
 export const variants = {
     fade: {
@@ -80,15 +77,15 @@ export const variants = {
     }
 };
 
-// Slides the foreground in on navigation. Bump `transitionKey` to switch.
+// Fades the foreground in on navigation. Bump `transitionKey` to switch.
 //
 //   backdrop          — optional layer pinned to the container (a cover-art
 //                       gradient, etc.); stays mounted independently of it.
 //   className         — on the stable outer layer; should fill the box.
-//   contentClassName  — on the inner (sliding) layer; e.g. the scroll area.
+//   contentClassName  — on the inner (fading) layer; e.g. the scroll area.
 //   layoutScroll      — set when the inner layer is the scroll container, so
 //                       framer accounts for its scroll offset during drags.
-export function SlideTransition({
+export function ViewTransition({
     transitionKey,
     backdrop = null,
     children,
@@ -104,9 +101,9 @@ export function SlideTransition({
                 key={transitionKey}
                 data-view-content
                 data-scroll-viewport={layoutScroll || undefined}
-                initial={reduceMotion ? false : { opacity: 0, y: TRANSITION.riseFrom }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={reduceMotion ? { duration: 0 } : TRANSITION.enter}
+                initial={reduceMotion ? false : { opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={reduceMotion ? { duration: 0 } : ENTER}
                 layoutScroll={layoutScroll}
                 className={`relative ${contentClassName || ""}`}
             >
@@ -259,13 +256,14 @@ export function LoadingSwap({ loading, fallback, children, className = "", conte
     );
 }
 
-// A one-shot entrance. Use the hook in components so reduced motion is
-// respected; the plain props helper remains for existing callers.
+// A one-shot entrance: a quick fade in place. Use the hook in components so
+// reduced motion is respected; the plain props helper remains for existing
+// callers. `distance` is for small pieces of content only — never a whole box.
 //
-//   <motion.div {...entrance(0.08)}>…</motion.div>
-export function entrance(delay = 0, { duration = 0.28, distance = 8, fade = true } = {}) {
+//   <motion.div {...entrance()}>…</motion.div>
+export function entrance(delay = 0, { duration = ENTER.duration, distance = 0 } = {}) {
     return {
-        initial: { opacity: fade ? 0 : 1, y: distance },
+        initial: { opacity: 0, y: distance },
         animate: { opacity: 1, y: 0 },
         transition: { duration, ease: EASE, delay }
     };

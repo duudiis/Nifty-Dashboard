@@ -5,7 +5,7 @@ import { parseEntityId } from "../../sources/ids.js";
 import Icon from "../Icon.js";
 import { CollectionSkeleton } from "../Loader.js";
 import TrackRow from "./TrackRow.js";
-import { CollectionHeader, formatCollectionDuration, TRACK_ROW_HEIGHT, TRACK_TABLE_GUTTER_CLASS, TrackTableHeader } from "./trackTable.js";
+import { CollectionHeader, formatCollectionDuration, TRACK_ACTIONS_CLASS, TRACK_ROW_HEIGHT, TRACK_TABLE_GUTTER_CLASS, TrackTableHeader } from "./trackTable.js";
 import ArtistLink from "./ArtistLink.js";
 import { LoadingSwap, Reorder } from "../motion/index.js";
 import { useDragScroll, findScroller } from "../motion/useDragScroll.js";
@@ -14,7 +14,7 @@ import { useModal } from "../modal/Modal.js";
 import { entityExternalUrl, recordCollectionQueued } from "./useEntityActions.js";
 
 // Album & playlist pages: an artwork-tinted header (the blur itself is pinned
-// by CenterContent so it can't leak during the page slide), rich meta, play/
+// by CenterContent so it can't leak during the page fade), rich meta, play/
 // save controls, then the full track list. Open-in-browser / copy-link live in
 // the right-click menu, not here.
 
@@ -187,11 +187,11 @@ function TrackList({ data, refId, kind, playUrl, initialSort, actions }) {
 
     const header = (
         <>
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-4">
+            <div className={TRACK_ACTIONS_CLASS}>
                 {actions}
                 <SortDropdown options={sortOptions} value={sort.sortBy} onChange={chooseSort} descending={sort.sortDesc} onDirectionChange={(sortDesc) => persistSort({ ...sort, sortDesc })} />
             </div>
-            <TrackTableHeader />
+            <TrackTableHeader meta={hasAddedDates ? "Date added" : null} />
         </>
     );
 
@@ -216,6 +216,7 @@ function TrackList({ data, refId, kind, playUrl, initialSort, actions }) {
             key={rowKeys.get(track)}
             track={track}
             collection
+            showAdded={hasAddedDates}
             index={range.start + i + 1}
             dragValue={reorderable ? track : null}
             dragEnabled={dragEnabled}
@@ -322,32 +323,32 @@ export default function CollectionPage({ id }) {
                             <ArtistLink
                                 name={data.subtitle}
                                 browseId={data.artistBrowseId}
-                                className="text-sm font-semibold text-maintext/90"
+                                className="text-sm font-semibold text-maintext"
                             />
                         ) : (
                             <span className="text-sm font-semibold text-maintext/90">{data.subtitle}</span>
                         )
                     )}
                     {metaBits.length > 0 && (
-                        <span className="mt-1 text-xs leading-relaxed text-maintext/70">{metaBits.join(" · ")}</span>
+                        <span className="text-[13px] leading-relaxed text-maintext/70">{metaBits.join(" · ")}</span>
                     )}
                 </CollectionHeader>
 
                 <TrackList key={id} data={data} refId={id} kind={kind} playUrl={playUrl} initialSort={sortPref} actions={
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-center gap-4">
                     <button
                         onClick={playAll}
                         disabled={!selected || (tracks.length === 0 && !playUrl)}
-                        className="flex h-12 w-12 items-center justify-center rounded-full bg-accent text-canvas shadow-lg transition hover:scale-105 hover:brightness-110 disabled:opacity-40"
+                        className="flex h-14 w-14 items-center justify-center rounded-full bg-accent text-canvas shadow-lg transition hover:scale-105 hover:brightness-110 active:scale-100 disabled:opacity-40"
                         title={`Play ${data.title}`}
                         aria-label={`Play ${data.title}`}
                     >
-                        <Icon name="play" className="ml-0.5 h-5 w-5" />
+                        <Icon name="play" className="ml-0.5 h-6 w-6" />
                     </button>
                     <button
                         onClick={queueAll}
                         disabled={!selected || (tracks.length === 0 && !playUrl)}
-                        className="flex min-h-8 items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-maintext transition-colors hover:border-subtext hover:bg-elevated disabled:opacity-40"
+                        className="flex h-9 items-center gap-2 rounded-full border border-maintext/20 px-4 text-xs font-semibold text-maintext transition-colors hover:border-maintext/50 hover:bg-maintext/[0.06] disabled:opacity-40"
                     >
                         <Icon name="enqueue" className="h-4 w-4" /> Add all to queue
                     </button>

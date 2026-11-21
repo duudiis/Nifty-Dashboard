@@ -11,7 +11,7 @@ import { useNifty } from "../../context/NiftyContext.js";
 import { parseLink } from "../../sources/links.js";
 
 export default function TopBar() {
-    const reveal = useEntrance(0, { distance: -6 });
+    const reveal = useEntrance();
     const { runSearch, setView, updateAvailable, reloadApp, openEntity, play, notify, ready, view } = useNifty();
     const router = useRouter();
     const [query, setQuery] = useState(() => (router.query.q ? String(router.query.q) : ""));

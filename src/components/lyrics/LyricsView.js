@@ -254,7 +254,7 @@ export default function LyricsView() {
 
     return (
         <div className="relative flex h-full min-h-0 flex-col overflow-hidden" style={{ containerType: "size" }}>
-            {/* the cover-art backdrop is rendered by SlideTransition (pinned, so
+            {/* the cover-art backdrop is rendered by ViewTransition (pinned, so
                 it doesn't slide with the view); only the lyric states live here */}
             <LoadingSwap loading={mode === "loading"} fallback={<LyricsSkeleton />} className="flex min-h-0 flex-1 flex-col" contentClassName="flex min-h-0 flex-1 flex-col">
                 {body}

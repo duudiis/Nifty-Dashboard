@@ -1,4 +1,4 @@
-import { COLLECTION_HEADER_CLASS, TRACK_ROW_HEIGHT, TRACK_TABLE_GUTTER_CLASS } from "./browse/trackTable.js";
+import { COLLECTION_HEADER_CLASS, TRACK_ACTIONS_CLASS, TRACK_ROW_HEIGHT, TRACK_TABLE_GUTTER_CLASS, TRACK_TABLE_HEADER_CLASS } from "./browse/trackTable.js";
 import PanelHeader from "./layout/PanelHeader.js";
 import { useRef } from "react";
 import { COLLECTION_COVER_SIZE_CLASS, DENSE_TRACK_ROW_HEIGHT, LYRIC_LINE_HEIGHT_CLASS, MUSIC_CARD_BODY_CLASS, MUSIC_CARD_CONTENT_GAP, MUSIC_CARD_HEIGHT_CLASS, MUSIC_CARD_TEXT_HEIGHT, MUSIC_CARD_WIDE_WIDTH, MUSIC_CARD_WIDTH, MUSIC_CARD_WIDTH_CLASS, MUSIC_GRID_CLASS, MUSIC_RAIL_CLASS, useSkeletonCount } from "./skeletonLayout.js";
@@ -49,12 +49,12 @@ export function TrackListSkeleton({ rows = 6, count, dense = false, rowHeight, r
     const visibleRows = useSkeletonCount(ref, { fill, minimum: count ?? rows, itemHeight: height, gap: rowGap });
     const artworkSize = dense || height <= 52 ? 36 : height === 64 ? 48 : height > TRACK_ROW_HEIGHT ? 44 : 40;
     const history = height === 76;
-    const spacing = history ? "gap-3 px-2 sm:gap-4 sm:px-3" : dense || height === TRACK_ROW_HEIGHT ? "gap-2 px-2" : "gap-3 px-2";
+    const spacing = history ? "gap-3 px-2 sm:gap-4 sm:px-3" : dense ? "gap-2 px-2" : height === TRACK_ROW_HEIGHT ? "gap-3 px-4" : "gap-3 px-2";
     return (
         <div ref={ref} role="status" aria-label={label} className={`flex w-full shrink-0 flex-col ${className}`} style={{ gap: rowGap }}>
             {Array.from({ length: visibleRows }, (_, i) => (
                 <div key={i} aria-hidden="true" data-skeleton-row className={`flex shrink-0 items-center ${spacing}`} style={{ height }}>
-                    {numbered && <div className={numbered === "compact" ? "hidden w-7 shrink-0 sm:block" : "w-8 shrink-0"} />}
+                    {numbered && <div className={numbered === "compact" ? "hidden w-7 shrink-0 sm:block" : "w-6 shrink-0"} />}
                     <Skeleton style={{ height: artworkSize, width: artworkSize }} />
                     <div className="min-w-0 flex-1">
                         <Skeleton className={`${history ? "h-10" : "h-8"} max-w-80`} style={{ width: `${[72, 88, 62, 80, 68][i % 5]}%` }} />
@@ -70,16 +70,16 @@ export function CollectionSkeleton({ className = "", queue = false, liked = fals
         <div role="status" aria-label="Loading collection" className={`w-full shrink-0 pb-8 ${className}`}>
             <div aria-hidden="true" className={COLLECTION_HEADER_CLASS}>
                 <Skeleton className={`${COLLECTION_COVER_SIZE_CLASS} !rounded-xl`} />
-                <div className="min-w-0 pb-1 sm:min-w-[200px] sm:flex-1">
+                <div className="min-w-0 pb-1 sm:min-w-[180px] sm:flex-1">
                     <Skeleton className="h-[116px] w-full max-w-[520px]" />
                 </div>
             </div>
             <div className={TRACK_TABLE_GUTTER_CLASS}>
-                <div aria-hidden="true" className="flex flex-wrap items-center justify-between gap-3 pb-4">
-                    <Skeleton className={`h-12 ${queue ? "w-12" : liked ? "w-56" : "w-[276px]"}`} />
+                <div aria-hidden="true" className={TRACK_ACTIONS_CLASS}>
+                    <Skeleton className={`h-14 ${queue ? "w-14" : liked ? "w-56" : "w-[276px]"}`} />
                     {!queue && <Skeleton className="h-8 w-[162px]" />}
                 </div>
-                <div aria-hidden="true" className="mb-1 flex h-8 items-center border-b border-border/60 px-2"><Skeleton className="h-3 w-1/3 max-w-40" /></div>
+                <div aria-hidden="true" className={TRACK_TABLE_HEADER_CLASS}><Skeleton className="h-3 w-1/3 max-w-40" /></div>
                 <TrackListSkeleton rows={9} fill />
             </div>
         </div>

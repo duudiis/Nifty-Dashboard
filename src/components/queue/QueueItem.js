@@ -5,7 +5,7 @@ import { useNifty } from "../../context/NiftyContext.js";
 import { msToClock, artworkOrFallback, addedByOf } from "../../lib/format.js";
 import Icon from "../Icon.js";
 import AddedBy from "../AddedBy.js";
-import { TRACK_ACTION_CLASS, TRACK_NUMBER_CLASS, TrackRowContent, trackRowClassName } from "../browse/trackTable.js";
+import { TRACK_ACTION_CLASS, TRACK_MENU_COLUMN_CLASS, TRACK_META_CLASS, TRACK_NUMBER_CLASS, TRACK_QUIET_ACTION_CLASS, TrackRowContent, trackRowClassName } from "../browse/trackTable.js";
 import Equalizer from "../Equalizer.js";
 import AlbumCell from "./AlbumCell.js";
 import { Reorder, EASE, motion } from "../motion/index.js";
@@ -84,6 +84,7 @@ const QueueItem = forwardRef(function QueueItem({ track, value = track, index, i
                 of a reorder animation or immediately before an exit. */}
             <motion.div
                 data-queue-row-content
+                data-active={active || dragging || undefined}
                 initial={revealOnMount && !reduceMotion ? { opacity: 0, x: 8 } : false}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: reduceMotion ? 0 : -8, transition: { duration: reduceMotion ? 0 : 0.16, ease: EASE } }}
@@ -112,13 +113,16 @@ const QueueItem = forwardRef(function QueueItem({ track, value = track, index, i
                     onClick={activate}
                     title={playPauseTitle}
                     aria-label={`${playPauseTitle} ${track.title}`}
-                    className={`relative shrink-0 overflow-hidden rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${dense ? "h-9 w-9" : "h-10 w-10"}`}
+                    className={`relative shrink-0 overflow-hidden rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${dense ? "h-9 w-9" : "h-10 w-10"}`}
                 >
                     <img src={artworkOrFallback(track.artwork)} onError={(event) => (event.currentTarget.src = artworkOrFallback(null))} className="h-full w-full object-cover" alt="" />
                     <span className="absolute inset-0 flex items-center justify-center bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                         <Icon name={playing ? "pause" : "play"} className={dense ? "h-4 w-4" : "h-5 w-5"} />
                     </span>
                 </button>}
+                metadata={!dense && (autoplay
+                    ? <span className={`${TRACK_META_CLASS} gap-1.5`}><Icon name="sparkles" className="h-4 w-4" />Autoplay</span>
+                    : <AddedBy track={track} size={20} className={TRACK_META_CLASS} />)}
                 like={dense ? (
                     <div className="relative flex h-8 w-5 shrink-0 items-center justify-center">
                         <span className={liked ? "invisible" : "group-hover:invisible group-focus-within:invisible"} title={autoplay ? "Recommended by Autoplay" : addedByOf(track).name || undefined}>
@@ -141,7 +145,7 @@ const QueueItem = forwardRef(function QueueItem({ track, value = track, index, i
                         onClick={like}
                         title={liked ? "Remove from Liked songs" : "Save to Liked songs"}
                         aria-label={liked ? `Remove ${track.title} from Liked songs` : `Save ${track.title} to Liked songs`}
-                        className={`${TRACK_ACTION_CLASS} ${liked ? "text-accent" : "text-subtext hover:text-maintext"}`}
+                        className={`${TRACK_ACTION_CLASS} ${liked ? "text-accent" : `text-subtext hover:text-maintext ${TRACK_QUIET_ACTION_CLASS}`}`}
                     >
                         <Icon name={liked ? "heart-filled" : "heart"} className="h-4 w-4" />
                     </button>
@@ -161,7 +165,7 @@ const QueueItem = forwardRef(function QueueItem({ track, value = track, index, i
                     onPointerDown={(event) => event.stopPropagation()}
                     onClick={(event) => { event.stopPropagation(); onContextMenu(event); }}
                     aria-label={`More options for ${track.title}`}
-                    className={`${TRACK_ACTION_CLASS} text-subtext hover:text-maintext`}
+                    className={`${TRACK_ACTION_CLASS} ${TRACK_MENU_COLUMN_CLASS} text-subtext hover:text-maintext ${TRACK_QUIET_ACTION_CLASS}`}
                 ><Icon name="more" className="h-4 w-4" /></button>}
             />
             </motion.div>

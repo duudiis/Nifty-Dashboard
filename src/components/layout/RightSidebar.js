@@ -1,5 +1,5 @@
 import { useNifty } from "../../context/NiftyContext.js";
-import { SlideTransition } from "../motion/index.js";
+import { ViewTransition } from "../motion/index.js";
 
 import QueueList from "../queue/QueueList.js";
 import NowPlayingPanel, { NowPlayingBackdrop } from "../NowPlayingPanel.js";
@@ -7,7 +7,7 @@ import ConnectPanel from "./ConnectPanel.js";
 import PanelHeader from "./PanelHeader.js";
 import Icon from "../Icon.js";
 
-// Each panel's header and content share one short entrance on navigation.
+// Each panel's header and content share one short fade on navigation.
 function PanelBody({ panel, onClose }) {
     if (panel === "queue") {
         return (
@@ -47,18 +47,18 @@ export default function RightSidebar() {
 
     return (
         <aside data-panel="right" className="relative hidden w-[var(--right-w)] shrink-0 flex-col overflow-hidden rounded-lg bg-surface lg:flex">
-            {/* Same slide primitive as the centre view, so panels enter with
+            {/* Same fade primitive as the centre view, so panels enter with
                 identical timing. The panel is keyed, so the old one (and the
                 Queue panel's Reorder subtree) is gone before the new one paints.
                 Each panel owns its initial loading placeholder.
                 Now playing hands its cover-art gradient to the pinned backdrop, so
-                the slide never exposes the bare surface above it.
-                The inner (sliding) layer is the scroll container:
+                the fade never exposes the bare surface above it.
+                The inner (fading) layer is the scroll container:
                   • layoutScroll — framer accounts for its scroll offset during a
                     drag, so a dragged track isn't left behind on auto-scroll.
                   • overflow-anchor:none — disable Chrome scroll anchoring, which
                     would otherwise fight framer's layout slide (scrollTop flicker). */}
-            <SlideTransition
+            <ViewTransition
                 transitionKey={panel}
                 layoutScroll
                 backdrop={panel === "nowplaying" ? <NowPlayingBackdrop /> : null}
@@ -66,7 +66,7 @@ export default function RightSidebar() {
                 contentClassName="flex min-h-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none]"
             >
                 <PanelBody panel={panel} onClose={close} />
-            </SlideTransition>
+            </ViewTransition>
         </aside>
     );
 }

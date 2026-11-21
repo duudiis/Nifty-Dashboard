@@ -319,7 +319,7 @@ function PromptSwap({ mode }) {
 }
 
 export default function Player() {
-    const reveal = useEntrance(0.15);
+    const reveal = useEntrance();
     const { player, queue, selected, sessions, control, jump, ready } = useNifty();
     const track = player?.track || null;
     const tracks = queue.tracks || [];

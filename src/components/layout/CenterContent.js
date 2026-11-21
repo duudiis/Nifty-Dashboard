@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 
 import { useNifty } from "../../context/NiftyContext.js";
-import { SlideTransition, motion } from "../motion/index.js";
+import { ViewTransition, motion } from "../motion/index.js";
 
 import SearchResults from "../search/SearchResults.js";
 import QueuePage from "../queue/QueuePage.js";
@@ -34,7 +34,7 @@ export default function CenterContent() {
         <motion.main ref={scrollRef} layoutScroll data-scroll-viewport className={`relative min-h-0 min-w-0 flex-1 rounded-lg bg-surface ${isOverlay ? "overflow-hidden" : "overflow-auto [overflow-anchor:none]"}`}>
             {/* Mount the route once, including its loading state. Data arriving
                 fades inside this same shell and never replays its entrance. */}
-            <SlideTransition
+            <ViewTransition
                 transitionKey={`${view}:${entityId || ""}`}
                 // Regular pages grow downward from a full-height column, so a
                 // page that is still loading can centre its loader in the box.
@@ -61,7 +61,7 @@ export default function CenterContent() {
                 ) : (
                     <HomeView />
                 )}
-            </SlideTransition>
+            </ViewTransition>
         </motion.main>
     );
 }

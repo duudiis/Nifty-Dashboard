@@ -3,14 +3,35 @@ import { artworkOrFallback } from "../../lib/format.js";
 import ArtistLink from "./ArtistLink.js";
 import { COLLECTION_COVER_SIZE_CLASS, DENSE_TRACK_ROW_CLASS, TRACK_ROW_HEIGHT, TRACK_ROW_CLASS } from "../skeletonLayout.js";
 
-// Keep the measured row pitch, live rows, and loading placeholders together.
-// Collections use this height to calculate their virtualized scroll window.
+// One table for playlists, Liked songs and the queue page. Everything that
+// decides its rhythm lives here, so live rows, headers and loading
+// placeholders can't drift apart:
+//
+//   page edge │ gutter │ row padding │ #  cover  title/artist … meta ♥ time ⋯
+//
+// The header block and the action bar start on the same line as the row
+// content (gutter + row padding). Collections use TRACK_ROW_HEIGHT to
+// calculate their virtualized scroll window.
 export { TRACK_ROW_HEIGHT, TRACK_ROW_CLASS };
-export const TRACK_NUMBER_CLASS = "flex w-8 shrink-0 items-center justify-center text-center text-xs tabular-nums";
-export const TRACK_DETAILS_CLASS = "flex min-w-0 flex-1 flex-col gap-0.5 leading-tight";
-export const TRACK_TABLE_GUTTER_CLASS = "px-3 sm:px-5";
-export const COLLECTION_HEADER_CLASS = "flex flex-col gap-5 px-3 pb-6 pt-8 sm:flex-row sm:flex-wrap sm:items-end sm:px-5";
-export const TRACK_ACTION_CLASS = "flex h-8 w-8 shrink-0 items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+
+// The gutter is also the size container: the optional metadata column appears
+// when the table itself is wide enough, whatever the sidebars are doing.
+export const TRACK_TABLE_GUTTER_CLASS = "px-2 sm:px-4 [container-type:inline-size]";
+export const COLLECTION_HEADER_CLASS = "flex flex-col gap-6 px-6 pb-7 pt-10 [container-type:inline-size] sm:flex-row sm:flex-wrap sm:items-end sm:px-8";
+export const TRACK_ACTIONS_CLASS = "flex flex-wrap items-center justify-between gap-4 px-4 pb-6";
+export const TRACK_TABLE_HEADER_CLASS = "mb-2 flex h-9 items-center gap-3 border-b border-maintext/10 px-4 text-[11px] font-medium uppercase tracking-[0.08em] text-subtext";
+
+export const TRACK_NUMBER_CLASS = "flex w-6 shrink-0 items-center justify-center text-center text-[13px] tabular-nums";
+export const TRACK_DETAILS_CLASS = "flex min-w-0 flex-1 flex-col gap-1 leading-tight";
+// Optional column between the title and the actions (date added, added by).
+export const TRACK_META_CLASS = "hidden w-40 shrink-0 items-center truncate text-xs text-subtext [@container_(min-width:640px)]:flex";
+export const TRACK_ACTION_CLASS = "flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+// Row actions stay out of the way until the row is hovered, focused or has
+// its menu open; touch screens (no hover) always show them.
+// The ⋯ button gives its column back to the title on a narrow table (the
+// right-click menu still has everything).
+export const TRACK_MENU_COLUMN_CLASS = "hidden [@container_(min-width:480px)]:flex";
+export const TRACK_QUIET_ACTION_CLASS = "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 group-data-[active]:opacity-100 [@media(hover:none)]:opacity-100";
 
 export function formatCollectionDuration(seconds) {
     if (!seconds) return null;
@@ -19,20 +40,32 @@ export function formatCollectionDuration(seconds) {
     return hours > 0 ? `${hours} hr ${minutes % 60} min` : `${minutes} min`;
 }
 
+// "3 days ago" for the last month, a short date after that.
+export function formatAdded(iso, now = Date.now()) {
+    const time = iso ? new Date(iso).getTime() : NaN;
+    if (Number.isNaN(time)) return "";
+    const days = Math.floor((now - time) / 86400000);
+    if (days < 1) return "Today";
+    if (days === 1) return "Yesterday";
+    if (days < 7) return `${days} days ago`;
+    if (days < 28) return `${Math.floor(days / 7)} week${days < 14 ? "" : "s"} ago`;
+    return new Date(time).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
 export function trackRowClassName({ dense = false, collection = true, active = false } = {}) {
     return `group relative flex w-full items-center rounded-md transition-colors hover:bg-elevated ${dense ? DENSE_TRACK_ROW_CLASS : collection ? TRACK_ROW_CLASS : "h-[60px] gap-3 p-2"} ${active ? "bg-elevated" : ""}`;
 }
 
 // Queue, playlists and liked songs use the same actual row structure. Only
-// their controls and the optional queue metadata differ.
+// their controls and the optional metadata column differ.
 export function TrackRowContent({ leading, artwork, title, artist, artistBrowseId, current = false, collection = true, metadata, like, duration, menu }) {
     return (
         <>
             {leading}
             {artwork}
-            <div className={TRACK_DETAILS_CLASS}>
-                <span className={`truncate text-[13px] ${collection ? "font-medium" : ""} ${current ? "text-accent" : "text-maintext"}`}>{title}</span>
-                <ArtistLink name={artist} browseId={artistBrowseId} className="text-[11px] text-subtext" />
+            <div className={collection ? TRACK_DETAILS_CLASS : "flex min-w-0 flex-1 flex-col gap-0.5 leading-tight"}>
+                <span className={`truncate ${collection ? "text-sm font-medium" : "text-[13px]"} ${current ? "text-accent" : "text-maintext"}`}>{title}</span>
+                <ArtistLink name={artist} browseId={artistBrowseId} className={collection ? "text-xs text-subtext" : "text-[11px] text-subtext"} />
             </div>
             {metadata}
             {like}
@@ -42,15 +75,16 @@ export function TrackRowContent({ leading, artwork, title, artist, artistBrowseI
     );
 }
 
-export function TrackTableHeader({ children }) {
+// `meta` names the optional metadata column ("Date added", "Added by").
+export function TrackTableHeader({ meta }) {
     return (
-        <div className="mb-1 flex h-8 items-center gap-2 border-b border-border/60 px-2 text-xs font-medium text-subtext">
+        <div className={TRACK_TABLE_HEADER_CLASS}>
             <span className={TRACK_NUMBER_CLASS}>#</span>
             <span className="min-w-0 flex-1">Title</span>
-            {children}
+            {meta && <span className={TRACK_META_CLASS}>{meta}</span>}
             <span className="w-8 shrink-0" />
             <span className="flex w-12 shrink-0 justify-end" title="Duration"><Icon name="clock" className="h-4 w-4" /><span className="sr-only">Duration</span></span>
-            <span className="w-8 shrink-0" />
+            <span className={`w-8 shrink-0 ${TRACK_MENU_COLUMN_CLASS}`} />
         </div>
     );
 }
@@ -59,18 +93,18 @@ export function CollectionHeader({ artwork, icon, eyebrow, title, children }) {
     return (
         <div className={COLLECTION_HEADER_CLASS}>
             {icon ? (
-                <span className={`flex ${COLLECTION_COVER_SIZE_CLASS} items-center justify-center rounded-xl bg-gradient-to-br from-accent to-accent/40 text-canvas shadow-2xl`}>
-                    <Icon name={icon} className="h-16 w-16" />
+                <span className={`flex ${COLLECTION_COVER_SIZE_CLASS} items-center justify-center rounded-lg bg-gradient-to-br from-accent to-accent/40 text-canvas shadow-[0_16px_48px_rgb(0_0_0/0.45)]`}>
+                    <Icon name={icon} className="h-20 w-20" />
                 </span>
             ) : (
                 <img
                     src={artworkOrFallback(artwork)}
                     onError={(event) => (event.currentTarget.src = artworkOrFallback(null))}
-                    className={`${COLLECTION_COVER_SIZE_CLASS} rounded-xl object-cover shadow-2xl ring-1 ring-white/10`}
+                    className={`${COLLECTION_COVER_SIZE_CLASS} rounded-lg object-cover shadow-[0_16px_48px_rgb(0_0_0/0.45)] ring-1 ring-white/10`}
                     alt=""
                 />
             )}
-            <div className="flex min-w-0 flex-col gap-2 pb-1 drop-shadow-sm sm:min-w-[200px] sm:flex-1">
+            <div className="flex min-w-0 flex-col gap-2.5 pb-1 drop-shadow-sm sm:min-w-[180px] sm:flex-1">
                 {eyebrow && <span className="text-xs font-semibold text-maintext/80">{eyebrow}</span>}
                 <h1 className="break-words text-3xl font-extrabold leading-[1.08] tracking-tight sm:text-4xl xl:text-5xl">{title}</h1>
                 {children}
