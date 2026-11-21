@@ -5,7 +5,8 @@ import { parseEntityId } from "../../sources/ids.js";
 import Icon from "../Icon.js";
 import { CollectionSkeleton } from "../Loader.js";
 import TrackRow from "./TrackRow.js";
-import { CollectionHeader, formatCollectionDuration, TRACK_ACTIONS_CLASS, TRACK_ROW_HEIGHT, TRACK_TABLE_GUTTER_CLASS, TrackTableHeader } from "./trackTable.js";
+import StickyBar from "./StickyBar.js";
+import { CollectionCover, CollectionHeader, formatCollectionDuration, PLAY_ACTION_CLASS, SECONDARY_ACTION_CLASS, TRACK_ACTIONS_CLASS, TRACK_ROW_HEIGHT, TRACK_TABLE_GUTTER_CLASS, TrackTableHeader } from "./trackTable.js";
 import ArtistLink from "./ArtistLink.js";
 import { LoadingSwap, Reorder } from "../motion/index.js";
 import { useDragScroll, findScroller } from "../motion/useDragScroll.js";
@@ -65,6 +66,7 @@ function sortTracks(tracks, sortBy, sortDesc) {
 const useIsoEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 const LIKED_ID = "nifty:playlist:liked";
+
 
 const ROW_H = TRACK_ROW_HEIGHT; // shared with live rows and loading placeholders
 const OVERSCAN = 12;   // rows rendered beyond the viewport on each side
@@ -248,7 +250,8 @@ function TrackList({ data, refId, kind, playUrl, initialSort, actions }) {
 }
 
 export default function CollectionPage({ id }) {
-    const { play, selected, notify, setPageArt, isSaved, toggleSaveEntity, removePlaylist, libraryRevision } = useNifty();
+    const { play, selected, notify, setPageArt, isSaved, toggleSaveEntity, removePlaylist, renamePlaylist, libraryRevision } = useNifty();
+    const actionsRef = useRef(null);
     const modal = useModal();
     const [data, setData] = useState(null);
     const [sortPref, setSortPref] = useState(null);
@@ -317,6 +320,16 @@ export default function CollectionPage({ id }) {
         if (data?.title) notify(`Now playing “${data.title}”`);
     };
 
+    // Your own playlists are renamed from their title. The page shows the new
+    // name at once and takes it back if the save fails.
+    const rename = data?.custom && !data.liked ? async (name) => {
+        const previous = data.title;
+        setData((current) => current && { ...current, title: name });
+        const saved = await renamePlaylist(id, name);
+        if (!saved) setData((current) => current && { ...current, title: previous });
+    } : undefined;
+    const cannotPlay = !selected || (tracks.length === 0 && !playUrl);
+
     const year = releaseYear(data?.releaseDate);
     const length = totalDuration(tracks);
     const metaBits = [
@@ -328,12 +341,26 @@ export default function CollectionPage({ id }) {
     return (
         <LoadingSwap loading={loading} fallback={<CollectionSkeleton liked={id === LIKED_ID} />}>
             {data?.title ? <div className="flex flex-col">
+                <StickyBar
+                    triggerRef={actionsRef}
+                    title={data.title}
+                    cover={<CollectionCover artwork={data.artwork} icon={data.liked ? "heart-filled" : null} className="h-10 w-10 rounded" iconClassName="h-4 w-4" />}
+                >
+                    <button onClick={queueAll} disabled={cannotPlay} title="Add all to queue" aria-label={`Add all of ${data.title} to the queue`} className={`h-10 w-10 ${SECONDARY_ACTION_CLASS}`}>
+                        <Icon name="enqueue" className="h-[18px] w-[18px]" />
+                    </button>
+                    <button onClick={playAll} disabled={cannotPlay} title={`Play ${data.title}`} aria-label={`Play ${data.title}`} className={`h-10 w-10 ${PLAY_ACTION_CLASS}`}>
+                        <Icon name="play" className="ml-0.5 h-[18px] w-[18px]" />
+                    </button>
+                </StickyBar>
+
                 {/* header — the artwork blur behind it is pinned by CenterContent */}
                 <CollectionHeader
                     artwork={data.artwork}
                     icon={data.liked ? "heart-filled" : null}
                     eyebrow={data.liked ? "Your collection" : kind === "album" ? "Album" : "Playlist"}
                     title={data.title}
+                    onRename={rename}
                 >
                     {data.subtitle && (
                         kind === "album" ? (
@@ -352,11 +379,11 @@ export default function CollectionPage({ id }) {
                 </CollectionHeader>
 
                 <TrackList key={id} data={data} refId={id} kind={kind} playUrl={playUrl} initialSort={sortPref} actions={
-                <div className="flex flex-wrap items-center gap-4">
+                <div ref={actionsRef} className="flex flex-wrap items-center gap-4">
                     <button
                         onClick={playAll}
-                        disabled={!selected || (tracks.length === 0 && !playUrl)}
-                        className="flex h-14 w-14 items-center justify-center rounded-full bg-accent text-canvas shadow-lg transition hover:scale-105 hover:brightness-110 active:scale-100 disabled:opacity-40"
+                        disabled={cannotPlay}
+                        className={`h-14 w-14 ${PLAY_ACTION_CLASS}`}
                         title={`Play ${data.title}`}
                         aria-label={`Play ${data.title}`}
                     >
@@ -364,10 +391,12 @@ export default function CollectionPage({ id }) {
                     </button>
                     <button
                         onClick={queueAll}
-                        disabled={!selected || (tracks.length === 0 && !playUrl)}
-                        className="flex h-9 items-center gap-2 rounded-full border border-maintext/20 px-4 text-xs font-semibold text-maintext transition-colors hover:border-maintext/50 hover:bg-maintext/[0.06] disabled:opacity-40"
+                        disabled={cannotPlay}
+                        title="Add all to queue"
+                        aria-label={`Add all of ${data.title} to the queue`}
+                        className={`h-14 w-14 ${SECONDARY_ACTION_CLASS}`}
                     >
-                        <Icon name="enqueue" className="h-4 w-4" /> Add all to queue
+                        <Icon name="enqueue" className="h-6 w-6" />
                     </button>
                     {!data.custom && !data.liked && (
                         <button

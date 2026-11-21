@@ -1040,6 +1040,16 @@ export async function reorderLikedTracks(userId, orderedTrackIds) {
 }
 
 /** Deletes one of the user's own playlists (tracks + shelf entry cascade). */
+/** Renames one of the user's own playlists. */
+export async function renamePlaylist(userId, playlistId, name) {
+    const { rows } = await db.query(
+        `UPDATE playlists SET name = $3 WHERE id = $1 AND owner_id = $2 RETURNING id, name`,
+        [playlistId, userId, name]
+    );
+    if (!rows[0]) throw new Error("Not your playlist.");
+    return rows[0];
+}
+
 export async function deletePlaylist(userId, playlistId) {
     const { rows } = await db.query(
         `DELETE FROM playlists WHERE id = $1 AND owner_id = $2 RETURNING name`,

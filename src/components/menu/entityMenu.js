@@ -53,12 +53,11 @@ export function useEntityMenu() {
 
             const playlistChildren = [
                 {
-                    label: "New playlist…",
-                    icon: "enqueue",
+                    // Named after what it is made from; rename it on its page.
+                    label: "New playlist",
+                    icon: "plus",
                     onClick: async () => {
-                        const name = window.prompt("Name your new playlist:", item.title || "My playlist");
-                        if (!name?.trim()) return;
-                        const playlist = await createPlaylist(name.trim());
+                        const playlist = await createPlaylist(item.title);
                         if (playlist) addAllTo(playlist);
                     }
                 },

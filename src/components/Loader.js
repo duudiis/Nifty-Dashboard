@@ -76,7 +76,7 @@ export function CollectionSkeleton({ className = "", queue = false, liked = fals
             </div>
             <div className={TRACK_TABLE_GUTTER_CLASS}>
                 <div aria-hidden="true" className={TRACK_ACTIONS_CLASS}>
-                    <Skeleton className={`h-14 ${queue ? "w-14" : liked ? "w-56" : "w-[276px]"}`} />
+                    <Skeleton className={`h-14 ${queue ? "w-14" : liked ? "w-32" : "w-[184px]"}`} />
                     {!queue && <Skeleton className="h-8 w-[162px]" />}
                 </div>
                 <div aria-hidden="true" className={TRACK_TABLE_HEADER_CLASS}><Skeleton className="h-3 w-1/3 max-w-40" /></div>

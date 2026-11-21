@@ -14,6 +14,7 @@ import AboutPage from "./AboutPage.js";
 import AccountPage from "./AccountPage.js";
 import AppearancePage from "./AppearancePage.js";
 import ConnectionsPage from "./ConnectionsPage.js";
+import PlaybackPage from "./PlaybackPage.js";
 import { FOCUS, HAIRLINE } from "./primitives.js";
 
 const GROUPS = [
@@ -28,6 +29,7 @@ const GROUPS = [
         label: "App settings",
         tabs: [
             { id: "appearance", label: "Appearance", icon: "palette", Page: AppearancePage },
+            { id: "playback", label: "Playback", icon: "music", Page: PlaybackPage },
             { id: "about", label: "About", icon: "info", Page: AboutPage }
         ]
     }

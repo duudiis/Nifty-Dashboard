@@ -9,6 +9,7 @@ import { ModalProvider } from "../components/modal/Modal.js";
 import TopBar from "../components/layout/TopBar.js";
 import Panels from "../components/layout/Panels.js";
 import Player from "../components/player/Player.js";
+import MediaKeys from "../components/player/MediaKeys.js";
 import NotificationStack from "../components/NotificationStack.js";
 import ReloadCurtain from "../components/ReloadCurtain.js";
 
@@ -86,6 +87,7 @@ export default function Dashboard({ user, inviteUrl }) {
                     </div>
 
                     <ReloadCurtain />
+                    <MediaKeys />
                 </div>
             </ContextMenuProvider>
             </ModalProvider>

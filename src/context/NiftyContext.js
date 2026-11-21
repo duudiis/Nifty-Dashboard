@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 
 import { buildEntityId, parseEntityId } from "../sources/ids.js";
 import { trackRow } from "../lib/trackShape.js";
+import { nextPlaylistName } from "../lib/playlistName.js";
 import { anchorPlayer, applyPlayerControl, progressAt, mergeAutoplay, matchesSession } from "../lib/playbackState.js";
 
 const NiftyContext = createContext(null);
@@ -69,7 +70,8 @@ const CUSTOM_EXTRA_VARS = ["--c-accent-soft", "--c-lyric", "--c-scrim", "--app-g
 
 const DEFAULT_SETTINGS = {
     theme: "nifty",
-    rightPanel: "queue"     // "queue" | "nowplaying"
+    rightPanel: "queue",    // "queue" | "nowplaying"
+    mediaKeys: true         // system media controls drive the bot (player/MediaKeys.js)
 };
 
 function loadSettings() {
@@ -431,7 +433,10 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         }
     }, [notify, refreshLibrary]);
 
+    // Without a name the playlist is called "Playlist #N"; it can be renamed
+    // from its page.
     const createPlaylist = useCallback(async (name) => {
+        name = name?.trim() || nextPlaylistName(libraryRef.current.playlists.map((playlist) => playlist.name));
         try {
             const res = await fetch("/api/library", {
                 method: "POST",
@@ -470,6 +475,25 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
             notify(`Couldn't add to “${playlist.name}”`);
         }
     }, [notify]);
+
+    const renamePlaylist = useCallback(async (browseId, name) => {
+        const playlistId = parseEntityId(browseId)?.id;
+        if (!playlistId || playlistId === "liked" || !name?.trim()) return null;
+        try {
+            const res = await fetch("/api/library", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "rename_playlist", playlistId, name: name.trim() })
+            });
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.message);
+            refreshLibrary();
+            return json.playlist;
+        } catch {
+            notify("Couldn't rename the playlist");
+            return null;
+        }
+    }, [notify, refreshLibrary]);
 
     const removePlaylist = useCallback(async (item) => {
         const playlistId = parseEntityId(item?.browseId)?.id;
@@ -1137,6 +1161,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
         isSaved,
         toggleSaveEntity,
         createPlaylist,
+        renamePlaylist,
         addToPlaylist,
         removePlaylist,
         reorderLibraryItem,

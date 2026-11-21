@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import Icon from "../Icon.js";
 import { artworkOrFallback } from "../../lib/format.js";
 import ArtistLink from "./ArtistLink.js";
@@ -20,6 +22,12 @@ export const TRACK_TABLE_GUTTER_CLASS = "px-2 sm:px-4 [container-type:inline-siz
 export const COLLECTION_HEADER_CLASS = "flex flex-col gap-6 px-6 pb-7 pt-10 [container-type:inline-size] sm:flex-row sm:flex-wrap sm:items-end sm:px-8";
 export const TRACK_ACTIONS_CLASS = "flex flex-wrap items-center justify-between gap-4 px-4 pb-6";
 export const TRACK_TABLE_HEADER_CLASS = "mb-2 flex h-9 items-center gap-3 border-b border-maintext/10 px-4 text-[11px] font-medium uppercase tracking-[0.08em] text-subtext";
+
+// The round actions above a table (size them with h-/w- at the call site).
+// The secondary one has an opaque surface of its own, so it reads on any
+// cover-art backdrop.
+export const PLAY_ACTION_CLASS = "flex shrink-0 items-center justify-center rounded-full bg-accent text-canvas shadow-lg transition hover:scale-105 hover:brightness-110 active:scale-100 disabled:opacity-40";
+export const SECONDARY_ACTION_CLASS = "flex shrink-0 items-center justify-center rounded-full bg-elevated text-maintext shadow-lg ring-1 ring-maintext/10 transition hover:scale-105 hover:brightness-125 active:scale-100 disabled:opacity-40";
 
 export const TRACK_NUMBER_CLASS = "flex w-6 shrink-0 items-center justify-center text-center text-[13px] tabular-nums";
 export const TRACK_DETAILS_CLASS = "flex min-w-0 flex-1 flex-col gap-1 leading-tight";
@@ -89,24 +97,85 @@ export function TrackTableHeader({ meta }) {
     );
 }
 
-export function CollectionHeader({ artwork, icon, eyebrow, title, children }) {
+// The collection's cover at any size: its artwork, or an accent tile with an
+// icon for the ones that have none (Liked songs, the queue).
+export function CollectionCover({ artwork, icon, className = "", iconClassName = "h-20 w-20" }) {
+    if (icon) {
+        return (
+            <span className={`flex shrink-0 items-center justify-center bg-gradient-to-br from-accent to-accent/40 text-canvas ${className}`}>
+                <Icon name={icon} className={iconClassName} />
+            </span>
+        );
+    }
+    return (
+        <img
+            src={artworkOrFallback(artwork)}
+            onError={(event) => (event.currentTarget.src = artworkOrFallback(null))}
+            className={`shrink-0 object-cover ${className}`}
+            alt=""
+        />
+    );
+}
+
+const COLLECTION_TITLE_CLASS = "break-words text-3xl font-extrabold leading-[1.08] tracking-tight sm:text-4xl xl:text-5xl";
+
+// The page title. With `onRename` (your own playlists) clicking it turns it
+// into a field: Enter or clicking away saves, Escape cancels.
+function CollectionTitle({ title, onRename }) {
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState(title);
+
+    if (!onRename) return <h1 className={COLLECTION_TITLE_CLASS}>{title}</h1>;
+
+    const commit = () => {
+        setEditing(false);
+        const name = draft.trim();
+        if (name && name !== title) onRename(name);
+    };
+
+    if (editing) {
+        return (
+            <input
+                autoFocus
+                value={draft}
+                maxLength={100}
+                aria-label="Playlist name"
+                onChange={(event) => setDraft(event.target.value)}
+                onFocus={(event) => event.target.select()}
+                onBlur={commit}
+                onKeyDown={(event) => {
+                    if (event.key === "Enter") event.currentTarget.blur();
+                    if (event.key === "Escape") { event.stopPropagation(); setEditing(false); }
+                }}
+                className={`${COLLECTION_TITLE_CLASS} -mx-2 w-[calc(100%+1rem)] rounded-md bg-maintext/10 px-2 text-maintext outline-none ring-1 ring-maintext/20 focus:ring-accent`}
+            />
+        );
+    }
+    return (
+        <h1 className={COLLECTION_TITLE_CLASS}>
+            <button
+                type="button"
+                title="Rename"
+                onClick={() => { setDraft(title); setEditing(true); }}
+                className="-mx-2 rounded-md px-2 text-left transition-colors hover:bg-maintext/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+                {title}
+            </button>
+        </h1>
+    );
+}
+
+export function CollectionHeader({ artwork, icon, eyebrow, title, onRename, children }) {
     return (
         <div className={COLLECTION_HEADER_CLASS}>
-            {icon ? (
-                <span className={`flex ${COLLECTION_COVER_SIZE_CLASS} items-center justify-center rounded-lg bg-gradient-to-br from-accent to-accent/40 text-canvas shadow-[0_16px_48px_rgb(0_0_0/0.45)]`}>
-                    <Icon name={icon} className="h-20 w-20" />
-                </span>
-            ) : (
-                <img
-                    src={artworkOrFallback(artwork)}
-                    onError={(event) => (event.currentTarget.src = artworkOrFallback(null))}
-                    className={`${COLLECTION_COVER_SIZE_CLASS} rounded-lg object-cover shadow-[0_16px_48px_rgb(0_0_0/0.45)] ring-1 ring-white/10`}
-                    alt=""
-                />
-            )}
+            <CollectionCover
+                artwork={artwork}
+                icon={icon}
+                className={`${COLLECTION_COVER_SIZE_CLASS} rounded-lg shadow-[0_16px_48px_rgb(0_0_0/0.45)] ${icon ? "" : "ring-1 ring-white/10"}`}
+            />
             <div className="flex min-w-0 flex-col gap-2.5 pb-1 drop-shadow-sm sm:min-w-[180px] sm:flex-1">
                 {eyebrow && <span className="text-xs font-semibold text-maintext/80">{eyebrow}</span>}
-                <h1 className="break-words text-3xl font-extrabold leading-[1.08] tracking-tight sm:text-4xl xl:text-5xl">{title}</h1>
+                <CollectionTitle key={title} title={title} onRename={onRename} />
                 {children}
             </div>
         </div>

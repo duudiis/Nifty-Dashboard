@@ -186,6 +186,10 @@ const ICONS = {
         )
     },
     "chevron-down": { body: <path d="m6 9.5 6 6 6-6" /> },
+    // Sort controls: hand-ordered, ascending, descending.
+    "sort-custom": { body: <path d="m21 16-4 4-4-4M17 20V4M3 8l4-4 4 4M7 4v16" /> },
+    "sort-asc": { body: <path d="m3 8 4-4 4 4M7 4v16M11 12h4M11 16h7M11 20h10" /> },
+    "sort-desc": { body: <path d="m3 16 4 4 4-4M7 20V4M11 4h10M11 8h7M11 12h4" /> },
     user: {
         body: (
             <>

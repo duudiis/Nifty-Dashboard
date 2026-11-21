@@ -6,6 +6,9 @@ import { AnimatePresence, motion, EASE } from "../motion/index.js";
 
 // A button-anchored picker shared by collection pages and the library. The
 // portal keeps the menu clear of panel overflow and draggable list transforms.
+// The trigger's glyph shows the state at a glance: crossed arrows for a
+// hand-made order, rising or falling bars for a sorted one.
+const MENU_WIDTH = 224; // w-56
 export default function SortDropdown({ options, value, onChange, label = "Sort by", compact = false, descending, onDirectionChange }) {
     const [open, setOpen] = useState(false);
     const [position, setPosition] = useState(null);
@@ -19,7 +22,7 @@ export default function SortDropdown({ options, value, onChange, label = "Sort b
         const place = () => {
             const rect = trigger.current?.getBoundingClientRect();
             if (!rect) return;
-            setPosition({ top: rect.bottom + 6, left: Math.max(8, Math.min(rect.right - 208, window.innerWidth - 216)), maxHeight: Math.max(120, window.innerHeight - rect.bottom - 14) });
+            setPosition({ top: rect.bottom + 6, left: Math.max(8, Math.min(rect.right - MENU_WIDTH, window.innerWidth - MENU_WIDTH - 8)), maxHeight: Math.max(120, window.innerHeight - rect.bottom - 14) });
         };
         const dismiss = (event) => {
             if (!trigger.current?.contains(event.target) && !menu.current?.contains(event.target)) setOpen(false);
@@ -80,11 +83,10 @@ export default function SortDropdown({ options, value, onChange, label = "Sort b
                 onKeyDown={(event) => {
                     if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setOpen(true); }
                 }}
-                className={`flex h-8 shrink-0 items-center justify-center gap-2 rounded-md text-subtext transition-colors hover:bg-elevated hover:text-maintext focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${compact ? "w-8" : "px-2 text-xs font-medium"} ${open ? "bg-elevated text-maintext" : ""}`}
+                className={`flex h-8 shrink-0 items-center justify-center gap-2 rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${compact ? "w-8" : "text-xs font-medium"} ${open ? "text-maintext" : "text-subtext hover:text-maintext"}`}
             >
-                <Icon name="sort" className="h-4 w-4" />
                 {!compact && <span>{current?.label || "Custom order"}</span>}
-                {!compact && <Icon name="chevron-down" className={`h-3.5 w-3.5 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />}
+                <Icon name={value === "custom" ? "sort-custom" : descending ? "sort-desc" : "sort-asc"} className="h-4 w-4" />
             </button>
             {typeof document !== "undefined" && createPortal(
                 <AnimatePresence>
@@ -100,9 +102,9 @@ export default function SortDropdown({ options, value, onChange, label = "Sort b
                             exit={{ opacity: 0, y: -3, scale: 0.98 }}
                             transition={{ duration: 0.16, ease: EASE }}
                             style={{ ...position, transformOrigin: "top right" }}
-                            className="fixed z-[65] w-52 space-y-1 overflow-y-auto rounded-lg border border-border bg-elevated p-1 shadow-2xl"
+                            className="fixed z-[65] w-56 space-y-0.5 overflow-y-auto rounded-xl border border-border bg-elevated p-2 shadow-2xl"
                         >
-                            <div className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-subtext">{label}</div>
+                            <div className="px-3 pb-2 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-subtext">{label}</div>
                             {options.map((option) => {
                                 const selected = value === option.id;
                                 const direction = selected && option.id !== "custom" && !!onDirectionChange;
@@ -116,11 +118,11 @@ export default function SortDropdown({ options, value, onChange, label = "Sort b
                                         aria-label={direction ? `${option.label}, ${descending ? "descending" : "ascending"}` : option.label}
                                         title={direction ? `Sort ${descending ? "ascending" : "descending"}` : undefined}
                                         onClick={() => select(option.id)}
-                                        className={`flex min-h-8 w-full items-center gap-2.5 rounded-md px-2.5 py-1 text-left text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent ${selected ? "bg-accent/10 text-accent hover:bg-accent/20" : "text-maintext hover:bg-maintext/10 focus-visible:bg-maintext/10"}`}
+                                        className={`flex min-h-9 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-xs transition-colors hover:bg-maintext/[0.07] focus-visible:bg-maintext/[0.07] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-accent ${selected ? "font-medium text-accent" : "text-maintext"}`}
                                     >
-                                        {option.icon && <Icon name={option.icon} className="h-4 w-4" />}
+                                        {option.icon && <Icon name={option.icon} className={`h-3.5 w-3.5 ${selected ? "" : "text-subtext"}`} />}
                                         <span className="flex-1">{option.label}</span>
-                                        {selected && <Icon name={direction ? (descending ? "arrow-down" : "arrow-up") : "check"} className="h-3.5 w-3.5" />}
+                                        {selected && <Icon name={direction ? (descending ? "sort-desc" : "sort-asc") : "check"} className="h-3.5 w-3.5" />}
                                     </button>
                                 );
                             })}

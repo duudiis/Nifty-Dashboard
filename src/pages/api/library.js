@@ -11,6 +11,7 @@ import {
     listLibrary,
     getLibraryState,
     createPlaylist,
+    renamePlaylist,
     deletePlaylist,
     addTracksToPlaylist,
     reorderLibrary,
@@ -31,6 +32,7 @@ import { parseLink, externalUrl } from "../../sources/links.js";
 //   POST { action: "save"|"unsave", entity }
 //   POST { action: "like"|"unlike", track }
 //   POST { action: "create_playlist", name }
+//   POST { action: "rename_playlist", playlistId, name }
 //   POST { action: "add_to_playlist", playlistId, tracks: [...] }
 //   POST { action: "reorder", itemId, toIndex }
 
@@ -114,6 +116,16 @@ export default async function handler(req, res) {
             }
             await ensureUser(user);
             const playlist = await createPlaylist(user.id, name);
+            return res.status(200).json({ playlist });
+        }
+
+        if (action === "rename_playlist") {
+            const playlistId = String(req.body.playlistId || "");
+            const name = String(req.body.name || "").trim().slice(0, 100);
+            if (!playlistId || !name) {
+                return res.status(400).json({ message: "A playlist needs a name." });
+            }
+            const playlist = await renamePlaylist(user.id, playlistId, name);
             return res.status(200).json({ playlist });
         }
 

@@ -7,8 +7,7 @@ import { motion, Reorder, EASE, LoadingSwap, EntranceBoundary } from "../motion/
 import { useContextMenu } from "../menu/ContextMenu.js";
 import { useEntityMenu } from "../menu/entityMenu.js";
 import SortDropdown from "../menu/SortDropdown.js";
-import { useModal } from "../modal/Modal.js";
-import Loader, { TrackListSkeleton } from "../Loader.js";
+import { TrackListSkeleton } from "../Loader.js";
 
 const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
@@ -35,38 +34,6 @@ function NavButton({ active, onClick, icon, label }) {
             {icon}
             {label}
         </button>
-    );
-}
-
-function CreatePlaylistForm({ close }) {
-    const { createPlaylist, openEntity } = useNifty();
-    const [name, setName] = useState("");
-    const [saving, setSaving] = useState(false);
-    const [error, setError] = useState(false);
-    const submit = async (event) => {
-        event.preventDefault();
-        if (!name.trim() || saving) return;
-        setSaving(true);
-        setError(false);
-        const playlist = await createPlaylist(name.trim());
-        setSaving(false);
-        if (!playlist) { setError(true); return; }
-        close();
-        openEntity("playlist", `nifty:playlist:${playlist.id}`);
-    };
-    return (
-        <form onSubmit={submit} className="flex flex-col gap-5">
-            <p className="text-sm leading-relaxed text-subtext">A place for your next favorite songs.</p>
-            <label className="flex flex-col gap-2 text-xs font-semibold text-maintext">
-                Playlist name
-                <input autoFocus required maxLength={100} value={name} onChange={(event) => setName(event.target.value)} placeholder="Give it a name" className="h-12 rounded-lg border border-border bg-elevated px-3 text-sm font-normal text-maintext outline-none placeholder:text-subtext focus:border-accent" />
-            </label>
-            {error && <p role="alert" className="text-xs text-subtext">Couldn&apos;t create your playlist. Please try again.</p>}
-            <div className="flex items-center justify-end gap-3">
-                <button type="button" onClick={() => close()} className="min-h-10 rounded-full px-4 text-sm font-semibold text-subtext hover:text-maintext">Cancel</button>
-                <button type="submit" disabled={!name.trim() || saving} className="flex min-h-10 items-center gap-2 rounded-full bg-accent px-5 text-sm font-bold text-canvas transition hover:brightness-110 disabled:opacity-40">{saving ? <Loader size="sm" delay={0} className="text-canvas" /> : <Icon name="plus" className="h-4 w-4" />}Create</button>
-            </div>
-        </form>
     );
 }
 
@@ -154,8 +121,17 @@ function LibraryRow({ item, likedCount = 0, draggable = false, grouped = false, 
 }
 
 export default function LeftSidebar() {
-    const { view, setView, library, reorderLibraryItem, settings, updateSettings } = useNifty();
-    const modal = useModal();
+    const { view, setView, library, reorderLibraryItem, settings, updateSettings, createPlaylist, openEntity } = useNifty();
+
+    // One click makes "Playlist #N" and opens it; its title is editable there.
+    const creating = useRef(false);
+    const newPlaylist = async () => {
+        if (creating.current) return;
+        creating.current = true;
+        const playlist = await createPlaylist();
+        creating.current = false;
+        if (playlist) openEntity("playlist", `nifty:playlist:${playlist.id}`);
+    };
 
     const sort = settings.librarySort || "custom";
     const descending = settings.librarySortDesc ?? (sort === "recent");
@@ -211,12 +187,12 @@ export default function LeftSidebar() {
                     <span className="min-w-0 truncate">Your library</span>
                     <div className="ml-auto flex items-center gap-1">
                         <button
-                            onClick={() => modal.open({ title: "Create playlist", size: "sm", render: ({ close }) => <CreatePlaylistForm close={close} /> })}
+                            onClick={newPlaylist}
                             title="Create a playlist"
                             aria-label="Create a playlist"
-                            className="flex h-9 w-9 items-center justify-center text-subtext transition-colors hover:text-maintext"
+                            className="flex h-7 w-7 items-center justify-center rounded-full bg-accent text-canvas transition hover:scale-105 hover:brightness-110 active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
                         >
-                            <Icon name="playlist-add" className="h-5 w-5" />
+                            <Icon name="plus" className="h-4 w-4" strokeWidth={2.5} />
                         </button>
                     </div>
                 </div>
