@@ -88,20 +88,17 @@ export function requestSessionsFromBot(bot) {
 /**
  * Route a control action to one bot: by botId when the client sent one,
  * falling back to the guild's last-known owner, then to broadcast (bots that
- * aren't addressed simply no-op).
+ * aren't addressed simply no-op). Returns whether any bot socket was there to
+ * receive it.
  */
 export function routeAction(botId, guildId, data) {
-    const byId = botId ? botsById.get(String(botId)) : null;
-    if (byId) {
-        byId.send("action", data);
-        return;
+    const target = (botId ? botsById.get(String(botId)) : null) || guildOwners.get(String(guildId));
+    if (target) {
+        target.send("action", data);
+        return true;
     }
-    const owner = guildOwners.get(String(guildId));
-    if (owner) {
-        owner.send("action", data);
-    } else {
-        broadcastToBots("action", data);
-    }
+    broadcastToBots("action", data);
+    return bots.size > 0;
 }
 
 /** Ask every connected bot which sessions a user can control. */

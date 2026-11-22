@@ -62,6 +62,28 @@ The dashboard relays two peer types on `/ws`:
    DASHBOARD_BOT_NAME=Nifty
    ```
 
+## Assistant API
+
+For a trusted service that isn't a browser (a voice assistant, say) to do what a
+logged-in user can. Off until `ASSISTANT_TOKEN` is set; callers send
+`Authorization: Bearer <ASSISTANT_TOKEN>`. Code: `src/assistant/`.
+
+| Endpoint | What it does |
+|----------|--------------|
+| `GET /assistant/state?guildId=…[&botId=…]` | the server's player and queue, and which bot serves it |
+| `POST /assistant/action` | one control action, as JSON: `{ guildId, userId, action, botId?, …args }` — the same actions and arguments the UI sends, attributed to `userId` |
+| `GET /assistant/search?query=…` | the dashboard's search; use an item's `playQuery` (or `url`) as the `query` of a `play` action |
+
+Ids are numeric **strings**. Actions are fire-and-forget (`delivered` only says a
+bot socket was there to receive it) — read the state again to see the result.
+
+```bash
+curl -s -H "Authorization: Bearer $ASSISTANT_TOKEN" "https://your-host/assistant/state?guildId=GUILD"
+curl -s -X POST -H "Authorization: Bearer $ASSISTANT_TOKEN" -H "Content-Type: application/json" \
+  -d '{"guildId":"GUILD","userId":"USER","action":"play","query":"Numb Linkin Park"}' \
+  https://your-host/assistant/action
+```
+
 ## Run
 
 ```bash

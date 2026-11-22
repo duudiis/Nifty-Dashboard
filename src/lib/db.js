@@ -139,6 +139,18 @@ export async function getQueue(botId, guildId) {
 
 }
 
+/**
+ * Every bot instance that has a player row for a guild — how a caller that
+ * only knows the guild (the assistant API) finds the bot serving it.
+ */
+export async function listGuildPlayers(guildId) {
+    const { rows } = await db.query(
+        `SELECT bot_id, track_loaded FROM players WHERE guild_id = $1`,
+        [guildId]
+    );
+    return rows.map((row) => ({ botId: String(row.bot_id), trackLoaded: !!row.track_loaded }));
+}
+
 /* ===================== library & recents (dashboard-owned) ===================== */
 
 /**

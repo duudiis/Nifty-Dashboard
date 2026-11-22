@@ -3,6 +3,7 @@ import { parse } from "url";
 import next from "next";
 import { WebSocketServer } from "ws";
 
+import { ASSISTANT_PREFIX, handleAssistant } from "./assistant/index.js";
 import Connection from "./ws/Connection.js";
 import { emitToUser } from "./ws/registry.js";
 import { onSyncImported, startAutoSync } from "./connect/syncJobs.js";
@@ -20,6 +21,9 @@ const handle = app.getRequestHandler();
 app.prepare().then(() => {
 
     const server = http.createServer((req, res) => {
+        // The assistant API is answered here, not by Next: it needs this
+        // process's live bot sockets (see src/assistant/http.js).
+        if (req.url.startsWith(ASSISTANT_PREFIX)) return handleAssistant(req, res);
         handle(req, res, parse(req.url, true));
     });
 
