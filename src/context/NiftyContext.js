@@ -5,6 +5,7 @@ import { buildEntityId, parseEntityId } from "../sources/ids.js";
 import { trackRow } from "../lib/trackShape.js";
 import { nextPlaylistName } from "../lib/playlistName.js";
 import { anchorPlayer, applyPlayerControl, progressAt, mergeAutoplay, matchesSession } from "../lib/playbackState.js";
+import { applyQueueDelta, slotPosition } from "../lib/queueDeltas.js";
 
 const NiftyContext = createContext(null);
 const useBeforePaint = typeof window === "undefined" ? useEffect : useLayoutEffect;
@@ -92,13 +93,6 @@ const OVERLAY_VIEWS = ["lyrics", "watch"];
 // Entity pages take a second path segment: /<kind>/<id>.
 const ENTITY_VIEWS = ["album", "playlist", "artist"];
 const pathForView = (v) => (v === "home" ? "/" : `/${v}`);
-
-// After any structural queue delta, a track's id is its array position (the
-// same contract as a full fetch). Rewrites track_id to match, preserving object
-// identity for rows that didn't move so memoized rows don't re-render.
-function reindexQueue(arr) {
-    return arr.map((t, i) => (t.track_id === i ? t : { ...t, track_id: i }));
-}
 
 // The autoplay section: the bot's recommendation buffer ("Next from:
 // Autoplay") plus whether autoplay is on. Rides inside the queue state so a
@@ -220,6 +214,16 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     const controlTimer = useRef(null);
     const resyncTimer = useRef(null);
     const fetchStateRef = useRef(() => {});
+
+    // Re-read the queue from the database shortly. Debounced, so a burst of
+    // deltas that can't be applied locally costs one read, not one each.
+    const resyncQueue = useCallback(() => {
+        const session = revisions.current.session;
+        clearTimeout(resyncTimer.current);
+        resyncTimer.current = setTimeout(() => {
+            if (session === revisions.current.session) fetchStateRef.current("queue");
+        }, 150);
+    }, []);
 
     const receivePlayer = useCallback((snapshot) => {
         clearTimeout(idleTimer.current);
@@ -729,49 +733,32 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
                             // cursor locally, we missed a queue delta — resync it.
                             const local = queueRef.current;
                             if (local.tracks.length > 0) {
-                                const at = local.tracks[d.position];
+                                const at = local.tracks.find((t) => t.track_id === d.position);
                                 if (!at || at.songUrl !== track.songUrl) fetchState("queue");
                             }
                         }
                         break;
                     }
 
-                    case "q_add": {
-                        const { at, cursor, tracks } = message.data || {};
-                        if (!Array.isArray(tracks) || tracks.length === 0) break;
-                        const mapped = tracks.map((r) => ({
-                            track_id: r.position,
-                            ...(r.id != null ? { entry_id: String(r.id) } : {}),
-                            ...trackRow(r)
-                        }));
-                        setQueue((prev) => {
-                            const arr = [...prev.tracks];
-                            const idx = Math.min(Math.max(at ?? arr.length, 0), arr.length);
-                            arr.splice(idx, 0, ...mapped);
-                            return { ...prev, tracks: reindexQueue(arr), position: typeof cursor === "number" ? cursor : prev.position };
-                        });
-                        break;
-                    }
-
-                    case "q_remove": {
-                        const { at, count, cursor } = message.data || {};
-                        setQueue((prev) => {
-                            const arr = [...prev.tracks];
-                            arr.splice(at, count || 1);
-                            return { ...prev, tracks: reindexQueue(arr), position: typeof cursor === "number" ? cursor : prev.position };
-                        });
-                        break;
-                    }
-
+                    // Applied in place when they fit the local queue; when one
+                    // doesn't (see lib/queueDeltas.js) the queue is re-read.
+                    case "q_add":
+                    case "q_remove":
                     case "q_move": {
-                        const { from, to, cursor } = message.data || {};
+                        const data = { ...(message.data || {}) };
+                        if (message.operation === "q_add") {
+                            if (!Array.isArray(data.tracks) || data.tracks.length === 0) break;
+                            data.tracks = data.tracks.map((r) => ({
+                                track_id: r.position,
+                                ...(r.id != null ? { entry_id: String(r.id) } : {}),
+                                ...trackRow(r)
+                            }));
+                        }
                         setQueue((prev) => {
-                            const arr = [...prev.tracks];
-                            if (from < 0 || from >= arr.length) return prev;
-                            const [moved] = arr.splice(from, 1);
-                            const dest = Math.min(Math.max(to, 0), arr.length);
-                            arr.splice(dest, 0, moved);
-                            return { ...prev, tracks: reindexQueue(arr), position: typeof cursor === "number" ? cursor : prev.position };
+                            const next = applyQueueDelta(prev, message.operation, data);
+                            if (next) return next;
+                            resyncQueue();
+                            return prev;
                         });
                         break;
                     }
@@ -1036,7 +1023,7 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     const autoplayPlay = useCallback((autoId) => control("autoplayPlay", { autoId }), [control]);
     const autoplayPlayNext = useCallback((autoId) => control("autoplayPlayNext", { autoId }), [control]);
     const autoplayQueue = useCallback((autoId, toIndex) => control("autoplayQueue", {
-        autoId, ...(Number.isInteger(toIndex) ? { toIndex } : {})
+        autoId, ...(Number.isInteger(toIndex) ? { toIndex: slotPosition(queueRef.current?.tracks || [], toIndex) } : {})
     }), [control]);
 
     const jump = useCallback((trackId) => control("jump", addressEntry(trackId)), [control, addressEntry]);
@@ -1047,7 +1034,10 @@ export function NiftyProvider({ user, inviteUrl = null, children }) {
     // Move to last: bot moves the entry to the end of the queue.
     const moveToLast = useCallback((trackId) => control("moveToLast", addressEntry(trackId)), [control, addressEntry]);
     // Drag-reorder: move the entry at `trackId` (its current index) to `toIndex`.
-    const moveTrack = useCallback((trackId, toIndex) => control("move", { ...addressEntry(trackId), toIndex }), [control, addressEntry]);
+    // `toIndex` is a slot in the list; the bot wants the position held there.
+    const moveTrack = useCallback((trackId, toIndex) => control("move", {
+        ...addressEntry(trackId), toIndex: slotPosition(queueRef.current?.tracks || [], toIndex)
+    }), [control, addressEntry]);
     const removeTrack = useCallback((trackId) => control("remove", addressEntry(trackId)), [control, addressEntry]);
 
     // The actual fetch. `initiatedRef` guards against running the same query
